@@ -1,86 +1,162 @@
 import 'package:flutter/material.dart';
 
-class PlanoraTheme {
-  static const primary = Color(0xFF4F46F5);
-  static const primarySoft = Color(0xFF7C73FF);
-  static const primaryLight = Color(0xFFEDEBFF);
+abstract final class PlanoraTheme {
+  // Main brand colors
+  static const Color primary = Color(0xFF4B3CFA);
+  static const Color primarySoft = Color(0xFF7A6CFF);
+  static const Color primaryLight = Color(0xFFEDEBFF);
 
-  static const lightBgTop = Color(0xFFFFFFFF);
-  static const lightBgBottom = Color(0xFFF3F6FF);
-  static const lightText = Color(0xFF080B3A);
-  static const lightMuted = Color(0xFF5F6680);
+  // Light mode colors
+  static const Color background = Color(0xFFFAFBFF);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFF070B3F);
+  static const Color textSecondary = Color(0xFF62677B);
+  static const Color border = Color(0xFFE6E8F2);
 
-  static const darkBgTop = Color(0xFF080B20);
-  static const darkBgBottom = Color(0xFF111735);
-  static const darkText = Color(0xFFF7F7FF);
-  static const darkMuted = Color(0xFFB5B9D6);
+  // Dark mode colors
+  static const Color darkBackground = Color(0xFF070B1F);
+  static const Color darkSurface = Color(0xFF11142A);
+  static const Color darkTextPrimary = Color(0xFFFFFFFF);
+  static const Color darkTextSecondary = Color(0xFFB8BCD2);
 
-  static const screenPadding = 28.0;
-  static const buttonHeight = 58.0;
-  static const buttonRadius = 20.0;
+  static const LinearGradient primaryGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primarySoft, primary],
+  );
 
-  static ThemeData light = ThemeData(
+  static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
-    scaffoldBackgroundColor: lightBgTop,
+    scaffoldBackgroundColor: background,
+
     colorScheme: const ColorScheme.light(
       primary: primary,
       secondary: primarySoft,
-      surface: lightBgTop,
-      onSurface: lightText,
+      surface: surface,
+      error: Color(0xFFE53935),
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+      onSurface: textPrimary,
+      onError: Colors.white,
     ),
+
+    appBarTheme: const AppBarTheme(
+      backgroundColor: background,
+      elevation: 0,
+      centerTitle: true,
+      iconTheme: IconThemeData(color: textPrimary),
+      titleTextStyle: TextStyle(
+        color: textPrimary,
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+
     textTheme: const TextTheme(
-      displayLarge: TextStyle(
-        fontSize: 48,
+      headlineLarge: TextStyle(
+        color: textPrimary,
+        fontSize: 34,
         fontWeight: FontWeight.w800,
-        color: lightText,
-        letterSpacing: -1.4,
+        height: 1.15,
+      ),
+      headlineMedium: TextStyle(
+        color: textPrimary,
+        fontSize: 28,
+        fontWeight: FontWeight.w800,
+        height: 1.2,
+      ),
+      titleLarge: TextStyle(
+        color: textPrimary,
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
       ),
       bodyLarge: TextStyle(
-        fontSize: 20,
+        color: textPrimary,
+        fontSize: 16,
         fontWeight: FontWeight.w500,
-        color: lightMuted,
-        height: 1.45,
-        letterSpacing: 0.4,
       ),
       bodyMedium: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: lightMuted,
-        letterSpacing: 0.5,
+        color: textSecondary,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(double.infinity, 56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+      ),
+    ),
+
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      hintStyle: const TextStyle(
+        color: textSecondary,
+        fontWeight: FontWeight.w500,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: primary, width: 1.4),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFE53935)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFE53935), width: 1.4),
       ),
     ),
   );
 
-  static ThemeData dark = ThemeData(
+  static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: darkBgTop,
+    scaffoldBackgroundColor: darkBackground,
+
     colorScheme: const ColorScheme.dark(
       primary: primarySoft,
       secondary: primary,
-      surface: darkBgBottom,
-      onSurface: darkText,
+      surface: darkSurface,
+      error: Color(0xFFFF6B6B),
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+      onSurface: darkTextPrimary,
+      onError: Colors.white,
     ),
-    textTheme: const TextTheme(
-      displayLarge: TextStyle(
-        fontSize: 48,
-        fontWeight: FontWeight.w800,
-        color: darkText,
-        letterSpacing: -1.4,
-      ),
-      bodyLarge: TextStyle(
+
+    appBarTheme: const AppBarTheme(
+      backgroundColor: darkBackground,
+      elevation: 0,
+      centerTitle: true,
+      iconTheme: IconThemeData(color: darkTextPrimary),
+      titleTextStyle: TextStyle(
+        color: darkTextPrimary,
         fontSize: 20,
-        fontWeight: FontWeight.w500,
-        color: darkMuted,
-        height: 1.45,
-        letterSpacing: 0.4,
+        fontWeight: FontWeight.w700,
       ),
-      bodyMedium: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
-        color: darkMuted,
-        letterSpacing: 0.5,
+    ),
+
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primarySoft,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        minimumSize: const Size(double.infinity, 56),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
     ),
   );

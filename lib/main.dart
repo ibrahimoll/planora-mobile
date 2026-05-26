@@ -1,28 +1,23 @@
 import 'package:flutter/material.dart';
-import 'core/theme/planora_theme.dart';
-import 'features/onboarding/onboarding_screen.dart';
+import 'package:mobile/core/theme/planora_theme.dart';
+import 'package:mobile/features/onboarding/onboarding_screen.dart';
 
 void main() {
-  runApp(PlanoraApp());
+  runApp(const PlanoraApp());
 }
 
-class PlanoraApp extends StatefulWidget {
+class PlanoraApp extends StatelessWidget {
   const PlanoraApp({super.key});
 
-  @override
-  State<PlanoraApp> createState() => PlanoraState();
-}
-
-class PlanoraState extends State<PlanoraApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Planora',
       debugShowCheckedModeBanner: false,
-      theme: PlanoraTheme.light,
-      darkTheme: PlanoraTheme.dark,
-      themeMode: ThemeMode.system,
-      home: OnboardingScreen(),
+      theme: PlanoraTheme.lightTheme,
+      darkTheme: PlanoraTheme.darkTheme,
+      themeMode: ThemeMode.light,
+      home: const OnboardingScreen(),
     );
   }
 }
