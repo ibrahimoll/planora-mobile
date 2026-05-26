@@ -42,11 +42,12 @@ class OnboardingScreen extends StatelessWidget {
                         const SizedBox(height: 18),
                         Text(
                           'Planora uses AI to help you plan projects, manage tasks, predict risks, and deliver results — on time, every time.',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 16,
-                            height: 1.65,
-                            color: PlanoraTheme.textSecondary,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                fontSize: 16,
+                                height: 1.65,
+                                color: PlanoraTheme.textSecondary,
+                              ),
                         ),
                         SizedBox(height: isCompactHeight ? 20 : 34),
                         _OnboardIllustration(compact: isCompactHeight),
@@ -185,7 +186,7 @@ class _OnboardIllustration extends StatelessWidget {
           ),
           Positioned(
             top: compact ? 28 : 40,
-            left: 132,
+            left: 10,
             right: 54,
             child: Container(
               height: compact ? 98 : 116,
@@ -204,7 +205,7 @@ class _OnboardIllustration extends StatelessWidget {
           ),
           Positioned(
             top: compact ? 50 : 72,
-            left: 92,
+            left: 9,
             right: 36,
             child: _MainGlassCard(compact: compact),
           ),
