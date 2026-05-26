@@ -410,30 +410,12 @@ class _SparkleCluster extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            top: 0,
+            bottom: 30,
             left: 0,
             child: Icon(
-              Icons.auto_awesome_rounded,
+              Icons.auto_awesome_sharp,
               color: PlanoraTheme.primaryPurple.withValues(alpha: 0.82),
               size: 42,
-            ),
-          ),
-          Positioned(
-            top: 35,
-            left: 35,
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              color: PlanoraTheme.softViolet.withValues(alpha: 0.76),
-              size: 20,
-            ),
-          ),
-          Positioned(
-            bottom: 4,
-            left: 16,
-            child: Icon(
-              Icons.auto_awesome_rounded,
-              color: PlanoraTheme.primaryPurple.withValues(alpha: 0.62),
-              size: 18,
             ),
           ),
         ],
