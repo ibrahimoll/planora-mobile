@@ -79,7 +79,6 @@ class _BrandHeader extends StatelessWidget {
           height: 46,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradient,
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
