@@ -35,6 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^8.1.0
+  getwidget: ^7.0.2
+  slideable: ^0.0.3
+  wave: ^0.2.2
+  animated_bottom_navigation_bar: ^1.4.0
+  lottie: ^3.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
