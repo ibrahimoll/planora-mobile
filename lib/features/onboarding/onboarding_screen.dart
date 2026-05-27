@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-
 import '../../core/theme/planora_theme.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -18,7 +16,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       highlightedText: 'smarter.',
       description:
           'Planora helps you plan projects, manage tasks, predict risks, and deliver successful results with the power of AI.',
-      lottieAsset: 'assets/lottie/onboarding_1.json',
+      imageAsset: 'assets/images/onboarding_1.png',
     ),
     _OnboardingPageData(
       title: 'Break work\ninto clear tasks.',
@@ -212,10 +210,7 @@ class _OnboardingPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 30),
-          _OnboardingVisual(
-            imageAsset: data.imageAsset,
-            lottieAsset: data.lottieAsset,
-          ),
+          _OnboardingVisual(imageAsset: data.imageAsset),
           const SizedBox(height: 24),
         ],
       ),
@@ -286,33 +281,15 @@ class _AiPill extends StatelessWidget {
 
 class _OnboardingVisual extends StatelessWidget {
   final String? imageAsset;
-  final String? lottieAsset;
 
-  const _OnboardingVisual({this.imageAsset, this.lottieAsset});
+  const _OnboardingVisual({this.imageAsset});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: 250,
       child: Center(
-        child: lottieAsset != null
-            ? Container(
-                width: 330,
-                height: 250,
-                alignment: Alignment.center,
-                child: Lottie.asset(
-                  lottieAsset!,
-                  width: 330,
-                  height: 250,
-                  fit: BoxFit.contain,
-                  repeat: true,
-                  animate: true,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const _FallbackVisual();
-                  },
-                ),
-              )
-            : imageAsset == null
+        child: imageAsset == null
             ? const _FallbackVisual()
             : Image.asset(imageAsset!, width: 320, fit: BoxFit.contain),
       ),
@@ -386,13 +363,11 @@ class _OnboardingPageData {
   final String highlightedText;
   final String description;
   final String? imageAsset;
-  final String? lottieAsset;
 
   const _OnboardingPageData({
     required this.title,
     required this.highlightedText,
     required this.description,
     this.imageAsset,
-    this.lottieAsset,
   });
 }
