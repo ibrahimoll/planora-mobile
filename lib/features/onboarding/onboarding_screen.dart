@@ -104,76 +104,89 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: PlanoraTheme.onboardingBackground,
-        ),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: PageView.builder(
-                        controller: _pageController,
-                        itemCount: _pages.length,
-                        onPageChanged: (index) {
-                          setState(() => _currentPage = index);
-                        },
-                        itemBuilder: (context, index) {
-                          final page = _pages[index];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final metrics = _ResponsiveMetrics.from(context, constraints);
 
-                          if (page.type == _OnboardingPageType.intro) {
-                            return _IntroOnboardingPage(data: page);
-                          }
+        return Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: PlanoraTheme.onboardingBackground,
+            ),
+            child: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: metrics.maxContentWidth),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.horizontalPadding,
+                    ),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: PageView.builder(
+                            controller: _pageController,
+                            itemCount: _pages.length,
+                            onPageChanged: (index) {
+                              setState(() => _currentPage = index);
+                            },
+                            itemBuilder: (context, index) {
+                              final page = _pages[index];
 
-                          return _ImageOnboardingPage(
-                            data: page,
-                            showSkip: page.type == _OnboardingPageType.feature,
-                            onSkip: _skipOnboarding,
-                          );
-                        },
-                      ),
-                    ),
-                    OnboardingPageDot(
-                      controller: _pageController,
-                      count: _pages.length,
-                    ),
-                    const SizedBox(height: 28),
-                    DecoratedBox(
-                      decoration: const BoxDecoration(
-                        gradient: PlanoraTheme.primaryGradient,
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                        boxShadow: PlanoraTheme.floatingShadow,
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _goToNextPage,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
+                              if (page.type == _OnboardingPageType.intro) {
+                                return _IntroOnboardingPage(
+                                  data: page,
+                                  metrics: metrics,
+                                );
+                              }
+
+                              return _ImageOnboardingPage(
+                                data: page,
+                                metrics: metrics,
+                                showSkip:
+                                    page.type == _OnboardingPageType.feature,
+                                onSkip: _skipOnboarding,
+                              );
+                            },
+                          ),
                         ),
-                        child: Text(_primaryButtonLabel),
-                      ),
+                        OnboardingPageDot(
+                          controller: _pageController,
+                          count: _pages.length,
+                        ),
+                        SizedBox(height: metrics.dotsToButtonGap),
+                        DecoratedBox(
+                          decoration: const BoxDecoration(
+                            gradient: PlanoraTheme.primaryGradient,
+                            borderRadius: BorderRadius.all(Radius.circular(20)),
+                            boxShadow: PlanoraTheme.floatingShadow,
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _goToNextPage,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                            ),
+                            child: Text(_primaryButtonLabel),
+                          ),
+                        ),
+                        if (_showSecondaryButton) ...[
+                          SizedBox(height: metrics.buttonGap),
+                          OutlinedButton(
+                            onPressed: _goToSignIn,
+                            child: Text(_secondaryButtonLabel),
+                          ),
+                        ],
+                        SizedBox(height: metrics.bottomGap),
+                      ],
                     ),
-                    if (_showSecondaryButton) ...[
-                      const SizedBox(height: 14),
-                      OutlinedButton(
-                        onPressed: _goToSignIn,
-                        child: Text(_secondaryButtonLabel),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -215,8 +228,9 @@ class OnboardingPageDot extends StatelessWidget {
 
 class _IntroOnboardingPage extends StatelessWidget {
   final _OnboardingPageData data;
+  final _ResponsiveMetrics metrics;
 
-  const _IntroOnboardingPage({required this.data});
+  const _IntroOnboardingPage({required this.data, required this.metrics});
 
   @override
   Widget build(BuildContext context) {
@@ -224,38 +238,46 @@ class _IntroOnboardingPage extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       child: Column(
         children: [
-          const SizedBox(height: 44),
-          Image.asset('assets/images/planora_logo.png', width: 76, height: 76),
-          const SizedBox(height: 14),
+          SizedBox(height: metrics.introTopGap),
+          Image.asset(
+            'assets/images/planora_logo.png',
+            width: metrics.logoSize,
+            height: metrics.logoSize,
+          ),
+          SizedBox(height: metrics.logoToTitleGap),
           Text(
             'Planora',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  fontSize: 38,
+                  fontSize: metrics.brandTitleSize,
                   fontWeight: FontWeight.w800,
                   color: PlanoraTheme.textPrimary,
                 ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: metrics.titleToPillGap),
           const _AiPill(),
-          const SizedBox(height: 22),
-          _HeroTitle(title: data.title, highlightedText: data.highlightedText),
-          const SizedBox(height: 16),
+          SizedBox(height: metrics.pillToHeroGap),
+          _HeroTitle(
+            title: data.title,
+            highlightedText: data.highlightedText,
+            fontSize: metrics.heroTitleSize,
+          ),
+          SizedBox(height: metrics.heroToDescriptionGap),
           Text(
             data.description,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 15,
+                  fontSize: metrics.descriptionSize,
                   height: 1.55,
                   color: PlanoraTheme.textSecondary,
                 ),
           ),
-          const SizedBox(height: 26),
+          SizedBox(height: metrics.descriptionToIntroImageGap),
           _OnboardingImage(
             assetPath: data.imageAsset,
-            height: 285,
-            width: 380,
+            height: metrics.introImageHeight,
+            width: metrics.introImageWidth,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: metrics.pageBottomPadding),
         ],
       ),
     );
@@ -264,11 +286,13 @@ class _IntroOnboardingPage extends StatelessWidget {
 
 class _ImageOnboardingPage extends StatelessWidget {
   final _OnboardingPageData data;
+  final _ResponsiveMetrics metrics;
   final bool showSkip;
   final VoidCallback onSkip;
 
   const _ImageOnboardingPage({
     required this.data,
+    required this.metrics,
     required this.showSkip,
     required this.onSkip,
   });
@@ -279,7 +303,7 @@ class _ImageOnboardingPage extends StatelessWidget {
 
     return Column(
       children: [
-        const SizedBox(height: 18),
+        SizedBox(height: metrics.featureTopGap),
         SizedBox(
           height: 34,
           child: Align(
@@ -298,7 +322,7 @@ class _ImageOnboardingPage extends StatelessWidget {
                 : const SizedBox.shrink(),
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: metrics.skipToImageGap),
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -306,31 +330,40 @@ class _ImageOnboardingPage extends StatelessWidget {
               children: [
                 _OnboardingImage(
                   assetPath: data.imageAsset,
-                  height: isFinal ? 330 : 250,
+                  height: isFinal
+                      ? metrics.finalImageHeight
+                      : metrics.featureImageHeight,
+                  width: isFinal
+                      ? metrics.finalImageWidth
+                      : metrics.featureImageWidth,
                 ),
-                SizedBox(height: isFinal ? 38 : 48),
-                _IconBadge(icon: data.icon),
-                const SizedBox(height: 26),
+                SizedBox(
+                  height: isFinal
+                      ? metrics.finalImageToIconGap
+                      : metrics.featureImageToIconGap,
+                ),
+                _IconBadge(icon: data.icon, size: metrics.iconBadgeSize),
+                SizedBox(height: metrics.iconToTitleGap),
                 Text(
                   data.title,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontSize: 21,
+                        fontSize: metrics.sectionTitleSize,
                         fontWeight: FontWeight.w800,
                         color: PlanoraTheme.textPrimary,
                       ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: metrics.sectionTitleToDescriptionGap),
                 Text(
                   data.description,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 15,
+                        fontSize: metrics.descriptionSize,
                         height: 1.55,
                         color: PlanoraTheme.textSecondary,
                       ),
                 ),
-                const SizedBox(height: 28),
+                SizedBox(height: metrics.pageBottomPadding),
               ],
             ),
           ),
@@ -348,13 +381,14 @@ class _OnboardingImage extends StatelessWidget {
   const _OnboardingImage({
     required this.assetPath,
     required this.height,
-    this.width = 330,
+    required this.width,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: height,
+      width: width,
       child: Center(
         child: Image.asset(
           assetPath,
@@ -419,14 +453,19 @@ class _MissingImagePlaceholder extends StatelessWidget {
 class _HeroTitle extends StatelessWidget {
   final String title;
   final String highlightedText;
+  final double fontSize;
 
-  const _HeroTitle({required this.title, required this.highlightedText});
+  const _HeroTitle({
+    required this.title,
+    required this.highlightedText,
+    required this.fontSize,
+  });
 
   @override
   Widget build(BuildContext context) {
     final parts = title.split(highlightedText);
     final baseStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
-          fontSize: 33,
+          fontSize: fontSize,
           fontWeight: FontWeight.w800,
           height: 1.1,
           color: PlanoraTheme.textPrimary,
@@ -479,19 +518,141 @@ class _AiPill extends StatelessWidget {
 
 class _IconBadge extends StatelessWidget {
   final IconData icon;
+  final double size;
 
-  const _IconBadge({required this.icon});
+  const _IconBadge({required this.icon, required this.size});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 58,
-      height: 58,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: PlanoraTheme.primaryLight,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(size * .31),
       ),
-      child: Icon(icon, color: PlanoraTheme.primaryPurple, size: 28),
+      child: Icon(icon, color: PlanoraTheme.primaryPurple, size: size * .48),
+    );
+  }
+}
+
+class _ResponsiveMetrics {
+  final double maxContentWidth;
+  final double horizontalPadding;
+  final double introTopGap;
+  final double logoSize;
+  final double logoToTitleGap;
+  final double brandTitleSize;
+  final double titleToPillGap;
+  final double pillToHeroGap;
+  final double heroTitleSize;
+  final double heroToDescriptionGap;
+  final double descriptionSize;
+  final double descriptionToIntroImageGap;
+  final double introImageHeight;
+  final double introImageWidth;
+  final double featureTopGap;
+  final double skipToImageGap;
+  final double featureImageHeight;
+  final double featureImageWidth;
+  final double finalImageHeight;
+  final double finalImageWidth;
+  final double featureImageToIconGap;
+  final double finalImageToIconGap;
+  final double iconBadgeSize;
+  final double iconToTitleGap;
+  final double sectionTitleSize;
+  final double sectionTitleToDescriptionGap;
+  final double pageBottomPadding;
+  final double dotsToButtonGap;
+  final double buttonGap;
+  final double bottomGap;
+
+  const _ResponsiveMetrics({
+    required this.maxContentWidth,
+    required this.horizontalPadding,
+    required this.introTopGap,
+    required this.logoSize,
+    required this.logoToTitleGap,
+    required this.brandTitleSize,
+    required this.titleToPillGap,
+    required this.pillToHeroGap,
+    required this.heroTitleSize,
+    required this.heroToDescriptionGap,
+    required this.descriptionSize,
+    required this.descriptionToIntroImageGap,
+    required this.introImageHeight,
+    required this.introImageWidth,
+    required this.featureTopGap,
+    required this.skipToImageGap,
+    required this.featureImageHeight,
+    required this.featureImageWidth,
+    required this.finalImageHeight,
+    required this.finalImageWidth,
+    required this.featureImageToIconGap,
+    required this.finalImageToIconGap,
+    required this.iconBadgeSize,
+    required this.iconToTitleGap,
+    required this.sectionTitleSize,
+    required this.sectionTitleToDescriptionGap,
+    required this.pageBottomPadding,
+    required this.dotsToButtonGap,
+    required this.buttonGap,
+    required this.bottomGap,
+  });
+
+  factory _ResponsiveMetrics.from(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    final size = MediaQuery.sizeOf(context);
+    final shortestSide = size.shortestSide;
+    final height = constraints.maxHeight.isFinite
+        ? constraints.maxHeight
+        : size.height;
+    final width = constraints.maxWidth.isFinite ? constraints.maxWidth : size.width;
+    final compactHeight = height < 720;
+    final tinyHeight = height < 640;
+    final narrowWidth = width < 360;
+    final effectiveWidth = width.clamp(0.0, 430.0).toDouble();
+    final imageSafeWidth = (effectiveWidth - (narrowWidth ? 32.0 : 20.0))
+        .clamp(260.0, 390.0)
+        .toDouble();
+    final tabletLike = shortestSide >= 600;
+
+    return _ResponsiveMetrics(
+      maxContentWidth: tabletLike ? 460 : 430,
+      horizontalPadding: narrowWidth ? 20 : 28,
+      introTopGap: tinyHeight ? 22 : (compactHeight ? 30 : 44),
+      logoSize: tinyHeight ? 62 : (compactHeight ? 68 : 76),
+      logoToTitleGap: compactHeight ? 10 : 14,
+      brandTitleSize: narrowWidth ? 34 : 38,
+      titleToPillGap: compactHeight ? 10 : 14,
+      pillToHeroGap: compactHeight ? 16 : 22,
+      heroTitleSize: narrowWidth ? 29 : (compactHeight ? 31 : 33),
+      heroToDescriptionGap: compactHeight ? 12 : 16,
+      descriptionSize: narrowWidth ? 14 : 15,
+      descriptionToIntroImageGap: tinyHeight ? 18 : (compactHeight ? 22 : 26),
+      introImageHeight: (height * (compactHeight ? .27 : .32))
+          .clamp(220.0, 300.0)
+          .toDouble(),
+      introImageWidth: imageSafeWidth,
+      featureTopGap: tinyHeight ? 8 : 18,
+      skipToImageGap: tinyHeight ? 8 : 20,
+      featureImageHeight: (height * .30).clamp(200.0, 255.0).toDouble(),
+      featureImageWidth: imageSafeWidth,
+      finalImageHeight: (height * .38).clamp(250.0, 330.0).toDouble(),
+      finalImageWidth: imageSafeWidth,
+      featureImageToIconGap: tinyHeight ? 24 : (compactHeight ? 34 : 48),
+      finalImageToIconGap: tinyHeight ? 24 : (compactHeight ? 30 : 38),
+      iconBadgeSize: tinyHeight ? 52 : 58,
+      iconToTitleGap: compactHeight ? 18 : 26,
+      sectionTitleSize: narrowWidth ? 19 : 21,
+      sectionTitleToDescriptionGap: compactHeight ? 10 : 14,
+      pageBottomPadding: compactHeight ? 18 : 28,
+      dotsToButtonGap: compactHeight ? 18 : 28,
+      buttonGap: compactHeight ? 10 : 14,
+      bottomGap: compactHeight ? 12 : 20,
     );
   }
 }
