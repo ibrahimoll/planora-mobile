@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/planora_theme.dart';
 
-class Herotitle extends StatelessWidget {
+class HeroTitle extends StatelessWidget {
   final String title;
   final String highlightedText;
   final double fontSize;
 
-  const Herotitle({
+  const HeroTitle({
     super.key,
     required this.title,
     required this.highlightedText,

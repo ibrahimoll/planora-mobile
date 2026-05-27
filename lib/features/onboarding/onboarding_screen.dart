@@ -141,13 +141,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               final page = onboardingPages[index];
 
                               if (page.type == OnboardingPageType.intro) {
-                                return _IntroOnboardingPage(
+                                return IntroOnboardingPage(
                                   data: page,
                                   metrics: metrics,
                                 );
                               }
 
-                              return _ImageOnboardingPage(
+                              return ImageOnboardingPage(
                                 data: page,
                                 metrics: metrics,
                                 showSkip:
