@@ -24,21 +24,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Let AI break down your ideas into clear plans, smart tasks, and realistic timelines in seconds.',
       icon: Icons.auto_awesome_rounded,
-      visualType: _OnboardingVisualType.projectPlan,
+      visualType: _FeatureVisualType.projectPlan,
     ),
     _OnboardingPageData.feature(
       title: 'Collaborate Effortlessly',
       description:
           'Work together in real-time. Assign tasks, share files, comment, and keep everyone on the same page.',
       icon: Icons.groups_rounded,
-      visualType: _OnboardingVisualType.teamWorkspace,
+      visualType: _FeatureVisualType.teamWorkspace,
     ),
-    _OnboardingPageData.feature(
-      title: 'Track & Predict',
+    _OnboardingPageData.finalPage(
+      title: 'Ready to Achieve More?',
       description:
-          'Track progress, get AI insights, and predict risks before they become problems.',
-      icon: Icons.trending_up_rounded,
-      visualType: _OnboardingVisualType.progressRisk,
+          'Join thousands of teams and professionals who plan smarter and deliver better with Planora.',
+      icon: Icons.rocket_launch_rounded,
     ),
   ];
 
@@ -47,6 +46,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool get _isFirstPage => _currentPage == 0;
   bool get _isLastPage => _currentPage == _pages.length - 1;
+  bool get _isFinalPage => _pages[_currentPage].isFinal;
+
+  String get _primaryButtonLabel {
+    if (_isFirstPage) return 'Get Started';
+    if (_isFinalPage) return 'Create Account';
+    return 'Next';
+  }
+
+  String get _secondaryButtonLabel {
+    if (_isFinalPage) return 'I Already Have an Account';
+    return 'Sign In';
+  }
+
+  bool get _showSecondaryButton => _isFirstPage || _isFinalPage;
 
   @override
   void dispose() {
@@ -66,7 +79,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Auth screen coming next')));
+    ).showSnackBar(const SnackBar(content: Text('Create account coming next')));
   }
 
   void _goToSignIn() {
@@ -108,13 +121,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         itemBuilder: (context, index) {
                           final page = _pages[index];
 
-                          return page.isIntro
-                              ? _IntroOnboardingPage(data: page)
-                              : _FeatureOnboardingPage(
-                                  data: page,
-                                  showSkip: index != _pages.length - 1,
-                                  onSkip: _skipOnboarding,
-                                );
+                          if (page.isIntro) {
+                            return _IntroOnboardingPage(data: page);
+                          }
+
+                          if (page.isFinal) {
+                            return _FinalOnboardingPage(data: page);
+                          }
+
+                          return _FeatureOnboardingPage(
+                            data: page,
+                            onSkip: _skipOnboarding,
+                          );
                         },
                       ),
                     ),
@@ -135,20 +153,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                         ),
-                        child: Text(
-                          _isFirstPage
-                              ? 'Get Started'
-                              : _isLastPage
-                              ? 'Start Planning'
-                              : 'Next',
-                        ),
+                        child: Text(_primaryButtonLabel),
                       ),
                     ),
-                    if (_isFirstPage) ...[
+                    if (_showSecondaryButton) ...[
                       const SizedBox(height: 14),
                       OutlinedButton(
                         onPressed: _goToSignIn,
-                        child: const Text('Sign In'),
+                        child: Text(_secondaryButtonLabel),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -215,10 +227,10 @@ class _IntroOnboardingPage extends StatelessWidget {
           Text(
             'Planora',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-              fontSize: 38,
-              fontWeight: FontWeight.w800,
-              color: PlanoraTheme.textPrimary,
-            ),
+                  fontSize: 38,
+                  fontWeight: FontWeight.w800,
+                  color: PlanoraTheme.textPrimary,
+                ),
           ),
           const SizedBox(height: 14),
           const _AiPill(),
@@ -229,10 +241,10 @@ class _IntroOnboardingPage extends StatelessWidget {
             data.description,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontSize: 15,
-              height: 1.55,
-              color: PlanoraTheme.textSecondary,
-            ),
+                  fontSize: 15,
+                  height: 1.55,
+                  color: PlanoraTheme.textSecondary,
+                ),
           ),
           const SizedBox(height: 32),
           SizedBox(
@@ -254,12 +266,10 @@ class _IntroOnboardingPage extends StatelessWidget {
 
 class _FeatureOnboardingPage extends StatelessWidget {
   final _OnboardingPageData data;
-  final bool showSkip;
   final VoidCallback onSkip;
 
   const _FeatureOnboardingPage({
     required this.data,
-    required this.showSkip,
     required this.onSkip,
   });
 
@@ -272,18 +282,16 @@ class _FeatureOnboardingPage extends StatelessWidget {
           height: 34,
           child: Align(
             alignment: Alignment.centerRight,
-            child: showSkip
-                ? TextButton(
-                    onPressed: onSkip,
-                    style: TextButton.styleFrom(
-                      foregroundColor: PlanoraTheme.textSecondary,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: const Size(0, 34),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('Skip'),
-                  )
-                : const SizedBox.shrink(),
+            child: TextButton(
+              onPressed: onSkip,
+              style: TextButton.styleFrom(
+                foregroundColor: PlanoraTheme.textSecondary,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 34),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Skip'),
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -300,20 +308,20 @@ class _FeatureOnboardingPage extends StatelessWidget {
                   data.title,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    color: PlanoraTheme.textPrimary,
-                  ),
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: PlanoraTheme.textPrimary,
+                      ),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   data.description,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontSize: 15,
-                    height: 1.55,
-                    color: PlanoraTheme.textSecondary,
-                  ),
+                        fontSize: 15,
+                        height: 1.55,
+                        color: PlanoraTheme.textSecondary,
+                      ),
                 ),
                 const SizedBox(height: 28),
               ],
@@ -321,6 +329,48 @@ class _FeatureOnboardingPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FinalOnboardingPage extends StatelessWidget {
+  final _OnboardingPageData data;
+
+  const _FinalOnboardingPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        children: [
+          const SizedBox(height: 52),
+          const _RocketVisual(),
+          const SizedBox(height: 38),
+          _IconBadge(icon: data.icon),
+          const SizedBox(height: 26),
+          Text(
+            data.title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  color: PlanoraTheme.textPrimary,
+                ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            data.description,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: 15,
+                  height: 1.55,
+                  color: PlanoraTheme.textSecondary,
+                ),
+          ),
+          const SizedBox(height: 28),
+        ],
+      ),
     );
   }
 }
@@ -335,11 +385,11 @@ class _HeroTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final parts = title.split(highlightedText);
     final baseStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
-      fontSize: 33,
-      fontWeight: FontWeight.w800,
-      height: 1.1,
-      color: PlanoraTheme.textPrimary,
-    );
+          fontSize: 33,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
+          color: PlanoraTheme.textPrimary,
+        );
 
     if (parts.length != 2) {
       return Text(title, textAlign: TextAlign.center, style: baseStyle);
@@ -376,18 +426,18 @@ class _AiPill extends StatelessWidget {
       child: Text(
         'AI-POWERED PROJECT PLANNING',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: .5,
-          color: PlanoraTheme.textSecondary,
-        ),
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .5,
+              color: PlanoraTheme.textSecondary,
+            ),
       ),
     );
   }
 }
 
 class _FeatureVisual extends StatelessWidget {
-  final _OnboardingVisualType type;
+  final _FeatureVisualType type;
 
   const _FeatureVisual({required this.type});
 
@@ -409,9 +459,8 @@ class _FeatureVisual extends StatelessWidget {
             ),
           ),
           switch (type) {
-            _OnboardingVisualType.projectPlan => const _ProjectPlanVisual(),
-            _OnboardingVisualType.teamWorkspace => const _TeamWorkspaceVisual(),
-            _OnboardingVisualType.progressRisk => const _ProgressRiskVisual(),
+            _FeatureVisualType.projectPlan => const _ProjectPlanVisual(),
+            _FeatureVisualType.teamWorkspace => const _TeamWorkspaceVisual(),
           },
         ],
       ),
@@ -424,47 +473,56 @@ class _ProjectPlanVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        const _FloatingIcon(
-          top: 8,
-          right: -8,
-          icon: Icons.auto_awesome_rounded,
-        ),
-        _GlassCard(
-          width: 260,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _CardTitle('Project Plan'),
-              const SizedBox(height: 16),
-              const _PlanTaskRow(label: 'Research', isDone: true),
-              const SizedBox(height: 14),
-              const _PlanTaskRow(label: 'Design', isDone: true),
-              const SizedBox(height: 14),
-              const _PlanTaskRow(label: 'Development'),
-              const SizedBox(height: 14),
-              const _PlanTaskRow(label: 'Testing'),
-              const SizedBox(height: 18),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: const [
-                    _MiniBar(height: 28),
-                    SizedBox(width: 8),
-                    _MiniBar(height: 42),
-                    SizedBox(width: 8),
-                    _MiniBar(height: 58),
-                  ],
-                ),
-              ),
-            ],
+    return SizedBox(
+      width: 302,
+      height: 230,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Positioned(
+            top: 8,
+            right: 10,
+            child: _FloatingIcon(icon: Icons.auto_awesome_rounded),
           ),
-        ),
-      ],
+          Positioned.fill(
+            top: 20,
+            right: 26,
+            left: 0,
+            bottom: 0,
+            child: _GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _CardTitle('Project Plan'),
+                  const SizedBox(height: 16),
+                  const _PlanTaskRow(label: 'Research', isDone: true),
+                  const SizedBox(height: 12),
+                  const _PlanTaskRow(label: 'Design', isDone: true),
+                  const SizedBox(height: 12),
+                  const _PlanTaskRow(label: 'Development'),
+                  const SizedBox(height: 12),
+                  const _PlanTaskRow(label: 'Testing'),
+                  const Spacer(),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: const [
+                        _MiniBar(height: 28),
+                        SizedBox(width: 8),
+                        _MiniBar(height: 42),
+                        SizedBox(width: 8),
+                        _MiniBar(height: 58),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -474,186 +532,124 @@ class _TeamWorkspaceVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        const _FloatingIcon(
-          bottom: -12,
-          left: -18,
-          icon: Icons.person_rounded,
-        ),
-        const _FloatingIcon(
-          top: -10,
-          right: -12,
-          icon: Icons.chat_bubble_rounded,
-        ),
-        _GlassCard(
-          width: 280,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _CardTitle('Team Workspace'),
-              const SizedBox(height: 12),
-              Row(
-                children: const [
-                  _AvatarBubble(label: 'I'),
-                  SizedBox(width: 4),
-                  _AvatarBubble(label: 'M'),
-                  SizedBox(width: 4),
-                  _AvatarBubble(label: 'A'),
-                  SizedBox(width: 4),
-                  _AvatarBubble(label: '+3', small: true),
+    return SizedBox(
+      width: 306,
+      height: 230,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Positioned(
+            bottom: 12,
+            left: 0,
+            child: _FloatingIcon(icon: Icons.person_rounded),
+          ),
+          const Positioned(
+            top: 8,
+            right: 2,
+            child: _FloatingIcon(icon: Icons.chat_bubble_rounded),
+          ),
+          Positioned.fill(
+            top: 20,
+            left: 26,
+            right: 14,
+            bottom: 0,
+            child: _GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _CardTitle('Team Workspace'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: const [
+                      _AvatarBubble(label: 'I'),
+                      SizedBox(width: 4),
+                      _AvatarBubble(label: 'M'),
+                      SizedBox(width: 4),
+                      _AvatarBubble(label: 'A'),
+                      SizedBox(width: 4),
+                      _AvatarBubble(label: '+3', small: true),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const _ActivityRow(
+                    icon: Icons.edit_rounded,
+                    title: 'Design phase updated',
+                    time: '2m ago',
+                  ),
+                  const SizedBox(height: 9),
+                  const _ActivityRow(
+                    icon: Icons.assignment_ind_rounded,
+                    title: 'Task assigned to you',
+                    time: '5m ago',
+                  ),
+                  const SizedBox(height: 9),
+                  const _ActivityRow(
+                    icon: Icons.upload_file_rounded,
+                    title: 'File uploaded',
+                    time: '10m ago',
+                  ),
                 ],
               ),
-              const SizedBox(height: 18),
-              const _ActivityRow(
-                icon: Icons.edit_rounded,
-                title: 'Design phase updated',
-                time: '2m ago',
-              ),
-              const SizedBox(height: 10),
-              const _ActivityRow(
-                icon: Icons.assignment_ind_rounded,
-                title: 'Task assigned to you',
-                time: '5m ago',
-              ),
-              const SizedBox(height: 10),
-              const _ActivityRow(
-                icon: Icons.upload_file_rounded,
-                title: 'File uploaded',
-                time: '10m ago',
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _ProgressRiskVisual extends StatelessWidget {
-  const _ProgressRiskVisual();
+class _RocketVisual extends StatelessWidget {
+  const _RocketVisual();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        const _FloatingIcon(
-          bottom: -14,
-          right: -12,
-          icon: Icons.verified_rounded,
-        ),
-        _GlassCard(
-          width: 286,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 330,
+      child: Center(
+        child: SizedBox(
+          width: 310,
+          height: 310,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const _CardTitle('Project Progress'),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Container(
-                    width: 82,
-                    height: 82,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: PlanoraTheme.primaryPurple,
-                        width: 7,
-                      ),
-                    ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '72%',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            'On Track',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: PlanoraTheme.success,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 10,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    child: Column(
-                      children: const [
-                        _ProgressLegend(label: 'Completed', value: '72%'),
-                        SizedBox(height: 10),
-                        _ProgressLegend(label: 'In Progress', value: '18%'),
-                        SizedBox(height: 10),
-                        _ProgressLegend(label: 'Pending', value: '10%'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const _CardTitle('Risk Prediction'),
-              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: PlanoraTheme.divider),
+                width: 248,
+                height: 248,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [Color(0xFFEDE7FF), Color(0x00EDE7FF)],
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: PlanoraTheme.warning.withAlpha(28),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.warning_amber_rounded,
-                        color: PlanoraTheme.warning,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Medium Risk',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          Text(
-                            '2 risks identified',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded, size: 20),
-                  ],
-                ),
+              ),
+              Positioned(
+                left: 22,
+                top: 112,
+                child: _Star(size: 18, color: PlanoraTheme.primaryPurple),
+              ),
+              Positioned(
+                right: 40,
+                top: 136,
+                child: _Star(size: 16, color: PlanoraTheme.primaryPurple),
+              ),
+              Positioned(
+                left: 82,
+                bottom: 46,
+                child: _Cloud(width: 88, height: 42),
+              ),
+              Positioned(
+                right: 38,
+                bottom: 52,
+                child: _Cloud(width: 96, height: 46),
+              ),
+              CustomPaint(
+                size: const Size(250, 250),
+                painter: _RocketPainter(),
               ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -678,18 +674,16 @@ class _IconBadge extends StatelessWidget {
 }
 
 class _GlassCard extends StatelessWidget {
-  final double width;
   final Widget child;
 
-  const _GlassCard({required this.width, required this.child});
+  const _GlassCard({required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: width,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(235),
+        color: Colors.white.withAlpha(238),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: PlanoraTheme.border),
         boxShadow: const [
@@ -706,37 +700,21 @@ class _GlassCard extends StatelessWidget {
 }
 
 class _FloatingIcon extends StatelessWidget {
-  final double? top;
-  final double? right;
-  final double? bottom;
-  final double? left;
   final IconData icon;
 
-  const _FloatingIcon({
-    this.top,
-    this.right,
-    this.bottom,
-    this.left,
-    required this.icon,
-  });
+  const _FloatingIcon({required this.icon});
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: top,
-      right: right,
-      bottom: bottom,
-      left: left,
-      child: Container(
-        width: 58,
-        height: 58,
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.primaryGradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: PlanoraTheme.floatingShadow,
-        ),
-        child: Icon(icon, color: Colors.white, size: 24),
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: PlanoraTheme.floatingShadow,
       ),
+      child: Icon(icon, color: Colors.white, size: 24),
     );
   }
 }
@@ -751,9 +729,9 @@ class _CardTitle extends StatelessWidget {
     return Text(
       text,
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: PlanoraTheme.textPrimary,
-        fontWeight: FontWeight.w800,
-      ),
+            color: PlanoraTheme.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
     );
   }
 }
@@ -778,9 +756,9 @@ class _PlanTaskRow extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: PlanoraTheme.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+                  color: PlanoraTheme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ),
         Container(
@@ -834,10 +812,10 @@ class _AvatarBubble extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: small ? PlanoraTheme.primaryPurple : Colors.white,
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-          ),
+                color: small ? PlanoraTheme.primaryPurple : Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
         ),
       ),
     );
@@ -881,17 +859,17 @@ class _ActivityRow extends StatelessWidget {
               title,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: PlanoraTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+                    color: PlanoraTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
           ),
           Text(
             time,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 9,
-              color: PlanoraTheme.textMuted,
-            ),
+                  fontSize: 9,
+                  color: PlanoraTheme.textMuted,
+                ),
           ),
         ],
       ),
@@ -899,74 +877,216 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
-class _ProgressLegend extends StatelessWidget {
-  final String label;
-  final String value;
+class _Star extends StatelessWidget {
+  final double size;
+  final Color color;
 
-  const _ProgressLegend({required this.label, required this.value});
+  const _Star({required this.size, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: const BoxDecoration(
-            color: PlanoraTheme.primaryPurple,
-            shape: BoxShape.circle,
+    return Icon(Icons.auto_awesome_rounded, size: size, color: color.withAlpha(140));
+  }
+}
+
+class _Cloud extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _Cloud({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: _CloudCircle(size: height * .72),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: PlanoraTheme.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 10.5,
-            ),
+          Positioned(
+            left: width * .24,
+            bottom: height * .08,
+            child: _CloudCircle(size: height),
           ),
-        ),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: PlanoraTheme.textPrimary,
-            fontWeight: FontWeight.w800,
-            fontSize: 10.5,
+          Positioned(
+            right: width * .18,
+            bottom: 0,
+            child: _CloudCircle(size: height * .82),
           ),
-        ),
-      ],
+          Positioned(
+            right: 0,
+            bottom: height * .04,
+            child: _CloudCircle(size: height * .6),
+          ),
+        ],
+      ),
     );
   }
 }
 
-enum _OnboardingVisualType { projectPlan, teamWorkspace, progressRisk }
+class _CloudCircle extends StatelessWidget {
+  final double size;
+
+  const _CloudCircle({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(238),
+        shape: BoxShape.circle,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RocketPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2 + 2);
+    canvas.rotate(0.58);
+
+    final shadowPaint = Paint()
+      ..color = const Color(0x246D28D9)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-28, -88, 56, 154),
+        const Radius.circular(30),
+      ),
+      shadowPaint,
+    );
+
+    final flamePaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFFFF7ED), Color(0xFFFFD6A5)],
+      ).createShader(const Rect.fromLTWH(-12, 62, 24, 56));
+    final flamePath = Path()
+      ..moveTo(-13, 62)
+      ..quadraticBezierTo(0, 124, 13, 62)
+      ..close();
+    canvas.drawPath(flamePath, flamePaint);
+
+    final leftFinPaint = Paint()..color = PlanoraTheme.secondaryPurple;
+    final leftFin = Path()
+      ..moveTo(-28, 34)
+      ..lineTo(-76, 76)
+      ..quadraticBezierTo(-50, 18, -24, 8)
+      ..close();
+    canvas.drawPath(leftFin, leftFinPaint);
+
+    final rightFinPaint = Paint()..color = PlanoraTheme.primaryPurple;
+    final rightFin = Path()
+      ..moveTo(28, 34)
+      ..lineTo(76, 76)
+      ..quadraticBezierTo(50, 18, 24, 8)
+      ..close();
+    canvas.drawPath(rightFin, rightFinPaint);
+
+    final bodyPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Colors.white, Color(0xFFEDE9FE)],
+      ).createShader(const Rect.fromLTWH(-32, -92, 64, 158));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-32, -86, 64, 152),
+        const Radius.circular(36),
+      ),
+      bodyPaint,
+    );
+
+    final nosePaint = Paint()..color = PlanoraTheme.secondaryPurple;
+    final nosePath = Path()
+      ..moveTo(-28, -56)
+      ..quadraticBezierTo(0, -118, 28, -56)
+      ..close();
+    canvas.drawPath(nosePath, nosePaint);
+
+    final windowPaint = Paint()..color = PlanoraTheme.primaryPurple;
+    canvas.drawCircle(const Offset(0, -26), 19, windowPaint);
+    canvas.drawCircle(
+      const Offset(0, -26),
+      13,
+      Paint()..color = const Color(0xFFC4B5FD),
+    );
+
+    final linePaint = Paint()
+      ..color = const Color(0xFFE5E7EB)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-32, -86, 64, 152),
+        const Radius.circular(36),
+      ),
+      linePaint,
+    );
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+enum _OnboardingPageKind { intro, feature, finalPage }
+
+enum _FeatureVisualType { projectPlan, teamWorkspace }
 
 class _OnboardingPageData {
-  final bool isIntro;
+  final _OnboardingPageKind kind;
   final String title;
   final String highlightedText;
   final String description;
   final String? imageAsset;
   final IconData icon;
-  final _OnboardingVisualType visualType;
+  final _FeatureVisualType visualType;
+
+  bool get isIntro => kind == _OnboardingPageKind.intro;
+  bool get isFinal => kind == _OnboardingPageKind.finalPage;
 
   const _OnboardingPageData.intro({
     required this.title,
     required this.highlightedText,
     required this.description,
     required this.imageAsset,
-  }) : isIntro = true,
+  }) : kind = _OnboardingPageKind.intro,
        icon = Icons.auto_awesome_rounded,
-       visualType = _OnboardingVisualType.projectPlan;
+       visualType = _FeatureVisualType.projectPlan;
 
   const _OnboardingPageData.feature({
     required this.title,
     required this.description,
     required this.icon,
     required this.visualType,
-  }) : isIntro = false,
+  }) : kind = _OnboardingPageKind.feature,
        highlightedText = '',
        imageAsset = null;
+
+  const _OnboardingPageData.finalPage({
+    required this.title,
+    required this.description,
+    required this.icon,
+  }) : kind = _OnboardingPageKind.finalPage,
+       highlightedText = '',
+       imageAsset = null,
+       visualType = _FeatureVisualType.projectPlan;
 }
