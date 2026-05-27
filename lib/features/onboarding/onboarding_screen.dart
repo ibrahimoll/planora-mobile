@@ -41,8 +41,6 @@ class OnboardingScreen extends StatelessWidget {
 
                     OnboardingDescription(),
 
-                    SizedBox(height: 2),
-
                     OnboardingIllustration(),
                   ],
                 ),
