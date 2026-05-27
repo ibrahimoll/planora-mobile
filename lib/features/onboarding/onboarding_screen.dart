@@ -239,19 +239,26 @@ class _IntroOnboardingPage extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(height: metrics.introTopGap),
-          Image.asset(
-            'assets/images/planora_logo.png',
-            width: metrics.logoSize,
-            height: metrics.logoSize,
-          ),
-          SizedBox(height: metrics.logoToTitleGap),
-          Text(
-            'Planora',
-            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  fontSize: metrics.brandTitleSize,
-                  fontWeight: FontWeight.w800,
-                  color: PlanoraTheme.textPrimary,
-                ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/planora_logo.png',
+                width: metrics.logoSize,
+                height: metrics.logoSize,
+              ),
+              SizedBox(width: metrics.logoToTitleGap),
+              Text(
+                'Planora',
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontSize: metrics.brandTitleSize,
+                      fontWeight: FontWeight.w800,
+                      color: PlanoraTheme.textPrimary,
+                    ),
+              ),
+            ],
           ),
           SizedBox(height: metrics.titleToPillGap),
           const _AiPill(),
@@ -624,10 +631,10 @@ class _ResponsiveMetrics {
       maxContentWidth: tabletLike ? 460 : 430,
       horizontalPadding: narrowWidth ? 20 : 28,
       introTopGap: tinyHeight ? 22 : (compactHeight ? 30 : 44),
-      logoSize: tinyHeight ? 62 : (compactHeight ? 68 : 76),
-      logoToTitleGap: compactHeight ? 10 : 14,
-      brandTitleSize: narrowWidth ? 34 : 38,
-      titleToPillGap: compactHeight ? 10 : 14,
+      logoSize: tinyHeight ? 54 : (compactHeight ? 60 : 66),
+      logoToTitleGap: compactHeight ? 10 : 12,
+      brandTitleSize: narrowWidth ? 32 : 36,
+      titleToPillGap: compactHeight ? 12 : 16,
       pillToHeroGap: compactHeight ? 16 : 22,
       heroTitleSize: narrowWidth ? 29 : (compactHeight ? 31 : 33),
       heroToDescriptionGap: compactHeight ? 12 : 16,
