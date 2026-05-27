@@ -45,8 +45,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
 
   bool get _isFirstPage => _currentPage == 0;
-  bool get _isLastPage => _currentPage == _pages.length - 1;
   bool get _isFinalPage => _pages[_currentPage].isFinal;
+  bool get _showSecondaryButton => _isFirstPage || _isFinalPage;
 
   String get _primaryButtonLabel {
     if (_isFirstPage) return 'Get Started';
@@ -59,8 +59,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return 'Sign In';
   }
 
-  bool get _showSecondaryButton => _isFirstPage || _isFinalPage;
-
   @override
   void dispose() {
     _pageController.dispose();
@@ -68,7 +66,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _goToNextPage() {
-    if (!_isLastPage) {
+    if (_currentPage < _pages.length - 1) {
       _pageController.animateToPage(
         _currentPage + 1,
         duration: const Duration(milliseconds: 360),
@@ -268,10 +266,7 @@ class _FeatureOnboardingPage extends StatelessWidget {
   final _OnboardingPageData data;
   final VoidCallback onSkip;
 
-  const _FeatureOnboardingPage({
-    required this.data,
-    required this.onSkip,
-  });
+  const _FeatureOnboardingPage({required this.data, required this.onSkip});
 
   @override
   Widget build(BuildContext context) {
@@ -444,7 +439,7 @@ class _FeatureVisual extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 250,
+      height: 238,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -475,50 +470,50 @@ class _ProjectPlanVisual extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 302,
-      height: 230,
+      height: 218,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           const Positioned(
-            top: 8,
+            top: 0,
             right: 10,
             child: _FloatingIcon(icon: Icons.auto_awesome_rounded),
           ),
-          Positioned.fill(
-            top: 20,
-            right: 26,
+          Positioned(
+            top: 16,
             left: 0,
-            bottom: 0,
+            right: 32,
             child: _GlassCard(
+              height: 176,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _CardTitle('Project Plan'),
-                  const SizedBox(height: 16),
-                  const _PlanTaskRow(label: 'Research', isDone: true),
-                  const SizedBox(height: 12),
-                  const _PlanTaskRow(label: 'Design', isDone: true),
-                  const SizedBox(height: 12),
-                  const _PlanTaskRow(label: 'Development'),
-                  const SizedBox(height: 12),
-                  const _PlanTaskRow(label: 'Testing'),
-                  const Spacer(),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: const [
-                        _MiniBar(height: 28),
-                        SizedBox(width: 8),
-                        _MiniBar(height: 42),
-                        SizedBox(width: 8),
-                        _MiniBar(height: 58),
-                      ],
-                    ),
-                  ),
+                children: const [
+                  _CardTitle('Project Plan'),
+                  SizedBox(height: 12),
+                  _PlanTaskRow(label: 'Research', isDone: true),
+                  SizedBox(height: 8),
+                  _PlanTaskRow(label: 'Design', isDone: true),
+                  SizedBox(height: 8),
+                  _PlanTaskRow(label: 'Development'),
+                  SizedBox(height: 8),
+                  _PlanTaskRow(label: 'Testing'),
                 ],
               ),
+            ),
+          ),
+          const Positioned(
+            right: 20,
+            bottom: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _MiniBar(height: 28),
+                SizedBox(width: 8),
+                _MiniBar(height: 42),
+                SizedBox(width: 8),
+                _MiniBar(height: 58),
+              ],
             ),
           ),
         ],
@@ -534,33 +529,33 @@ class _TeamWorkspaceVisual extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 306,
-      height: 230,
+      height: 218,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           const Positioned(
-            bottom: 12,
+            bottom: 10,
             left: 0,
             child: _FloatingIcon(icon: Icons.person_rounded),
           ),
           const Positioned(
-            top: 8,
+            top: 0,
             right: 2,
             child: _FloatingIcon(icon: Icons.chat_bubble_rounded),
           ),
-          Positioned.fill(
-            top: 20,
+          Positioned(
+            top: 16,
             left: 26,
             right: 14,
-            bottom: 0,
             child: _GlassCard(
+              height: 202,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _CardTitle('Team Workspace'),
-                  const SizedBox(height: 12),
+                children: const [
+                  _CardTitle('Team Workspace'),
+                  SizedBox(height: 10),
                   Row(
-                    children: const [
+                    children: [
                       _AvatarBubble(label: 'I'),
                       SizedBox(width: 4),
                       _AvatarBubble(label: 'M'),
@@ -570,20 +565,20 @@ class _TeamWorkspaceVisual extends StatelessWidget {
                       _AvatarBubble(label: '+3', small: true),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  const _ActivityRow(
+                  SizedBox(height: 13),
+                  _ActivityRow(
                     icon: Icons.edit_rounded,
                     title: 'Design phase updated',
                     time: '2m ago',
                   ),
-                  const SizedBox(height: 9),
-                  const _ActivityRow(
+                  SizedBox(height: 8),
+                  _ActivityRow(
                     icon: Icons.assignment_ind_rounded,
                     title: 'Task assigned to you',
                     time: '5m ago',
                   ),
-                  const SizedBox(height: 9),
-                  const _ActivityRow(
+                  SizedBox(height: 8),
+                  _ActivityRow(
                     icon: Icons.upload_file_rounded,
                     title: 'File uploaded',
                     time: '10m ago',
@@ -674,14 +669,16 @@ class _IconBadge extends StatelessWidget {
 }
 
 class _GlassCard extends StatelessWidget {
+  final double height;
   final Widget child;
 
-  const _GlassCard({required this.child});
+  const _GlassCard({required this.height, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      height: height,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withAlpha(238),
         borderRadius: BorderRadius.circular(22),
@@ -744,32 +741,35 @@ class _PlanTaskRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          isDone ? Icons.check_circle_rounded : Icons.circle_outlined,
-          color: isDone ? PlanoraTheme.primaryPurple : PlanoraTheme.border,
-          size: 18,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: PlanoraTheme.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
+    return SizedBox(
+      height: 18,
+      child: Row(
+        children: [
+          Icon(
+            isDone ? Icons.check_circle_rounded : Icons.circle_outlined,
+            color: isDone ? PlanoraTheme.primaryPurple : PlanoraTheme.border,
+            size: 18,
           ),
-        ),
-        Container(
-          width: 44,
-          height: 5,
-          decoration: BoxDecoration(
-            color: PlanoraTheme.divider,
-            borderRadius: BorderRadius.circular(999),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: PlanoraTheme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
           ),
-        ),
-      ],
+          Container(
+            width: 44,
+            height: 5,
+            decoration: BoxDecoration(
+              color: PlanoraTheme.divider,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -835,43 +835,47 @@ class _ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: PlanoraTheme.divider),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: PlanoraTheme.primaryLight,
-              borderRadius: BorderRadius.circular(9),
+    return SizedBox(
+      height: 34,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: PlanoraTheme.divider),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: PlanoraTheme.primaryLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: PlanoraTheme.primaryPurple, size: 14),
             ),
-            child: Icon(icon, color: PlanoraTheme.primaryPurple, size: 16),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: PlanoraTheme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+              ),
+            ),
+            Text(
+              time,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: PlanoraTheme.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 9,
+                    color: PlanoraTheme.textMuted,
                   ),
             ),
-          ),
-          Text(
-            time,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontSize: 9,
-                  color: PlanoraTheme.textMuted,
-                ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -885,7 +889,11 @@ class _Star extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Icon(Icons.auto_awesome_rounded, size: size, color: color.withAlpha(140));
+    return Icon(
+      Icons.auto_awesome_rounded,
+      size: size,
+      color: color.withAlpha(140),
+    );
   }
 }
 
@@ -983,21 +991,19 @@ class _RocketPainter extends CustomPainter {
       ..close();
     canvas.drawPath(flamePath, flamePaint);
 
-    final leftFinPaint = Paint()..color = PlanoraTheme.secondaryPurple;
     final leftFin = Path()
       ..moveTo(-28, 34)
       ..lineTo(-76, 76)
       ..quadraticBezierTo(-50, 18, -24, 8)
       ..close();
-    canvas.drawPath(leftFin, leftFinPaint);
+    canvas.drawPath(leftFin, Paint()..color = PlanoraTheme.secondaryPurple);
 
-    final rightFinPaint = Paint()..color = PlanoraTheme.primaryPurple;
     final rightFin = Path()
       ..moveTo(28, 34)
       ..lineTo(76, 76)
       ..quadraticBezierTo(50, 18, 24, 8)
       ..close();
-    canvas.drawPath(rightFin, rightFinPaint);
+    canvas.drawPath(rightFin, Paint()..color = PlanoraTheme.primaryPurple);
 
     final bodyPaint = Paint()
       ..shader = const LinearGradient(
@@ -1013,15 +1019,17 @@ class _RocketPainter extends CustomPainter {
       bodyPaint,
     );
 
-    final nosePaint = Paint()..color = PlanoraTheme.secondaryPurple;
     final nosePath = Path()
       ..moveTo(-28, -56)
       ..quadraticBezierTo(0, -118, 28, -56)
       ..close();
-    canvas.drawPath(nosePath, nosePaint);
+    canvas.drawPath(nosePath, Paint()..color = PlanoraTheme.secondaryPurple);
 
-    final windowPaint = Paint()..color = PlanoraTheme.primaryPurple;
-    canvas.drawCircle(const Offset(0, -26), 19, windowPaint);
+    canvas.drawCircle(
+      const Offset(0, -26),
+      19,
+      Paint()..color = PlanoraTheme.primaryPurple,
+    );
     canvas.drawCircle(
       const Offset(0, -26),
       13,
