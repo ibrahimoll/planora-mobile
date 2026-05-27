@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/planora_theme.dart';
-import 'widgets/onboarding_page_dots.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -62,15 +61,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Auth screen coming next')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Auth screen coming next')));
   }
 
   void _goToSignIn() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign in screen coming next')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Sign in screen coming next')));
   }
 
   @override
@@ -117,7 +116,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                         ),
-                        child: Text(_isLastPage ? 'Start Planning' : 'Get Started'),
+                        child: Text(
+                          _isLastPage ? 'Start Planning' : 'Get Started',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -149,36 +150,29 @@ class _OnboardingPage extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 34),
-          Image.asset(
-            'assets/images/planora_logo.png',
-            width: 74,
-            height: 74,
-          ),
+          Image.asset('assets/images/planora_logo.png', width: 74, height: 74),
           const SizedBox(height: 14),
           Text(
             'Planora',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w800,
-                  color: PlanoraTheme.textPrimary,
-                ),
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              color: PlanoraTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 14),
           const _AiPill(),
           const SizedBox(height: 26),
-          _HeroTitle(
-            title: data.title,
-            highlightedText: data.highlightedText,
-          ),
+          _HeroTitle(title: data.title, highlightedText: data.highlightedText),
           const SizedBox(height: 16),
           Text(
             data.description,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontSize: 15,
-                  height: 1.55,
-                  color: PlanoraTheme.textSecondary,
-                ),
+              fontSize: 15,
+              height: 1.55,
+              color: PlanoraTheme.textSecondary,
+            ),
           ),
           const SizedBox(height: 30),
           _OnboardingVisual(imageAsset: data.imageAsset),
@@ -193,27 +187,20 @@ class _HeroTitle extends StatelessWidget {
   final String title;
   final String highlightedText;
 
-  const _HeroTitle({
-    required this.title,
-    required this.highlightedText,
-  });
+  const _HeroTitle({required this.title, required this.highlightedText});
 
   @override
   Widget build(BuildContext context) {
     final parts = title.split(highlightedText);
     final baseStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
-          fontSize: 32,
-          fontWeight: FontWeight.w800,
-          height: 1.12,
-          color: PlanoraTheme.textPrimary,
-        );
+      fontSize: 32,
+      fontWeight: FontWeight.w800,
+      height: 1.12,
+      color: PlanoraTheme.textPrimary,
+    );
 
     if (parts.length != 2) {
-      return Text(
-        title,
-        textAlign: TextAlign.center,
-        style: baseStyle,
-      );
+      return Text(title, textAlign: TextAlign.center, style: baseStyle);
     }
 
     return RichText(
@@ -247,11 +234,11 @@ class _AiPill extends StatelessWidget {
       child: Text(
         'AI-POWERED PROJECT PLANNING',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .5,
-              color: PlanoraTheme.textSecondary,
-            ),
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .5,
+          color: PlanoraTheme.textSecondary,
+        ),
       ),
     );
   }
@@ -269,11 +256,7 @@ class _OnboardingVisual extends StatelessWidget {
       child: Center(
         child: imageAsset == null
             ? const _FallbackVisual()
-            : Image.asset(
-                imageAsset!,
-                width: 320,
-                fit: BoxFit.contain,
-              ),
+            : Image.asset(imageAsset!, width: 320, fit: BoxFit.contain),
       ),
     );
   }
@@ -331,9 +314,9 @@ class _VisualRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: PlanoraTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+            color: PlanoraTheme.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
