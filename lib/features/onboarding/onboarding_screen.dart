@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/features/onboarding/widgets/onboarding_illustration.dart';
+import 'package:mobile/features/onboarding/widgets/onboarding_page_dots.dart';
 
 import '../../core/theme/planora_theme.dart';
 import 'widgets/onboarding_ai_pill.dart';
@@ -7,8 +8,21 @@ import 'widgets/onboarding_description.dart';
 import 'widgets/onboarding_hero_title.dart';
 import 'widgets/onboarding_logo_header.dart';
 
-class OnboardingScreen extends StatelessWidget {
+class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
+
+  @override
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends State<OnboardingScreen> {
+  final PageController _pageController = PageController();
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,27 +35,29 @@ class OnboardingScreen extends StatelessWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
                   children: [
-                    SizedBox(height: 40),
+                    const SizedBox(height: 40),
 
-                    OnboardingLogoHeader(),
+                    const OnboardingLogoHeader(),
 
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
 
-                    OnboardingAiPill(),
+                    const OnboardingAiPill(),
 
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                    OnboardingHeroTitle(),
+                    const OnboardingHeroTitle(),
 
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
 
-                    OnboardingDescription(),
+                    const OnboardingDescription(),
 
-                    OnboardingIllustration(),
+                    const OnboardingIllustration(),
+
+                    OnboardingPageDot(controller: _pageController, count: 4),
                   ],
                 ),
               ),

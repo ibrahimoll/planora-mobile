@@ -40,6 +40,7 @@ dependencies:
   wave: ^0.2.2
   animated_bottom_navigation_bar: ^1.4.0
   lottie: ^3.3.3
+  smooth_page_indicator: ^2.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -67,7 +68,6 @@ flutter:
     - assets/images/onboarding_1.png
     - assets/images/onboarding_2.png
     - assets/images/onboarding_3.png
-    - assets/images/illustration.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

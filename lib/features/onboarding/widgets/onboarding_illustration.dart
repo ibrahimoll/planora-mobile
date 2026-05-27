@@ -9,7 +9,7 @@ class OnboardingIllustration extends StatelessWidget {
       height: 380,
       alignment: Alignment.center,
       child: Image.asset(
-        'assets/images/illustration.png',
+        'assets/images/onboarding_1.png',
         width: 390,
         fit: BoxFit.contain,
       ),
