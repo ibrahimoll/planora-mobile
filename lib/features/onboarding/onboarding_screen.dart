@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'utils/onboarding_responsive_metrics.dart';
+import '../../core/theme/planora_theme.dart';
 import 'models/onboarding_page_data.dart';
 import 'utils/onboarding_responsive_metrics.dart';
 import 'widgets/image_onboarding_page.dart';
@@ -77,7 +77,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!_isLastPage) {
       _pageController.animateToPage(
         _currentPage + 1,
-        duration: const Duration(microseconds: 360),
+        duration: const Duration(milliseconds: 360),
         curve: Curves.easeInOutCubic,
       );
       return;
@@ -197,24 +197,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       },
     );
   }
-}
-
-enum OnboardingPageType { intro, feature, finalPage }
-
-class OnboardingPageData {
-  final OnboardingPageType type;
-  final String title;
-  final String highlightedText;
-  final String description;
-  final String imageAsset;
-  final IconData icon;
-
-  const OnboardingPageData({
-    required this.type,
-    required this.title,
-    required this.highlightedText,
-    required this.description,
-    required this.imageAsset,
-    required this.icon,
-  });
 }
