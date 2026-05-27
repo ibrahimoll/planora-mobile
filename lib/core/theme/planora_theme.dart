@@ -4,207 +4,239 @@ import 'package:google_fonts/google_fonts.dart';
 class PlanoraTheme {
   PlanoraTheme._();
 
-  // Brand colors
-  static const Color primaryPurple = Color(0xFF6D35E8);
-  static const Color deepIndigo = Color(0xFF5125C7);
-  static const Color softViolet = Color(0xFFA78BFA);
-  static const Color lavenderGlow = Color(0xFFF0EAFF);
+  // Brand colors from the current Planora mobile design export.
+  static const Color primaryPurple = Color(0xFF6D28D9);
+  static const Color secondaryPurple = Color(0xFF7C3AED);
+  static const Color primaryLight = Color(0x1A6D28D9);
+  static const Color secondaryLight = Color(0x1A7C3AED);
 
-  // Neutral colors
-  static const Color background = Color(0xFFFCFAFF);
+  // Light surfaces and text.
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color secondaryBackground = Color(0xFFF1F5F9);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color textPrimary = Color(0xFF171827);
-  static const Color textSecondary = Color(0xFF666A7A);
+  static const Color surfaceVariant = Color(0xFFF3F4F6);
+  static const Color textPrimary = Color(0xFF1E1B4B);
+  static const Color textSecondary = Color(0xFF4B5563);
   static const Color textMuted = Color(0xFF9CA3AF);
-  static const Color border = Color(0xFFE7E3F2);
-  static const Color divider = Color(0xFFF1EEF8);
+  static const Color border = Color(0xFFE5E7EB);
+  static const Color divider = Color(0xFFF3F4F6);
 
-  // Semantic colors
-  static const Color success = Color(0xFF22C55E);
+  // Semantic colors.
+  static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
+  static const Color accent = Color(0xFFF59E0B);
 
-  // Extra app colors
-  static const Color blue = Color(0xFF3B82F6);
-  static const Color green = Color(0xFF22C55E);
+  // Backward-compatible aliases used by older screens.
+  static const Color deepIndigo = primaryPurple;
+  static const Color softViolet = secondaryPurple;
+  static const Color lavenderGlow = primaryLight;
+  static const Color blue = info;
+  static const Color green = success;
   static const Color orange = Color(0xFFF97316);
 
-  // Main purple button gradient
+  // Radii from the design export.
+  static BorderRadius radiusSmall = BorderRadius.circular(8);
+  static BorderRadius radiusMedium = BorderRadius.circular(12);
+  static BorderRadius radiusLarge = BorderRadius.circular(20);
+  static BorderRadius radiusXL = BorderRadius.circular(28);
+  static BorderRadius radiusXXL = BorderRadius.circular(40);
+  static BorderRadius radiusButton = BorderRadius.circular(20);
+  static BorderRadius radiusFull = BorderRadius.circular(9999);
+
+  // Primary button gradient.
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
-    colors: [Color(0xFF7A42F4), Color(0xFF5429D6)],
+    colors: [secondaryPurple, primaryPurple],
   );
 
-  // Main onboarding background
+  // Light app/onboarding background.
   static const LinearGradient onboardingBackground = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFFCFAFF), Color(0xFFFFFFFF)],
+    colors: [background, surface],
   );
 
-  // Soft card/illustration gradient
+  // Soft purple card/illustration gradients.
   static const LinearGradient softPurpleGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFF4EFFF), Color(0xFFFFFFFF)],
+    colors: [Color(0xFFF5F3FF), surface],
   );
 
   static const LinearGradient softGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFF4EFFF), Color(0xFFFFFFFF)],
+    colors: [Color(0xFFF5F3FF), surface],
   );
 
   static const List<BoxShadow> cardShadow = [
-    BoxShadow(color: Color(0x146D35E8), blurRadius: 30, offset: Offset(0, 10)),
+    BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 4)),
   ];
 
   static const List<BoxShadow> softCardShadow = [
-    BoxShadow(color: Color(0x106D35E8), blurRadius: 40, offset: Offset(0, 18)),
+    BoxShadow(color: Color(0x1A000000), blurRadius: 16, offset: Offset(0, 8)),
   ];
 
   static const List<BoxShadow> floatingShadow = [
-    BoxShadow(color: Color(0x1A6D35E8), blurRadius: 32, offset: Offset(0, 14)),
+    BoxShadow(color: Color(0x267C3AED), blurRadius: 24, offset: Offset(0, 12)),
   ];
 
-  static BorderRadius radiusSmall = BorderRadius.circular(14);
-  static BorderRadius radiusMedium = BorderRadius.circular(18);
-  static BorderRadius radiusLarge = BorderRadius.circular(24);
-  static BorderRadius radiusButton = BorderRadius.circular(16);
+  static TextTheme get _textTheme => GoogleFonts.interTextTheme().copyWith(
+    displayLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 56,
+      fontWeight: FontWeight.w800,
+      color: textPrimary,
+      height: 1.1,
+      letterSpacing: -1.6,
+    ),
+    displayMedium: GoogleFonts.plusJakartaSans(
+      fontSize: 44,
+      fontWeight: FontWeight.w800,
+      color: textPrimary,
+      height: 1.15,
+      letterSpacing: -1.3,
+    ),
+    displaySmall: GoogleFonts.plusJakartaSans(
+      fontSize: 36,
+      fontWeight: FontWeight.w700,
+      color: textPrimary,
+      height: 1.2,
+      letterSpacing: -1.0,
+    ),
+    headlineLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+      color: textPrimary,
+      height: 1.2,
+      letterSpacing: -0.8,
+    ),
+    headlineMedium: GoogleFonts.plusJakartaSans(
+      fontSize: 28,
+      fontWeight: FontWeight.w700,
+      color: textPrimary,
+      height: 1.2,
+      letterSpacing: -0.6,
+    ),
+    headlineSmall: GoogleFonts.plusJakartaSans(
+      fontSize: 24,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+      height: 1.3,
+      letterSpacing: -0.4,
+    ),
+    titleLarge: GoogleFonts.plusJakartaSans(
+      fontSize: 20,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+      height: 1.3,
+    ),
+    titleMedium: GoogleFonts.plusJakartaSans(
+      fontSize: 17,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+      height: 1.4,
+    ),
+    titleSmall: GoogleFonts.plusJakartaSans(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+      height: 1.4,
+    ),
+    bodyLarge: GoogleFonts.inter(
+      fontSize: 16,
+      fontWeight: FontWeight.w400,
+      color: textPrimary,
+      height: 1.5,
+    ),
+    bodyMedium: GoogleFonts.inter(
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      color: textSecondary,
+      height: 1.5,
+    ),
+    bodySmall: GoogleFonts.inter(
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+      color: textSecondary,
+      height: 1.4,
+    ),
+    labelLarge: GoogleFonts.inter(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+      height: 1.3,
+    ),
+    labelMedium: GoogleFonts.inter(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      color: textPrimary,
+      height: 1.3,
+    ),
+    labelSmall: GoogleFonts.inter(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      color: textSecondary,
+      height: 1.2,
+      letterSpacing: 0.6,
+    ),
+  );
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     scaffoldBackgroundColor: background,
     primaryColor: primaryPurple,
+    fontFamily: GoogleFonts.inter().fontFamily,
 
     colorScheme: const ColorScheme.light(
       primary: primaryPurple,
-      secondary: softViolet,
-      surface: surface,
-      error: error,
       onPrimary: Colors.white,
+      primaryContainer: primaryLight,
+      onPrimaryContainer: textPrimary,
+      secondary: secondaryPurple,
       onSecondary: Colors.white,
-      onSurface: textPrimary,
+      secondaryContainer: secondaryLight,
+      onSecondaryContainer: textPrimary,
+      tertiary: accent,
+      onTertiary: Colors.white,
+      tertiaryContainer: Color(0x1AF59E0B),
+      onTertiaryContainer: textPrimary,
+      error: error,
       onError: Colors.white,
+      surface: surface,
+      onSurface: textPrimary,
+      surfaceContainerHighest: surfaceVariant,
+      onSurfaceVariant: textSecondary,
       outline: border,
-      primaryContainer: lavenderGlow,
-      secondaryContainer: Color(0xFFF4EFFF),
+      outlineVariant: divider,
     ),
 
-    textTheme: GoogleFonts.interTextTheme().copyWith(
-      displayLarge: GoogleFonts.plusJakartaSans(
-        fontSize: 36,
-        fontWeight: FontWeight.w800,
-        color: textPrimary,
-        height: 1.08,
-        letterSpacing: -1.2,
-      ),
-      displayMedium: GoogleFonts.plusJakartaSans(
-        fontSize: 32,
-        fontWeight: FontWeight.w800,
-        color: textPrimary,
-        height: 1.12,
-        letterSpacing: -1,
-      ),
-      headlineLarge: GoogleFonts.plusJakartaSans(
-        fontSize: 30,
-        fontWeight: FontWeight.w800,
-        color: textPrimary,
-        height: 1.16,
-        letterSpacing: -0.8,
-      ),
-      headlineMedium: GoogleFonts.plusJakartaSans(
-        fontSize: 24,
-        fontWeight: FontWeight.w800,
-        color: textPrimary,
-        height: 1.2,
-        letterSpacing: -0.5,
-      ),
-      headlineSmall: GoogleFonts.plusJakartaSans(
-        fontSize: 21,
-        fontWeight: FontWeight.w700,
-        color: textPrimary,
-        height: 1.25,
-      ),
-      titleLarge: GoogleFonts.plusJakartaSans(
-        fontSize: 20,
-        fontWeight: FontWeight.w800,
-        color: textPrimary,
-        height: 1.25,
-      ),
-      titleMedium: GoogleFonts.inter(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: textPrimary,
-        height: 1.35,
-      ),
-      titleSmall: GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w700,
-        color: textPrimary,
-        height: 1.35,
-      ),
-      bodyLarge: GoogleFonts.inter(
-        fontSize: 16,
-        fontWeight: FontWeight.w400,
-        color: textPrimary,
-        height: 1.55,
-      ),
-      bodyMedium: GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-        color: textSecondary,
-        height: 1.5,
-      ),
-      bodySmall: GoogleFonts.inter(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        color: textSecondary,
-        height: 1.35,
-      ),
-      labelLarge: GoogleFonts.inter(
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-        color: Colors.white,
-        height: 1.2,
-      ),
-      labelMedium: GoogleFonts.inter(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: textPrimary,
-        height: 1.2,
-      ),
-      labelSmall: GoogleFonts.inter(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: textSecondary,
-        height: 1.2,
-        letterSpacing: 0.4,
-      ),
-    ),
+    textTheme: _textTheme,
 
     appBarTheme: AppBarTheme(
       backgroundColor: background,
+      foregroundColor: textPrimary,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
       iconTheme: const IconThemeData(color: textPrimary),
       titleTextStyle: GoogleFonts.plusJakartaSans(
         fontSize: 20,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
         color: textPrimary,
+        height: 1.3,
       ),
     ),
 
     cardTheme: CardThemeData(
       color: surface,
       elevation: 0,
-      shadowColor: primaryPurple.withValues(alpha: 0.08),
+      shadowColor: const Color(0x1A000000),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       margin: EdgeInsets.zero,
     ),
 
@@ -213,27 +245,29 @@ class PlanoraTheme {
         backgroundColor: primaryPurple,
         foregroundColor: Colors.white,
         elevation: 0,
-        minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        minimumSize: const Size(double.infinity, 64),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         textStyle: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.1,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
         ),
       ),
     ),
 
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: surface,
         foregroundColor: textPrimary,
-        minimumSize: const Size(double.infinity, 56),
-        side: const BorderSide(color: border, width: 1),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        minimumSize: const Size(double.infinity, 64),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        side: const BorderSide(color: border, width: 1.2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         textStyle: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.1,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
         ),
       ),
     ),
@@ -241,43 +275,55 @@ class PlanoraTheme {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primaryPurple,
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700),
+        textStyle: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          height: 1.3,
+        ),
       ),
     ),
 
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       hintStyle: GoogleFonts.inter(
         color: textMuted,
         fontSize: 14,
         fontWeight: FontWeight.w400,
+        height: 1.5,
       ),
       labelStyle: GoogleFonts.inter(
         color: textSecondary,
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
+        height: 1.5,
+      ),
+      floatingLabelStyle: GoogleFonts.inter(
+        color: primaryPurple,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        height: 1.5,
       ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: primaryPurple, width: 1.5),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: primaryPurple, width: 1.6),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: error),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: error, width: 1.5),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: error, width: 1.6),
       ),
     ),
 
@@ -287,11 +333,8 @@ class PlanoraTheme {
       unselectedItemColor: textSecondary,
       type: BottomNavigationBarType.fixed,
       elevation: 0,
-      selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-      unselectedLabelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-      ),
+      selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      unselectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
     ),
 
     dividerTheme: const DividerThemeData(
@@ -302,26 +345,27 @@ class PlanoraTheme {
 
     progressIndicatorTheme: const ProgressIndicatorThemeData(
       color: primaryPurple,
-      linearTrackColor: Color(0xFFEDE8F8),
-      circularTrackColor: Color(0xFFEDE8F8),
+      linearTrackColor: primaryLight,
+      circularTrackColor: primaryLight,
     ),
 
     chipTheme: ChipThemeData(
-      backgroundColor: lavenderGlow,
+      backgroundColor: primaryLight,
       selectedColor: primaryPurple,
-      disabledColor: border,
+      disabledColor: surfaceVariant,
       labelStyle: GoogleFonts.inter(
         fontSize: 12,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: primaryPurple,
       ),
       secondaryLabelStyle: GoogleFonts.inter(
         fontSize: 12,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: Colors.white,
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(9999),
         side: BorderSide.none,
       ),
     ),
@@ -333,10 +377,10 @@ class PlanoraTheme {
       contentTextStyle: GoogleFonts.inter(
         color: Colors.white,
         fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
       ),
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
   );
 }
