@@ -52,7 +52,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool get _isFirstPage => _currentPage == 0;
   bool get _isLastPage => _currentPage == _pages.length - 1;
-  bool get _isFinalPage => _pages[_currentPage].type == _OnboardingPageType.finalPage;
+  bool get _isFinalPage =>
+      _pages[_currentPage].type == _OnboardingPageType.finalPage;
   bool get _showSecondaryButton => _isFirstPage || _isFinalPage;
 
   String get _primaryButtonLabel {
@@ -248,9 +249,13 @@ class _IntroOnboardingPage extends StatelessWidget {
                   color: PlanoraTheme.textSecondary,
                 ),
           ),
-          const SizedBox(height: 32),
-          _OnboardingImage(assetPath: data.imageAsset, height: 220),
-          const SizedBox(height: 18),
+          const SizedBox(height: 26),
+          _OnboardingImage(
+            assetPath: data.imageAsset,
+            height: 285,
+            width: 380,
+          ),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -338,8 +343,13 @@ class _ImageOnboardingPage extends StatelessWidget {
 class _OnboardingImage extends StatelessWidget {
   final String assetPath;
   final double height;
+  final double width;
 
-  const _OnboardingImage({required this.assetPath, required this.height});
+  const _OnboardingImage({
+    required this.assetPath,
+    required this.height,
+    this.width = 330,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +359,7 @@ class _OnboardingImage extends StatelessWidget {
         child: Image.asset(
           assetPath,
           height: height,
-          width: 330,
+          width: width,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
             return _MissingImagePlaceholder(assetPath: assetPath);
