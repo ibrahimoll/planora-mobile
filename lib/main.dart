@@ -3,7 +3,7 @@ import 'package:mobile/core/theme/planora_theme.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
 
 void main() {
-  runApp(PlanoraApp());
+  runApp(const PlanoraApp());
 }
 
 class PlanoraApp extends StatefulWidget {
@@ -14,6 +14,22 @@ class PlanoraApp extends StatefulWidget {
 }
 
 class _PlanoraAppState extends State<PlanoraApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  bool get _systemIsDark =>
+      WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+      Brightness.dark;
+
+  void _toggleThemeMode() {
+    final isCurrentlyDark =
+        _themeMode == ThemeMode.dark ||
+        (_themeMode == ThemeMode.system && _systemIsDark);
+
+    setState(() {
+      _themeMode = isCurrentlyDark ? ThemeMode.light : ThemeMode.dark;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -21,8 +37,8 @@ class _PlanoraAppState extends State<PlanoraApp> {
       debugShowCheckedModeBanner: false,
       theme: PlanoraTheme.lightTheme,
       darkTheme: PlanoraTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      home: OnboardingScreen(),
+      themeMode: _themeMode,
+      home: OnboardingScreen(onThemeToggle: _toggleThemeMode),
     );
   }
 }
