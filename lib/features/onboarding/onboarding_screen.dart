@@ -9,7 +9,9 @@ import 'widgets/intro_onboarding_page.dart';
 import 'widgets/onboarding_page_dot.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final VoidCallback onThemeToggle;
+
+  const OnboardingScreen({super.key, required this.onThemeToggle});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -140,6 +142,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                         child: Column(
                           children: [
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: _ThemeToggleButton(
+                                isDark: isDark,
+                                onPressed: widget.onThemeToggle,
+                              ),
+                            ),
                             Expanded(
                               child: PageView.builder(
                                 controller: _pageController,
@@ -269,6 +278,65 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _ThemeToggleButton extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  const _ThemeToggleButton({required this.isDark, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0x99111822) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? const Color(0xFF252D3A) : const Color(0xFFE5E7EB),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? const Color(0x66000000)
+                  : const Color(0x14000000),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: IconButton(
+          onPressed: onPressed,
+          splashRadius: 22,
+          padding: EdgeInsets.zero,
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, animation) {
+              return ScaleTransition(
+                scale: animation,
+                child: FadeTransition(opacity: animation, child: child),
+              );
+            },
+            child: Icon(
+              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              key: ValueKey<bool>(isDark),
+              color: isDark
+                  ? const Color(0xFFFBBF24)
+                  : PlanoraTheme.primaryPurple,
+              size: 22,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
