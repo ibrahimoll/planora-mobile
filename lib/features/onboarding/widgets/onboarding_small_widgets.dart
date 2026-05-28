@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/planora_theme.dart';
-
 class HeroTitle extends StatelessWidget {
   final String title;
   final String highlightedText;
