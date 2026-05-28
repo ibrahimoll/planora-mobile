@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/planora_theme.dart';
 import '../models/onboarding_page_data.dart';
 import '../utils/onboarding_responsive_metrics.dart';
 import 'onboarding_image.dart';
@@ -18,6 +17,9 @@ class IntroOnboardingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       child: Column(
@@ -37,10 +39,10 @@ class IntroOnboardingPage extends StatelessWidget {
               SizedBox(width: metrics.logoToTitleGap),
               Text(
                 'Planora',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                style: textTheme.headlineLarge?.copyWith(
                   fontSize: metrics.brandTitleSize,
                   fontWeight: FontWeight.w800,
-                  color: PlanoraTheme.textPrimary,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
@@ -63,10 +65,10 @@ class IntroOnboardingPage extends StatelessWidget {
           Text(
             data.description,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: textTheme.bodyMedium?.copyWith(
               fontSize: metrics.descriptionSize,
               height: 1.55,
-              color: PlanoraTheme.textSecondary,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
 
