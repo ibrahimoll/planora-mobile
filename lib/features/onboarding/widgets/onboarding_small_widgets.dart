@@ -16,16 +16,19 @@ class HeroTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final parts = title.split(highlightedText);
     final baseStyle = Theme.of(context).textTheme.displayLarge?.copyWith(
       fontSize: fontSize,
       fontWeight: FontWeight.w800,
       height: 1.1,
-      color: PlanoraTheme.textPrimary,
+      color: colorScheme.onSurface,
     );
+
     if (highlightedText.isEmpty || parts.length != 2) {
       return Text(title, textAlign: TextAlign.center, style: baseStyle);
     }
+
     return RichText(
       textAlign: TextAlign.center,
       text: TextSpan(
@@ -34,7 +37,7 @@ class HeroTitle extends StatelessWidget {
           TextSpan(text: parts.first),
           TextSpan(
             text: highlightedText,
-            style: const TextStyle(color: PlanoraTheme.primaryPurple),
+            style: TextStyle(color: colorScheme.primary),
           ),
           TextSpan(text: parts.last),
         ],
@@ -48,10 +51,12 @@ class AiPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       decoration: BoxDecoration(
-        color: PlanoraTheme.lavenderGlow,
+        color: colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -60,7 +65,7 @@ class AiPill extends StatelessWidget {
           fontSize: 10.5,
           fontWeight: FontWeight.w800,
           letterSpacing: .5,
-          color: PlanoraTheme.textSecondary,
+          color: colorScheme.onPrimaryContainer,
         ),
       ),
     );
@@ -75,14 +80,16 @@ class IconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: PlanoraTheme.primaryLight,
+        color: colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(size * .31),
       ),
-      child: Icon(icon, color: PlanoraTheme.primaryPurple, size: size * .48),
+      child: Icon(icon, color: colorScheme.primary, size: size * .48),
     );
   }
 }
