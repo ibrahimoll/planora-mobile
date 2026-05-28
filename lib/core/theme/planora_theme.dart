@@ -245,9 +245,9 @@ class PlanoraTheme {
         backgroundColor: primaryPurple,
         foregroundColor: Colors.white,
         elevation: 0,
-        minimumSize: const Size(double.infinity, 64),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        minimumSize: const Size(double.infinity, 56),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         textStyle: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -260,10 +260,10 @@ class PlanoraTheme {
       style: OutlinedButton.styleFrom(
         backgroundColor: surface,
         foregroundColor: textPrimary,
-        minimumSize: const Size(double.infinity, 64),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        minimumSize: const Size(double.infinity, 56),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         side: const BorderSide(color: border, width: 1.2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         textStyle: GoogleFonts.inter(
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -334,7 +334,10 @@ class PlanoraTheme {
       type: BottomNavigationBarType.fixed,
       elevation: 0,
       selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-      unselectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+      unselectedLabelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+      ),
     ),
 
     dividerTheme: const DividerThemeData(

@@ -17,12 +17,17 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
+
   int _currentPage = 0;
 
   bool get _isFirstPage => _currentPage == 0;
+
   bool get _isLastPage => _currentPage == onboardingPages.length - 1;
+
   bool get _isFinalPage =>
       onboardingPages[_currentPage].type == OnboardingPageType.finalPage;
+
+  bool get _showSecondaryButton => _isFirstPage || _isFinalPage;
 
   String get _primaryButtonLabel {
     if (_isFirstPage) return 'Get Started';
@@ -35,6 +40,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return 'Sign In';
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _goToNextPage() {
     if (!_isLastPage) {
       _pageController.animateToPage(
@@ -44,15 +55,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
       return;
     }
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Create account coming next')));
   }
 
   void _goToSignIn() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign in Screen coming next.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Sign in screen coming next')));
   }
 
   void _skipOnboarding() {
@@ -64,12 +76,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -77,7 +83,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
         return Scaffold(
           body: Container(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: PlanoraTheme.onboardingBackground,
             ),
             child: SafeArea(
@@ -124,30 +130,60 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           count: onboardingPages.length,
                         ),
                         SizedBox(height: metrics.dotsToButtonGap),
-                        DecoratedBox(
-                          decoration: const BoxDecoration(
-                            gradient: PlanoraTheme.primaryGradient,
-                            borderRadius: BorderRadius.all(Radius.circular(20)),
-                            boxShadow: PlanoraTheme.floatingShadow,
-                          ),
-                          child: ElevatedButton(
-                            onPressed: _goToNextPage,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
+
+                        SizedBox(
+                          width: metrics.actionButtonWidth,
+                          height: metrics.primaryButtonHeight,
+                          child: DecoratedBox(
+                            decoration: const BoxDecoration(
+                              gradient: PlanoraTheme.primaryGradient,
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(16),
+                              ),
+                              boxShadow: PlanoraTheme.floatingShadow,
                             ),
-                            child: Text(_primaryButtonLabel),
+                            child: ElevatedButton(
+                              onPressed: _goToNextPage,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                minimumSize: Size.zero,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(_primaryButtonLabel),
+                            ),
                           ),
                         ),
+
                         if (_showSecondaryButton) ...[
                           SizedBox(height: metrics.buttonGap),
-                          OutlinedButton(
-                            onPressed: _goToSignIn,
-                            child: Text(_secondaryButtonLabel),
+                          SizedBox(
+                            width: metrics.actionButtonWidth,
+                            height: metrics.secondaryButtonHeight,
+                            child: OutlinedButton(
+                              onPressed: _goToSignIn,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: Size.zero,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(_secondaryButtonLabel),
+                            ),
                           ),
                         ],
+
                         SizedBox(height: metrics.bottomGap),
-                        //Buttons
                       ],
                     ),
                   ),

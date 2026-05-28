@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 class OnboardingResponsiveMetrics {
+  final double actionButtonWidth;
+  final double primaryButtonHeight;
+  final double secondaryButtonHeight;
   final double maxContentWidth;
   final double horizontalPadding;
   final double introTopGap;
@@ -63,6 +66,9 @@ class OnboardingResponsiveMetrics {
     required this.dotsToButtonGap,
     required this.buttonGap,
     required this.bottomGap,
+    required this.actionButtonWidth,
+    required this.primaryButtonHeight,
+    required this.secondaryButtonHeight,
   });
 
   factory OnboardingResponsiveMetrics.from(
@@ -94,6 +100,10 @@ class OnboardingResponsiveMetrics {
     final tabletLike = shortestSide >= 600;
 
     return OnboardingResponsiveMetrics(
+      actionButtonWidth: imageSafeWidth.clamp(300.0, 350.0).toDouble(),
+      primaryButtonHeight: tinyHeight ? 48 : 52,
+      secondaryButtonHeight: tinyHeight ? 46 : 50,
+
       maxContentWidth: tabletLike ? 460 : 430,
       horizontalPadding: narrowWidth ? 20 : 28,
 
@@ -118,13 +128,13 @@ class OnboardingResponsiveMetrics {
       featureTopGap: tinyHeight ? 8 : 18,
       skipToImageGap: tinyHeight ? 8 : 20,
 
-      featureImageHeight: (height * .30).clamp(200.0, 255.0).toDouble(),
-      featureImageWidth: imageSafeWidth,
+      featureImageHeight: (height * .34).clamp(225.0, 290.0).toDouble(),
+      featureImageWidth: (imageSafeWidth + 20).clamp(290.0, 395.0).toDouble(),
 
       finalImageHeight: (height * .38).clamp(250.0, 330.0).toDouble(),
       finalImageWidth: imageSafeWidth,
 
-      featureImageToIconGap: tinyHeight ? 24 : (compactHeight ? 34 : 48),
+      featureImageToIconGap: tinyHeight ? 16 : (compactHeight ? 22 : 30),
       finalImageToIconGap: tinyHeight ? 24 : (compactHeight ? 30 : 38),
 
       iconBadgeSize: tinyHeight ? 52 : 58,
