@@ -77,118 +77,177 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = OnboardingResponsiveMetrics.from(context, constraints);
 
         return Scaffold(
-          body: Container(
+          body: DecoratedBox(
             decoration: BoxDecoration(
-              gradient: PlanoraTheme.onboardingBackgroundFor(context),
+              gradient: isDark
+                  ? const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF05070B), Color(0xFF0B1018)],
+                    )
+                  : PlanoraTheme.onboardingBackgroundFor(context),
             ),
-            child: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: metrics.maxContentWidth,
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: metrics.horizontalPadding,
+            child: Stack(
+              children: [
+                if (isDark) ...[
+                  Positioned(
+                    top: -120,
+                    left: -90,
+                    right: -90,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 310,
+                        decoration: const BoxDecoration(
+                          gradient: RadialGradient(
+                            colors: [Color(0x332A1558), Colors.transparent],
+                          ),
+                        ),
+                      ),
                     ),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: PageView.builder(
-                            controller: _pageController,
-                            itemCount: onboardingPages.length,
-                            onPageChanged: (index) {
-                              setState(() => _currentPage = index);
-                            },
-                            itemBuilder: (context, index) {
-                              final page = onboardingPages[index];
-
-                              if (page.type == OnboardingPageType.intro) {
-                                return IntroOnboardingPage(
-                                  data: page,
-                                  metrics: metrics,
-                                );
-                              }
-
-                              return ImageOnboardingPage(
-                                data: page,
-                                metrics: metrics,
-                                showSkip:
-                                    page.type == OnboardingPageType.feature,
-                                onSkip: _skipOnboarding,
-                              );
-                            },
+                  ),
+                  Positioned(
+                    bottom: -150,
+                    left: -70,
+                    right: -70,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 330,
+                        decoration: const BoxDecoration(
+                          gradient: RadialGradient(
+                            colors: [Color(0x262A1558), Colors.transparent],
                           ),
                         ),
-                        OnboardingPageDot(
-                          controller: _pageController,
-                          count: onboardingPages.length,
+                      ),
+                    ),
+                  ),
+                ],
+                SafeArea(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: metrics.maxContentWidth,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: metrics.horizontalPadding,
                         ),
-                        SizedBox(height: metrics.dotsToButtonGap),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: PageView.builder(
+                                controller: _pageController,
+                                itemCount: onboardingPages.length,
+                                onPageChanged: (index) {
+                                  setState(() => _currentPage = index);
+                                },
+                                itemBuilder: (context, index) {
+                                  final page = onboardingPages[index];
 
-                        SizedBox(
-                          width: metrics.actionButtonWidth,
-                          height: metrics.primaryButtonHeight,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: PlanoraTheme.primaryGradientFor(context),
-                              borderRadius: const BorderRadius.all(
-                                Radius.circular(16),
+                                  if (page.type == OnboardingPageType.intro) {
+                                    return IntroOnboardingPage(
+                                      data: page,
+                                      metrics: metrics,
+                                    );
+                                  }
+
+                                  return ImageOnboardingPage(
+                                    data: page,
+                                    metrics: metrics,
+                                    showSkip:
+                                        page.type == OnboardingPageType.feature,
+                                    onSkip: _skipOnboarding,
+                                  );
+                                },
                               ),
-                              boxShadow: PlanoraTheme.floatingShadowFor(context),
                             ),
-                            child: ElevatedButton(
-                              onPressed: _goToNextPage,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                minimumSize: Size.zero,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
+                            OnboardingPageDot(
+                              controller: _pageController,
+                              count: onboardingPages.length,
+                            ),
+                            SizedBox(height: metrics.dotsToButtonGap),
+
+                            SizedBox(
+                              width: metrics.actionButtonWidth,
+                              height: metrics.primaryButtonHeight,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: PlanoraTheme.primaryGradientFor(
+                                    context,
+                                  ),
+                                  borderRadius: const BorderRadius.all(
+                                    Radius.circular(16),
+                                  ),
+                                  boxShadow: PlanoraTheme.floatingShadowFor(
+                                    context,
+                                  ),
                                 ),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                child: ElevatedButton(
+                                  onPressed: _goToNextPage,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    minimumSize: Size.zero,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  child: Text(_primaryButtonLabel),
                                 ),
                               ),
-                              child: Text(_primaryButtonLabel),
                             ),
-                          ),
+
+                            if (_showSecondaryButton) ...[
+                              SizedBox(height: metrics.buttonGap),
+                              SizedBox(
+                                width: metrics.actionButtonWidth,
+                                height: metrics.secondaryButtonHeight,
+                                child: OutlinedButton(
+                                  onPressed: _goToSignIn,
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: isDark
+                                        ? const Color(0x66111822)
+                                        : null,
+                                    side: isDark
+                                        ? const BorderSide(
+                                            color: Color(0xFF222A36),
+                                            width: 1.1,
+                                          )
+                                        : null,
+                                    minimumSize: Size.zero,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                    ),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  child: Text(_secondaryButtonLabel),
+                                ),
+                              ),
+                            ],
+
+                            SizedBox(height: metrics.bottomGap),
+                          ],
                         ),
-
-                        if (_showSecondaryButton) ...[
-                          SizedBox(height: metrics.buttonGap),
-                          SizedBox(
-                            width: metrics.actionButtonWidth,
-                            height: metrics.secondaryButtonHeight,
-                            child: OutlinedButton(
-                              onPressed: _goToSignIn,
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: Size.zero,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: Text(_secondaryButtonLabel),
-                            ),
-                          ),
-                        ],
-
-                        SizedBox(height: metrics.bottomGap),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         );
