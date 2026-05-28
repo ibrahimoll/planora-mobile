@@ -20,6 +20,8 @@ class _PlanoraAppState extends State<PlanoraApp> {
       title: 'Planora',
       debugShowCheckedModeBanner: false,
       theme: PlanoraTheme.lightTheme,
+      darkTheme: PlanoraTheme.darkTheme,
+      themeMode: ThemeMode.system,
       home: OnboardingScreen(),
     );
   }

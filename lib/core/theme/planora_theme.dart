@@ -45,6 +45,50 @@ class PlanoraTheme {
   static BorderRadius radiusButton = BorderRadius.circular(20);
   static BorderRadius radiusFull = BorderRadius.circular(9999);
 
+  static const Color darkBackground = Color(0xFF0F172A);
+  static const Color darkSurface = Color(0xFF1E293B);
+  static const Color darkTextPrimary = Color(0xFFF8FAFC);
+  static const Color darkTextSecondary = Color(0xFFC4B5FD);
+  static const Color darkBorder = Color(0xFF334155);
+
+  static ThemeData darkTheme = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: darkBackground,
+    primaryColor: primaryPurple,
+    fontFamily: GoogleFonts.inter().fontFamily,
+
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFFA78BFA),
+      onPrimary: Color(0xFF1E1B4B),
+      secondary: Color(0xFFC4B5FD),
+      onSecondary: Color(0xFF1E1B4B),
+      error: error,
+      onError: Colors.white,
+      surface: darkSurface,
+      onSurface: darkTextPrimary,
+      surfaceContainerHighest: Color(0xFF273449),
+      onSurfaceVariant: darkTextSecondary,
+      outline: darkBorder,
+      outlineVariant: Color(0xFF1E293B),
+    ),
+
+    appBarTheme: AppBarTheme(
+      backgroundColor: darkBackground,
+      foregroundColor: darkTextPrimary,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+    ),
+
+    cardTheme: CardThemeData(
+      color: darkSurface,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: EdgeInsets.zero,
+    ),
+  );
+
   // Primary button gradient.
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.centerLeft,
