@@ -120,10 +120,10 @@ class OnboardingResponsiveMetrics {
       descriptionSize: narrowWidth ? 14 : 15,
       descriptionToIntroImageGap: tinyHeight ? 18 : (compactHeight ? 22 : 26),
 
-      introImageHeight: (height * (compactHeight ? .27 : .32))
-          .clamp(220.0, 300.0)
+      introImageHeight: (height * (compactHeight ? .23 : .27))
+          .clamp(185.0, 250.0)
           .toDouble(),
-      introImageWidth: imageSafeWidth,
+      introImageWidth: (imageSafeWidth - 30).clamp(250.0, 350.0).toDouble(),
 
       featureTopGap: tinyHeight ? 8 : 18,
       skipToImageGap: tinyHeight ? 8 : 20,
