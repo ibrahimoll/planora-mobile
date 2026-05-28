@@ -41,21 +41,23 @@ class _MissingImagePlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: 300,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: PlanoraTheme.softPurpleGradient,
+        gradient: PlanoraTheme.softPurpleGradientFor(context),
         borderRadius: PlanoraTheme.radiusXL,
-        border: Border.all(color: PlanoraTheme.border),
-        boxShadow: PlanoraTheme.softCardShadow,
+        border: Border.all(color: colorScheme.outline),
+        boxShadow: PlanoraTheme.softCardShadowFor(context),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.image_not_supported_rounded,
-            color: PlanoraTheme.primaryPurple,
+            color: colorScheme.primary,
             size: 38,
           ),
           const SizedBox(height: 10),
@@ -63,7 +65,7 @@ class _MissingImagePlaceholder extends StatelessWidget {
             'Missing image',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: PlanoraTheme.textPrimary,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 6),
@@ -72,7 +74,7 @@ class _MissingImagePlaceholder extends StatelessWidget {
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
-            ).textTheme.bodySmall?.copyWith(color: PlanoraTheme.textSecondary),
+            ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),
