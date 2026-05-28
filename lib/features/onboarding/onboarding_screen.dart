@@ -83,8 +83,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
         return Scaffold(
           body: Container(
-            decoration: const BoxDecoration(
-              gradient: PlanoraTheme.onboardingBackground,
+            decoration: BoxDecoration(
+              gradient: PlanoraTheme.onboardingBackgroundFor(context),
             ),
             child: SafeArea(
               child: Center(
@@ -135,12 +135,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           width: metrics.actionButtonWidth,
                           height: metrics.primaryButtonHeight,
                           child: DecoratedBox(
-                            decoration: const BoxDecoration(
-                              gradient: PlanoraTheme.primaryGradient,
-                              borderRadius: BorderRadius.all(
+                            decoration: BoxDecoration(
+                              gradient: PlanoraTheme.primaryGradientFor(context),
+                              borderRadius: const BorderRadius.all(
                                 Radius.circular(16),
                               ),
-                              boxShadow: PlanoraTheme.floatingShadow,
+                              boxShadow: PlanoraTheme.floatingShadowFor(context),
                             ),
                             child: ElevatedButton(
                               onPressed: _goToNextPage,
