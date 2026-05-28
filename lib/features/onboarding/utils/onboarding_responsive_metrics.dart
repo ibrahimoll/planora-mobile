@@ -100,9 +100,9 @@ class OnboardingResponsiveMetrics {
     final tabletLike = shortestSide >= 600;
 
     return OnboardingResponsiveMetrics(
-      actionButtonWidth: imageSafeWidth.clamp(300.0, 350.0).toDouble(),
-      primaryButtonHeight: tinyHeight ? 48 : 52,
-      secondaryButtonHeight: tinyHeight ? 46 : 50,
+      actionButtonWidth: imageSafeWidth.clamp(280.0, 330.0).toDouble(),
+      primaryButtonHeight: tinyHeight ? 44 : 48,
+      secondaryButtonHeight: tinyHeight ? 42 : 46,
 
       maxContentWidth: tabletLike ? 460 : 430,
       horizontalPadding: narrowWidth ? 20 : 28,
@@ -128,13 +128,13 @@ class OnboardingResponsiveMetrics {
       featureTopGap: tinyHeight ? 8 : 18,
       skipToImageGap: tinyHeight ? 8 : 20,
 
-      featureImageHeight: (height * .34).clamp(225.0, 290.0).toDouble(),
-      featureImageWidth: (imageSafeWidth + 20).clamp(290.0, 395.0).toDouble(),
+      featureImageHeight: (height * .40).clamp(260.0, 340.0).toDouble(),
+      featureImageWidth: (imageSafeWidth + 45).clamp(320.0, 430.0).toDouble(),
 
       finalImageHeight: (height * .38).clamp(250.0, 330.0).toDouble(),
       finalImageWidth: imageSafeWidth,
 
-      featureImageToIconGap: tinyHeight ? 16 : (compactHeight ? 22 : 30),
+      featureImageToIconGap: tinyHeight ? 10 : (compactHeight ? 14 : 18),
       finalImageToIconGap: tinyHeight ? 24 : (compactHeight ? 30 : 38),
 
       iconBadgeSize: tinyHeight ? 52 : 58,
@@ -145,7 +145,7 @@ class OnboardingResponsiveMetrics {
 
       pageBottomPadding: compactHeight ? 18 : 28,
       dotsToButtonGap: compactHeight ? 18 : 28,
-      buttonGap: compactHeight ? 10 : 14,
+      buttonGap: compactHeight ? 8 : 10,
       bottomGap: compactHeight ? 12 : 20,
     );
   }
