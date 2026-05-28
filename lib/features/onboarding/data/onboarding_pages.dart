@@ -10,6 +10,7 @@ const List<OnboardingPageData> onboardingPages = [
     description:
         'Planora helps you plan projects, manage tasks, predict risks, and deliver successful results with the power of AI.',
     imageAsset: 'assets/images/onboarding_1.png',
+    darkImageAsset: 'assets/images/onboardDark_1.png',
     icon: null,
   ),
   OnboardingPageData(
@@ -18,6 +19,7 @@ const List<OnboardingPageData> onboardingPages = [
     description:
         'Let AI break down your ideas into clear plans, smart tasks, and realistic timelines in seconds.',
     imageAsset: 'assets/images/onboarding_2.png',
+    darkImageAsset: 'assets/images/onboardDark_2.png',
     icon: Icons.auto_awesome_rounded,
   ),
   OnboardingPageData(
@@ -26,6 +28,7 @@ const List<OnboardingPageData> onboardingPages = [
     description:
         'Work together in real-time. Assign tasks, share files, comment, and keep everyone on the same page.',
     imageAsset: 'assets/images/onboarding_3.png',
+    darkImageAsset: 'assets/images/onboardDark_3.png',
     icon: Icons.groups_rounded,
   ),
   OnboardingPageData(
@@ -34,6 +37,7 @@ const List<OnboardingPageData> onboardingPages = [
     description:
         'Join thousands of teams and professionals who plan smarter and deliver better with Planora.',
     imageAsset: 'assets/images/onboarding_4.png',
+    darkImageAsset: 'assets/images/onboardDark_4.png',
     icon: Icons.rocket_launch_rounded,
   ),
 ];

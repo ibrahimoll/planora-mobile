@@ -178,21 +178,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               height: metrics.primaryButtonHeight,
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  gradient: PlanoraTheme.primaryGradientFor(
-                                    context,
-                                  ),
+                                  gradient: isDark
+                                      ? const LinearGradient(
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                          colors: [
+                                            Color(0xFF7C3AED),
+                                            Color(0xFF5B2DDA),
+                                          ],
+                                        )
+                                      : PlanoraTheme.primaryGradientFor(context),
                                   borderRadius: const BorderRadius.all(
                                     Radius.circular(16),
                                   ),
-                                  boxShadow: PlanoraTheme.floatingShadowFor(
-                                    context,
-                                  ),
+                                  boxShadow: isDark
+                                      ? const [
+                                          BoxShadow(
+                                            color: Color(0x4D5B2DDA),
+                                            blurRadius: 22,
+                                            offset: Offset(0, 12),
+                                          ),
+                                        ]
+                                      : PlanoraTheme.floatingShadowFor(context),
                                 ),
                                 child: ElevatedButton(
                                   onPressed: _goToNextPage,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.transparent,
                                     shadowColor: Colors.transparent,
+                                    foregroundColor: Colors.white,
                                     minimumSize: Size.zero,
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 20,
@@ -218,6 +232,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   style: OutlinedButton.styleFrom(
                                     backgroundColor: isDark
                                         ? const Color(0x66111822)
+                                        : null,
+                                    foregroundColor: isDark
+                                        ? const Color(0xFFE5E7EB)
                                         : null,
                                     side: isDark
                                         ? const BorderSide(

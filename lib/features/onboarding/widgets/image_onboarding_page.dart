@@ -56,7 +56,7 @@ class ImageOnboardingPage extends StatelessWidget {
             child: Column(
               children: [
                 OnboardingImage(
-                  assetPath: data.imageAsset,
+                  assetPath: data.imageAssetFor(context),
                   height: isFinal
                       ? metrics.finalImageHeight
                       : metrics.featureImageHeight,
