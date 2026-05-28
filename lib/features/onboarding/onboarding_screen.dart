@@ -293,6 +293,13 @@ class _ThemeToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const double switchWidth = 84;
+    const double switchHeight = 40;
+    const double switchPadding = 3;
+    const double thumbSize = 34;
+    const double iconSlotSize = 34;
+    const double thumbTravel = switchWidth - (switchPadding * 2) - thumbSize;
+
     return Tooltip(
       message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
       child: Semantics(
@@ -304,9 +311,9 @@ class _ThemeToggleButton extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
-            width: 84,
-            height: 40,
-            padding: const EdgeInsets.all(3),
+            width: switchWidth,
+            height: switchHeight,
+            padding: const EdgeInsets.all(switchPadding),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF111822) : const Color(0xFFF3EEFF),
               borderRadius: BorderRadius.circular(999),
@@ -326,61 +333,68 @@ class _ThemeToggleButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: Stack(
-              children: [
-                AnimatedAlign(
-                  duration: const Duration(milliseconds: 330),
-                  curve: Curves.easeInOutCubicEmphasized,
-                  alignment: isDark
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeOutCubic,
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x4D6D28D9),
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
+            child: SizedBox(
+              width: switchWidth - (switchPadding * 2),
+              height: thumbSize,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 330),
+                    curve: Curves.easeInOutCubicEmphasized,
+                    left: isDark ? thumbTravel : 0,
+                    top: 0,
+                    width: thumbSize,
+                    height: thumbSize,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
                         ),
-                      ],
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x4D6D28D9),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ThemeToggleIcon(
-                        icon: Icons.light_mode_rounded,
-                        isActive: !isDark,
-                        activeColor: Colors.white,
-                        inactiveColor: isDark
-                            ? const Color(0xFF64748B)
-                            : const Color(0xFFF59E0B),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: iconSlotSize,
+                        height: iconSlotSize,
+                        child: _ThemeToggleIcon(
+                          icon: Icons.light_mode_rounded,
+                          isActive: !isDark,
+                          activeColor: Colors.white,
+                          inactiveColor: isDark
+                              ? const Color(0xFF64748B)
+                              : const Color(0xFFF59E0B),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: _ThemeToggleIcon(
-                        icon: Icons.dark_mode_rounded,
-                        isActive: isDark,
-                        activeColor: Colors.white,
-                        inactiveColor: isDark
-                            ? const Color(0xFF7C8596)
-                            : PlanoraTheme.primaryPurple,
+                      const Spacer(),
+                      SizedBox(
+                        width: iconSlotSize,
+                        height: iconSlotSize,
+                        child: _ThemeToggleIcon(
+                          icon: Icons.dark_mode_rounded,
+                          isActive: isDark,
+                          activeColor: Colors.white,
+                          inactiveColor: isDark
+                              ? const Color(0xFF7C8596)
+                              : PlanoraTheme.primaryPurple,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -404,17 +418,19 @@ class _ThemeToggleIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutBack,
-      scale: isActive ? 1.0 : 0.82,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 180),
-        opacity: isActive ? 1.0 : 0.66,
-        child: Icon(
-          icon,
-          color: isActive ? activeColor : inactiveColor,
-          size: 19,
+    return Center(
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutBack,
+        scale: isActive ? 1.0 : 0.82,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 180),
+          opacity: isActive ? 1.0 : 0.66,
+          child: Icon(
+            icon,
+            color: isActive ? activeColor : inactiveColor,
+            size: 19,
+          ),
         ),
       ),
     );
