@@ -75,7 +75,7 @@ class IntroOnboardingPage extends StatelessWidget {
           SizedBox(height: metrics.descriptionToIntroImageGap),
 
           OnboardingImage(
-            assetPath: data.imageAsset,
+            assetPath: data.imageAssetFor(context),
             height: metrics.introImageHeight,
             width: metrics.introImageWidth,
           ),
