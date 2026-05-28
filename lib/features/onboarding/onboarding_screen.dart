@@ -144,9 +144,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           children: [
                             Align(
                               alignment: Alignment.centerRight,
-                              child: _ThemeToggleButton(
-                                isDark: isDark,
-                                onPressed: widget.onThemeToggle,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 2, right: 2),
+                                child: _ThemeToggleButton(
+                                  isDark: isDark,
+                                  onPressed: widget.onThemeToggle,
+                                ),
                               ),
                             ),
                             Expanded(
@@ -299,63 +302,55 @@ class _ThemeToggleButton extends StatelessWidget {
           onTap: onPressed,
           behavior: HitTestBehavior.opaque,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
+            duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
-            width: 92,
-            height: 46,
-            padding: const EdgeInsets.all(4),
+            width: 84,
+            height: 40,
+            padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0x99111822) : Colors.white,
+              color: isDark ? const Color(0xFF111822) : const Color(0xFFF3EEFF),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: isDark
-                    ? const Color(0xFF252D3A)
-                    : const Color(0xFFE5E7EB),
+                    ? const Color(0xFF253044)
+                    : const Color(0xFFE6DDFB),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isDark
                       ? const Color(0x66000000)
-                      : const Color(0x14000000),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+                      : const Color(0x1A6D28D9),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
             child: Stack(
               children: [
                 AnimatedAlign(
-                  duration: const Duration(milliseconds: 320),
+                  duration: const Duration(milliseconds: 330),
                   curve: Curves.easeInOutCubicEmphasized,
                   alignment: isDark
                       ? Alignment.centerRight
                       : Alignment.centerLeft,
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 260),
+                    duration: const Duration(milliseconds: 280),
                     curve: Curves.easeOutCubic,
-                    width: 38,
-                    height: 38,
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
-                      gradient: isDark
-                          ? const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFF7C3AED), Color(0xFF5B2DDA)],
-                            )
-                          : const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFFFFFBEB), Color(0xFFFFFFFF)],
-                            ),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
+                      ),
                       borderRadius: BorderRadius.circular(999),
-                      boxShadow: [
+                      boxShadow: const [
                         BoxShadow(
-                          color: isDark
-                              ? const Color(0x665B2DDA)
-                              : const Color(0x1AF59E0B),
-                          blurRadius: 12,
-                          offset: const Offset(0, 5),
+                          color: Color(0x4D6D28D9),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
                         ),
                       ],
                     ),
@@ -367,10 +362,10 @@ class _ThemeToggleButton extends StatelessWidget {
                       child: _ThemeToggleIcon(
                         icon: Icons.light_mode_rounded,
                         isActive: !isDark,
-                        activeColor: const Color(0xFFF59E0B),
+                        activeColor: Colors.white,
                         inactiveColor: isDark
                             ? const Color(0xFF64748B)
-                            : const Color(0xFF9CA3AF),
+                            : const Color(0xFFF59E0B),
                       ),
                     ),
                     Expanded(
@@ -379,7 +374,7 @@ class _ThemeToggleButton extends StatelessWidget {
                         isActive: isDark,
                         activeColor: Colors.white,
                         inactiveColor: isDark
-                            ? const Color(0xFF64748B)
+                            ? const Color(0xFF7C8596)
                             : PlanoraTheme.primaryPurple,
                       ),
                     ),
@@ -412,14 +407,14 @@ class _ThemeToggleIcon extends StatelessWidget {
     return AnimatedScale(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutBack,
-      scale: isActive ? 1.0 : 0.86,
+      scale: isActive ? 1.0 : 0.82,
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 180),
-        opacity: isActive ? 1.0 : 0.72,
+        opacity: isActive ? 1.0 : 0.66,
         child: Icon(
           icon,
           color: isActive ? activeColor : inactiveColor,
-          size: 20,
+          size: 19,
         ),
       ),
     );
