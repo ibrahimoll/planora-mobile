@@ -292,49 +292,134 @@ class _ThemeToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0x99111822) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? const Color(0xFF252D3A) : const Color(0xFFE5E7EB),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isDark
-                  ? const Color(0x66000000)
-                  : const Color(0x14000000),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      child: Semantics(
+        button: true,
+        label: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+        child: GestureDetector(
+          onTap: onPressed,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            width: 92,
+            height: 46,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x99111822) : Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF252D3A)
+                    : const Color(0xFFE5E7EB),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? const Color(0x66000000)
+                      : const Color(0x14000000),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-          ],
+            child: Stack(
+              children: [
+                AnimatedAlign(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeInOutCubicEmphasized,
+                  alignment: isDark
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      gradient: isDark
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF7C3AED), Color(0xFF5B2DDA)],
+                            )
+                          : const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFFFFFBEB), Color(0xFFFFFFFF)],
+                            ),
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isDark
+                              ? const Color(0x665B2DDA)
+                              : const Color(0x1AF59E0B),
+                          blurRadius: 12,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ThemeToggleIcon(
+                        icon: Icons.light_mode_rounded,
+                        isActive: !isDark,
+                        activeColor: const Color(0xFFF59E0B),
+                        inactiveColor: isDark
+                            ? const Color(0xFF64748B)
+                            : const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                    Expanded(
+                      child: _ThemeToggleIcon(
+                        icon: Icons.dark_mode_rounded,
+                        isActive: isDark,
+                        activeColor: Colors.white,
+                        inactiveColor: isDark
+                            ? const Color(0xFF64748B)
+                            : PlanoraTheme.primaryPurple,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-        child: IconButton(
-          onPressed: onPressed,
-          splashRadius: 22,
-          padding: EdgeInsets.zero,
-          icon: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            transitionBuilder: (child, animation) {
-              return ScaleTransition(
-                scale: animation,
-                child: FadeTransition(opacity: animation, child: child),
-              );
-            },
-            child: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              key: ValueKey<bool>(isDark),
-              color: isDark
-                  ? const Color(0xFFFBBF24)
-                  : PlanoraTheme.primaryPurple,
-              size: 22,
-            ),
-          ),
+      ),
+    );
+  }
+}
+
+class _ThemeToggleIcon extends StatelessWidget {
+  final IconData icon;
+  final bool isActive;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  const _ThemeToggleIcon({
+    required this.icon,
+    required this.isActive,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutBack,
+      scale: isActive ? 1.0 : 0.86,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: isActive ? 1.0 : 0.72,
+        child: Icon(
+          icon,
+          color: isActive ? activeColor : inactiveColor,
+          size: 20,
         ),
       ),
     );
