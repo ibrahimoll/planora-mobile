@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/planora_theme.dart';
 import '../models/onboarding_page_data.dart';
 import '../utils/onboarding_responsive_metrics.dart';
 import 'onboarding_image.dart';
@@ -23,6 +22,8 @@ class ImageOnboardingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isFinal = data.type == OnboardingPageType.finalPage;
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       children: [
@@ -36,7 +37,7 @@ class ImageOnboardingPage extends StatelessWidget {
                 ? TextButton(
                     onPressed: onSkip,
                     style: TextButton.styleFrom(
-                      foregroundColor: PlanoraTheme.textSecondary,
+                      foregroundColor: colorScheme.onSurfaceVariant,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: const Size(0, 34),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -78,10 +79,10 @@ class ImageOnboardingPage extends StatelessWidget {
                 Text(
                   data.title,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: textTheme.titleLarge?.copyWith(
                     fontSize: metrics.sectionTitleSize,
                     fontWeight: FontWeight.w800,
-                    color: PlanoraTheme.textPrimary,
+                    color: colorScheme.onSurface,
                   ),
                 ),
 
@@ -90,10 +91,10 @@ class ImageOnboardingPage extends StatelessWidget {
                 Text(
                   data.description,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  style: textTheme.bodyMedium?.copyWith(
                     fontSize: metrics.descriptionSize,
                     height: 1.55,
-                    color: PlanoraTheme.textSecondary,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
 
