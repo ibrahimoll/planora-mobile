@@ -17,7 +17,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController fullNameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
   final FocusNode passwordFocusNode = FocusNode();
 
   bool obscurePassword = true;
@@ -28,10 +29,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool get hasMinLength => passwordController.text.length >= 8;
   bool get hasUppercase => RegExp(r'[A-Z]').hasMatch(passwordController.text);
   bool get hasNumber => RegExp(r'[0-9]').hasMatch(passwordController.text);
-  bool get hasSpecialCharacter =>
-      RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-+=/\\\[\];]').hasMatch(
-        passwordController.text,
-      );
+  bool get hasSpecialCharacter => RegExp(
+    r'[!@#\$%^&*(),.?":{}|<>_\-+=/\\\[\];]',
+  ).hasMatch(passwordController.text);
 
   @override
   void initState() {
@@ -61,7 +61,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -88,7 +90,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: SafeArea(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: metrics.maxContentWidth),
+                  constraints: BoxConstraints(
+                    maxWidth: metrics.maxContentWidth,
+                  ),
                   child: SingleChildScrollView(
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
@@ -225,28 +229,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           obscureText: obscurePassword,
                           textInputAction: TextInputAction.next,
                           style: _fieldTextStyle(isDark),
-                          decoration: _inputDecoration(
-                            context: context,
-                            hintText: 'Create a password',
-                            prefixIcon: Icons.lock_outline_rounded,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  obscurePassword = !obscurePassword;
-                                });
-                              },
-                              icon: Icon(
-                                obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                size: 20,
-                                color: isDark
-                                    ? const Color(0xFF8E92A3)
-                                    : PlanoraTheme.textMuted,
+                          decoration:
+                              _inputDecoration(
+                                context: context,
+                                hintText: 'Create a password',
+                                prefixIcon: Icons.lock_outline_rounded,
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      obscurePassword = !obscurePassword;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                    color: isDark
+                                        ? const Color(0xFF8E92A3)
+                                        : PlanoraTheme.textMuted,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
                         ),
                         SizedBox(height: metrics.fieldGap),
                         _FieldLabel(label: 'Confirm Password', isDark: isDark),
@@ -256,29 +261,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           obscureText: obscureConfirmPassword,
                           textInputAction: TextInputAction.done,
                           style: _fieldTextStyle(isDark),
-                          decoration: _inputDecoration(
-                            context: context,
-                            hintText: 'Confirm your password',
-                            prefixIcon: Icons.lock_outline_rounded,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  obscureConfirmPassword =
-                                      !obscureConfirmPassword;
-                                });
-                              },
-                              icon: Icon(
-                                obscureConfirmPassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                size: 20,
-                                color: isDark
-                                    ? const Color(0xFF8E92A3)
-                                    : PlanoraTheme.textMuted,
+                          decoration:
+                              _inputDecoration(
+                                context: context,
+                                hintText: 'Confirm your password',
+                                prefixIcon: Icons.lock_outline_rounded,
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      obscureConfirmPassword =
+                                          !obscureConfirmPassword;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    obscureConfirmPassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                    color: isDark
+                                        ? const Color(0xFF8E92A3)
+                                        : PlanoraTheme.textMuted,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
                         ),
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 260),
@@ -287,7 +293,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           transitionBuilder: (child, animation) {
                             return SizeTransition(
                               sizeFactor: animation,
-                              axisAlignment: -1,
+                              alignment: Alignment.topCenter,
                               child: FadeTransition(
                                 opacity: animation,
                                 child: child,
@@ -439,9 +445,9 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       label,
       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: isDark ? Colors.white : PlanoraTheme.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
+        color: isDark ? Colors.white : PlanoraTheme.textPrimary,
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 }
@@ -493,11 +499,11 @@ class _PasswordRulesCard extends StatelessWidget {
           Text(
             'Password must contain:',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? const Color(0xFFA78BFA)
-                      : PlanoraTheme.primaryPurple,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: isDark
+                  ? const Color(0xFFA78BFA)
+                  : PlanoraTheme.primaryPurple,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 10),
           _PasswordRuleItem(
@@ -545,8 +551,8 @@ class _PasswordRuleItem extends StatelessWidget {
     final activeColor = passed
         ? PlanoraTheme.success
         : isDark
-            ? const Color(0xFF8E92A3)
-            : PlanoraTheme.textMuted;
+        ? const Color(0xFF8E92A3)
+        : PlanoraTheme.textMuted;
 
     return Row(
       children: [
@@ -559,11 +565,11 @@ class _PasswordRuleItem extends StatelessWidget {
         Text(
           text,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark
-                    ? const Color(0xFFC8CAD5)
-                    : PlanoraTheme.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
+            color: isDark
+                ? const Color(0xFFC8CAD5)
+                : PlanoraTheme.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
@@ -594,8 +600,9 @@ class _TermsAgreementRow extends StatelessWidget {
           child: Checkbox(
             value: value,
             onChanged: onChanged,
-            activeColor:
-                isDark ? const Color(0xFF8B5CF6) : PlanoraTheme.primaryPurple,
+            activeColor: isDark
+                ? const Color(0xFF8B5CF6)
+                : PlanoraTheme.primaryPurple,
             checkColor: Colors.white,
             side: BorderSide(
               color: isDark ? const Color(0xFF2A2D3A) : PlanoraTheme.border,
@@ -764,13 +771,16 @@ class _SocialButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          backgroundColor:
-              isDark ? const Color(0xFF1D202C) : PlanoraTheme.surface,
+          backgroundColor: isDark
+              ? const Color(0xFF1D202C)
+              : PlanoraTheme.surface,
           foregroundColor: isDark ? Colors.white : PlanoraTheme.textPrimary,
           side: BorderSide(
             color: isDark ? const Color(0xFF2A2D3A) : PlanoraTheme.border,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
         child: Row(
@@ -799,7 +809,9 @@ class _SignInPrompt extends StatelessWidget {
         Text(
           'Already have an account? ',
           style: textTheme.bodySmall?.copyWith(
-            color: isDark ? const Color(0xFFC8CAD5) : PlanoraTheme.textSecondary,
+            color: isDark
+                ? const Color(0xFFC8CAD5)
+                : PlanoraTheme.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -884,8 +896,9 @@ class _AuthThemeToggle extends StatelessWidget {
                 AnimatedAlign(
                   duration: const Duration(milliseconds: 260),
                   curve: Curves.easeInOutCubic,
-                  alignment:
-                      isDark ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isDark
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     width: 26,
                     height: 26,
