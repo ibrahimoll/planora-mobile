@@ -65,9 +65,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _goToSignIn() {
-    ScaffoldMessenger.of(
+    Navigator.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Sign in screen coming next')));
+    ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   void _skipOnboarding() {
@@ -192,7 +192,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                             Color(0xFF5B2DDA),
                                           ],
                                         )
-                                      : PlanoraTheme.primaryGradientFor(context),
+                                      : PlanoraTheme.primaryGradientFor(
+                                          context,
+                                        ),
                                   borderRadius: const BorderRadius.all(
                                     Radius.circular(16),
                                   ),
