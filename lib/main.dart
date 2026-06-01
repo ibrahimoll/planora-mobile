@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/planora_theme.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
+import 'package:mobile/features/reset_password/reset_password_screen.dart';
 
 void main() {
   runApp(const PlanoraApp());
@@ -30,6 +31,24 @@ class _PlanoraAppState extends State<PlanoraApp> {
     });
   }
 
+  Widget _buildInitialScreen() {
+    final uri = Uri.base;
+    final isResetPasswordPath = uri.path == '/reset-password';
+
+    if (isResetPasswordPath) {
+      final email = uri.queryParameters['email'] ?? '';
+      final resetToken = uri.queryParameters['token'] ?? '';
+
+      return ResetPasswordScreen(
+        onThemeToggle: _toggleThemeMode,
+        email: email,
+        resetToken: resetToken,
+      );
+    }
+
+    return OnboardingScreen(onThemeToggle: _toggleThemeMode);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -38,7 +57,7 @@ class _PlanoraAppState extends State<PlanoraApp> {
       theme: PlanoraTheme.lightTheme,
       darkTheme: PlanoraTheme.darkTheme,
       themeMode: _themeMode,
-      home: OnboardingScreen(onThemeToggle: _toggleThemeMode),
+      home: _buildInitialScreen(),
     );
   }
 }
