@@ -22,13 +22,13 @@ class AuthApi {
     required String password,
     required String fullName,
   }) async {
-    final data = await ApiClient.postForm(
+    final data = await ApiClient.postJson(
       '/auth/register',
       data: {
         'username': username,
         'email': email,
         'password': password,
-        'fullname': fullName,
+        'full_name': fullName,
       },
       requiresAuth: false,
     );

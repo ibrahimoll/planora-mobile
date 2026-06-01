@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-
+import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/core/storage/token_storage.dart';
+import 'package:mobile/features/auth/data/auth_api.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
@@ -21,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool rememberMe = true;
   bool obscurePassword = true;
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -39,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _signIn() {
+  Future<void> _signIn() async {
     final email = emailController.text.trim();
     final password = passwordController.text;
 
@@ -58,7 +61,35 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    _showMessage('Backend login connection coming next');
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final tokenResponse = await AuthApi.login(
+        identifier: email,
+        password: password,
+      );
+      await TokenStorage.saveAccessToken(tokenResponse.accessToken);
+
+      final user = await AuthApi.getCurrentUser();
+
+      if (!mounted) return;
+
+      _showMessage('Welcome back, ${user.fullName}');
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Login failed. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -190,8 +221,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(height: metrics.sectionGap),
                         PlanoraGradientButton(
                           height: metrics.buttonHeight,
-                          label: 'Sign In',
-                          onPressed: _signIn,
+                          label: isLoading ? 'Signing In...' : 'Sign In',
+                          onPressed: isLoading ? null : _signIn,
                         ),
                         SizedBox(height: metrics.sectionGap),
                         const PlanoraAuthDivider(),
