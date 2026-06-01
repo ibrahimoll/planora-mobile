@@ -241,7 +241,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         SizedBox(height: metrics.pillToTitleGap),
 
                         Image.asset(
-                          'assets/images/email_verification.png',
+                          isDark
+                              ? 'assets/images/email_verification_dark.png'
+                              : 'assets/images/email_verification_light.png',
                           height: metrics.logoSize * 1.65,
                           fit: BoxFit.contain,
                         ),
