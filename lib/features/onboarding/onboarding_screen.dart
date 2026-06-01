@@ -66,9 +66,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _goToSignIn() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
+      ),
+    );
   }
 
   void _skipOnboarding() {

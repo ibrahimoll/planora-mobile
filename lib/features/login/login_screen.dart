@@ -4,7 +4,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/planora_theme.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final VoidCallback onThemeToggle;
+
+  const LoginScreen({super.key, required this.onThemeToggle});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -57,18 +59,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const SizedBox(height: 10),
 
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          size: 20,
-                          color: isDark
-                              ? Colors.white
-                              : PlanoraTheme.textPrimary,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 20,
+                            color: isDark
+                                ? Colors.white
+                                : PlanoraTheme.textPrimary,
+                          ),
                         ),
-                      ),
+                        _AuthThemeToggle(
+                          isDark: isDark,
+                          onPressed: widget.onThemeToggle,
+                        ),
+                      ],
                     ),
 
                     const SizedBox(height: 12),
@@ -518,6 +526,65 @@ class _AppleLogo extends StatelessWidget {
       Icons.apple_rounded,
       size: 22,
       color: isDark ? Colors.white : Colors.black,
+    );
+  }
+}
+
+class _AuthThemeToggle extends StatelessWidget {
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  const _AuthThemeToggle({required this.isDark, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+      child: GestureDetector(
+        onTap: onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          width: 58,
+          height: 34,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1D202C) : const Color(0xFFF3EEFF),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: isDark ? const Color(0xFF2A2D3A) : const Color(0xFFE6DDFB),
+            ),
+          ),
+          child: Stack(
+            children: [
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeInOutCubic,
+                alignment: isDark
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
+                    ),
+                  ),
+                  child: Icon(
+                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
