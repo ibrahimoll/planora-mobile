@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/auth_api.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
 
@@ -15,6 +17,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController emailController = TextEditingController();
+
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -32,7 +36,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _sendResetLink() {
+  Future<void> _sendResetLink() async {
     final email = emailController.text.trim();
 
     if (email.isEmpty) {
@@ -45,14 +49,36 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => ResetLinkSentScreen(
-          onThemeToggle: widget.onThemeToggle,
-          email: email,
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await AuthApi.forgotPassword(email: email);
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ResetLinkSentScreen(
+            onThemeToggle: widget.onThemeToggle,
+            email: email,
+          ),
         ),
-      ),
-    );
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Could not send reset code. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -125,7 +151,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          "No worries. Enter your email address and we'll send you a link to reset your password.",
+                          "No worries. Enter your email address and we'll send you a code to reset your password.",
                           textAlign: TextAlign.center,
                           style: textTheme.bodyMedium?.copyWith(
                             fontSize: metrics.subtitleSize,
@@ -148,8 +174,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         SizedBox(height: metrics.sectionGap),
                         PlanoraGradientButton(
                           height: metrics.buttonHeight,
-                          label: 'Send Reset Link',
-                          onPressed: _sendResetLink,
+                          label: isLoading ? 'Sending...' : 'Send Reset Code',
+                          onPressed: isLoading ? null : _sendResetLink,
                         ),
                         SizedBox(height: metrics.sectionGap * 2),
                         Center(
