@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/planora_theme.dart';
@@ -298,10 +299,12 @@ class _ThemeToggleButton extends StatelessWidget {
     const double switchPadding = 6;
     const double thumbSize = 36;
     const double iconSlotSize = 36;
+    const double darkThumbInset = 5;
     const double innerWidth = switchWidth - (switchPadding * 2);
     const double innerHeight = switchHeight - (switchPadding * 2);
-    const double thumbTravel = innerWidth - thumbSize;
+    const double thumbTravel = innerWidth - thumbSize - darkThumbInset;
     const double thumbTop = (innerHeight - thumbSize) / 2;
+    const double iconTop = (innerHeight - iconSlotSize) / 2;
 
     return Tooltip(
       message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
@@ -367,34 +370,32 @@ class _ThemeToggleButton extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: iconSlotSize,
-                        height: iconSlotSize,
-                        child: _ThemeToggleIcon(
-                          icon: Icons.light_mode_rounded,
-                          isActive: !isDark,
-                          activeColor: Colors.white,
-                          inactiveColor: isDark
-                              ? const Color(0xFF5D6880)
-                              : const Color(0xFFF59E0B),
-                        ),
-                      ),
-                      const Spacer(),
-                      SizedBox(
-                        width: iconSlotSize,
-                        height: iconSlotSize,
-                        child: _ThemeToggleMoonIcon(
-                          isActive: isDark,
-                          activeColor: Colors.white,
-                          inactiveColor: isDark
-                              ? const Color(0xFF7C8596)
-                              : PlanoraTheme.primaryPurple,
-                        ),
-                      ),
-                    ],
+                  Positioned(
+                    left: 0,
+                    top: iconTop,
+                    width: iconSlotSize,
+                    height: iconSlotSize,
+                    child: _ThemeToggleIcon(
+                      icon: Icons.light_mode_rounded,
+                      isActive: !isDark,
+                      activeColor: Colors.white,
+                      inactiveColor: isDark
+                          ? const Color(0xFF5D6880)
+                          : const Color(0xFFF59E0B),
+                    ),
+                  ),
+                  Positioned(
+                    right: darkThumbInset,
+                    top: iconTop,
+                    width: iconSlotSize,
+                    height: iconSlotSize,
+                    child: _ThemeToggleMoonIcon(
+                      isActive: isDark,
+                      activeColor: Colors.white,
+                      inactiveColor: isDark
+                          ? const Color(0xFF7C8596)
+                          : PlanoraTheme.primaryPurple,
+                    ),
                   ),
                 ],
               ),
@@ -457,64 +458,17 @@ class _ThemeToggleMoonIcon extends StatelessWidget {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
-        scale: isActive ? 1.0 : 0.92,
+        scale: isActive ? 1.0 : 0.9,
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 180),
           opacity: isActive ? 1.0 : 0.72,
-          child: Transform.translate(
-            offset: const Offset(-2.0, 0),
-            child: CustomPaint(
-              size: const Size(18, 18),
-              painter: _MoonIconPainter(
-                color: isActive ? activeColor : inactiveColor,
-              ),
-            ),
+          child: Icon(
+            CupertinoIcons.moon_fill,
+            color: isActive ? activeColor : inactiveColor,
+            size: 17,
           ),
         ),
       ),
     );
-  }
-}
-
-class _MoonIconPainter extends CustomPainter {
-  final Color color;
-
-  const _MoonIconPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-
-    final fullMoonPath = Path()
-      ..addOval(
-        Rect.fromCircle(
-          center: Offset(size.width * 0.42, size.height * 0.52),
-          radius: size.width * 0.36,
-        ),
-      );
-
-    final cutoutPath = Path()
-      ..addOval(
-        Rect.fromCircle(
-          center: Offset(size.width * 0.57, size.height * 0.43),
-          radius: size.width * 0.36,
-        ),
-      );
-
-    final crescentPath = Path.combine(
-      PathOperation.difference,
-      fullMoonPath,
-      cutoutPath,
-    );
-
-    canvas.drawPath(crescentPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _MoonIconPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
