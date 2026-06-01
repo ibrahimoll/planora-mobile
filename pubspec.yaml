@@ -74,6 +74,7 @@ flutter:
     - assets/images/onboardDark_2.png
     - assets/images/onboardDark_3.png
     - assets/images/onboardDark_4.png
+    - assets/images/email_verification.png'
     - assets/icons/google_logo.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
