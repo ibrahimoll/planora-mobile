@@ -143,7 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                         child: Column(
                           children: [
-                            const SizedBox(height: 44),
+                            const SizedBox(height: 52),
                             Expanded(
                               child: PageView.builder(
                                 controller: _pageController,
@@ -269,8 +269,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
                 Positioned(
-                  top: topInset + 8,
-                  right: 18,
+                  top: topInset + 10,
+                  right: 20,
                   child: _ThemeToggleButton(
                     isDark: isDark,
                     onPressed: widget.onThemeToggle,
@@ -293,12 +293,15 @@ class _ThemeToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double switchWidth = 92;
-    const double switchHeight = 44;
-    const double switchPadding = 4;
+    const double switchWidth = 104;
+    const double switchHeight = 52;
+    const double switchPadding = 6;
     const double thumbSize = 36;
     const double iconSlotSize = 36;
-    const double thumbTravel = switchWidth - (switchPadding * 2) - thumbSize;
+    const double innerWidth = switchWidth - (switchPadding * 2);
+    const double innerHeight = switchHeight - (switchPadding * 2);
+    const double thumbTravel = innerWidth - thumbSize;
+    const double thumbTop = (innerHeight - thumbSize) / 2;
 
     return Tooltip(
       message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
@@ -328,14 +331,14 @@ class _ThemeToggleButton extends StatelessWidget {
                   color: isDark
                       ? const Color(0x80000000)
                       : const Color(0x1A6D28D9),
-                  blurRadius: 12,
-                  offset: const Offset(0, 5),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
             child: SizedBox(
-              width: switchWidth - (switchPadding * 2),
-              height: thumbSize,
+              width: innerWidth,
+              height: innerHeight,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -343,7 +346,7 @@ class _ThemeToggleButton extends StatelessWidget {
                     duration: const Duration(milliseconds: 330),
                     curve: Curves.easeInOutCubicEmphasized,
                     left: isDark ? thumbTravel : 0,
-                    top: 0,
+                    top: thumbTop,
                     width: thumbSize,
                     height: thumbSize,
                     child: const DecoratedBox(
@@ -365,6 +368,7 @@ class _ThemeToggleButton extends StatelessWidget {
                     ),
                   ),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       SizedBox(
                         width: iconSlotSize,
