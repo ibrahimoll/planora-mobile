@@ -76,6 +76,10 @@ flutter:
     - assets/images/onboardDark_4.png
     - assets/images/email_verification_light.png
     - assets/images/email_verification_dark.png
+    - assets/images/forgot_password_light.png
+    - assets/images/forgot_password_dark.png
+    # - assets/images/reset_link_sent_light.png
+    # - assets/images/reset_link_sent_dark.png
     - assets/icons/google_logo.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
