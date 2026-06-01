@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
+import '../forgot_password/forgot_password_screen.dart';
 import '../register/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -29,7 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showComingLater(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -56,7 +59,9 @@ class _LoginScreenState extends State<LoginScreen> {
             child: SafeArea(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: metrics.maxContentWidth),
+                  constraints: BoxConstraints(
+                    maxWidth: metrics.maxContentWidth,
+                  ),
                   child: SingleChildScrollView(
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
@@ -188,28 +193,29 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : PlanoraTheme.textPrimary,
                             fontWeight: FontWeight.w500,
                           ),
-                          decoration: _inputDecoration(
-                            context: context,
-                            hintText: 'Enter your password',
-                            prefixIcon: Icons.lock_outline_rounded,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  obscurePassword = !obscurePassword;
-                                });
-                              },
-                              icon: Icon(
-                                obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                size: 20,
-                                color: isDark
-                                    ? const Color(0xFF8E92A3)
-                                    : PlanoraTheme.textMuted,
+                          decoration:
+                              _inputDecoration(
+                                context: context,
+                                hintText: 'Enter your password',
+                                prefixIcon: Icons.lock_outline_rounded,
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      obscurePassword = !obscurePassword;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 20,
+                                    color: isDark
+                                        ? const Color(0xFF8E92A3)
+                                        : PlanoraTheme.textMuted,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
                         ),
                         SizedBox(height: metrics.rememberRowGap),
                         _RememberAndForgotRow(
@@ -220,9 +226,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               rememberMe = value ?? false;
                             });
                           },
-                          onForgotPassword: () => _showComingLater(
-                            'Forgot password screen coming next',
-                          ),
+                          onForgotPassword: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ForgotPasswordScreen(
+                                  onThemeToggle: widget.onThemeToggle,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         SizedBox(height: metrics.sectionGap),
                         _GradientActionButton(
@@ -249,7 +261,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: metrics.socialButtonHeight,
                           label: 'Apple',
                           logo: const _AppleLogo(),
-                          onTap: () => _showComingLater('Apple login coming later'),
+                          onTap: () =>
+                              _showComingLater('Apple login coming later'),
                         ),
                         SizedBox(height: metrics.sectionGap + 4),
                         _SignUpPrompt(
@@ -335,9 +348,9 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       label,
       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: isDark ? Colors.white : PlanoraTheme.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
+        color: isDark ? Colors.white : PlanoraTheme.textPrimary,
+        fontWeight: FontWeight.w800,
+      ),
     );
   }
 }
@@ -374,8 +387,9 @@ class _RememberAndForgotRow extends StatelessWidget {
               child: Checkbox(
                 value: rememberMe,
                 onChanged: onRememberChanged,
-                activeColor:
-                    isDark ? const Color(0xFF8B5CF6) : PlanoraTheme.primaryPurple,
+                activeColor: isDark
+                    ? const Color(0xFF8B5CF6)
+                    : PlanoraTheme.primaryPurple,
                 checkColor: Colors.white,
                 side: BorderSide(
                   color: isDark ? const Color(0xFF2A2D3A) : PlanoraTheme.border,
@@ -531,13 +545,16 @@ class _SocialButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          backgroundColor:
-              isDark ? const Color(0xFF1D202C) : PlanoraTheme.surface,
+          backgroundColor: isDark
+              ? const Color(0xFF1D202C)
+              : PlanoraTheme.surface,
           foregroundColor: isDark ? Colors.white : PlanoraTheme.textPrimary,
           side: BorderSide(
             color: isDark ? const Color(0xFF2A2D3A) : PlanoraTheme.border,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
         child: Row(
@@ -566,7 +583,9 @@ class _SignUpPrompt extends StatelessWidget {
         Text(
           'Don’t have an account? ',
           style: textTheme.bodySmall?.copyWith(
-            color: isDark ? const Color(0xFFC8CAD5) : PlanoraTheme.textSecondary,
+            color: isDark
+                ? const Color(0xFFC8CAD5)
+                : PlanoraTheme.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -651,8 +670,9 @@ class _AuthThemeToggle extends StatelessWidget {
                 AnimatedAlign(
                   duration: const Duration(milliseconds: 260),
                   curve: Curves.easeInOutCubic,
-                  alignment:
-                      isDark ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isDark
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     width: 26,
                     height: 26,
