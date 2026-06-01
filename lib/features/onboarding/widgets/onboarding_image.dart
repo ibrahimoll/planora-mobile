@@ -72,9 +72,9 @@ class _MissingImagePlaceholder extends StatelessWidget {
           Text(
             assetPath,
             textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

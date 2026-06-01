@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
+import '../auth/shared/auth_widgets.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -37,6 +38,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   Timer? timer;
   int secondsRemaining = initialSeconds;
+
+  String get emailLabel =>
+      widget.email.trim().isEmpty ? 'your email address' : widget.email.trim();
 
   String get code =>
       codeControllers.map((controller) => controller.text).join();
@@ -92,19 +96,26 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _setCodeDigit(int index, String value) {
+    codeControllers[index].value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
   void _onCodeChanged(String value, int index) {
     if (value.length > 1) {
       final digits = value.replaceAll(RegExp(r'\D'), '').split('');
 
       for (int i = 0; i < codeLength; i++) {
-        codeControllers[i].text = i < digits.length ? digits[i] : '';
+        _setCodeDigit(i, i < digits.length ? digits[i] : '');
       }
 
-      final nextIndex = digits.length >= codeLength
-          ? codeLength - 1
-          : digits.length;
-
-      codeFocusNodes[nextIndex.clamp(0, codeLength - 1)].requestFocus();
+      if (digits.length >= codeLength) {
+        codeFocusNodes.last.requestFocus();
+      } else {
+        codeFocusNodes[digits.length.clamp(0, codeLength - 1)].requestFocus();
+      }
 
       setState(() {});
       return;
@@ -122,10 +133,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   }
 
   void _verifyEmail() {
-    if (!canVerify) {
-      _showMessage('Please enter the 6-digit verification code');
-      return;
-    }
+    if (!canVerify) return;
 
     _showMessage('Verify email API connection coming next');
   }
@@ -151,18 +159,13 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final metrics = AuthResponsiveMetrics.from(context, constraints);
+        final illustrationHeight = metrics.logoSize * 1.65;
 
         return Scaffold(
           resizeToAvoidBottomInset: true,
           body: DecoratedBox(
             decoration: BoxDecoration(
-              gradient: isDark
-                  ? const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF191B27), Color(0xFF11131D)],
-                    )
-                  : PlanoraTheme.onboardingBackgroundFor(context),
+              gradient: PlanoraTheme.onboardingBackgroundFor(context),
             ),
             child: SafeArea(
               child: Center(
@@ -180,84 +183,31 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         SizedBox(height: metrics.topGap),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              icon: Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                size: 20,
-                                color: isDark
-                                    ? Colors.white
-                                    : PlanoraTheme.textPrimary,
-                              ),
-                            ),
-                            _ThemeToggle(
-                              isDark: isDark,
-                              onPressed: widget.onThemeToggle,
-                            ),
-                          ],
-                        ),
-
+                        PlanoraAuthTopBar(onThemeToggle: widget.onThemeToggle),
                         SizedBox(height: metrics.logoToPillGap),
-
-                        Image.asset(
-                          'assets/images/planora_logo.png',
-                          height: metrics.logoSize,
-                          fit: BoxFit.contain,
+                        PlanoraAuthBrandHeader(
+                          logoSize: metrics.logoSize,
+                          logoToPillGap: metrics.logoToPillGap,
                         ),
-
-                        SizedBox(height: metrics.logoToPillGap),
-
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0x332A1558)
-                                  : PlanoraTheme.primaryLight,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              'AI-POWERED PROJECT PLANNING',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.labelSmall?.copyWith(
-                                color: isDark
-                                    ? const Color(0xFFA78BFA)
-                                    : PlanoraTheme.primaryPurple,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.7,
-                              ),
-                            ),
-                          ),
-                        ),
-
                         SizedBox(height: metrics.pillToTitleGap),
-
-                        Image.asset(
-                          isDark
-                              ? 'assets/images/email_verification_dark.png'
-                              : 'assets/images/email_verification_light.png',
-                          height: metrics.logoSize * 1.65,
-                          fit: BoxFit.contain,
+                        PlanoraAuthIllustration(
+                          lightAsset:
+                              'assets/images/email_verification_light.png',
+                          darkAsset:
+                              'assets/images/email_verification_dark.png',
+                          height: illustrationHeight,
+                          fallbackIcon: Icons.mark_email_read_outlined,
                         ),
-
                         SizedBox(height: metrics.sectionGap),
-
                         RichText(
                           textAlign: TextAlign.center,
+                          textScaler: MediaQuery.textScalerOf(context),
                           text: TextSpan(
                             style: textTheme.headlineSmall?.copyWith(
                               fontSize: metrics.titleSize,
                               fontWeight: FontWeight.w800,
                               color: isDark
-                                  ? Colors.white
+                                  ? PlanoraTheme.darkTextPrimary
                                   : PlanoraTheme.textPrimary,
                             ),
                             children: [
@@ -265,96 +215,75 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                               TextSpan(
                                 text: 'email',
                                 style: TextStyle(
-                                  color: isDark
-                                      ? const Color(0xFFA78BFA)
-                                      : PlanoraTheme.primaryPurple,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
                         Text(
-                          'We sent a 6-digit verification code\nto your email address.',
+                          'We sent a 6-digit verification code to $emailLabel.',
                           textAlign: TextAlign.center,
                           style: textTheme.bodyMedium?.copyWith(
                             fontSize: metrics.subtitleSize,
                             height: 1.45,
-                            color: isDark
-                                ? const Color(0xFFC8CAD5)
-                                : PlanoraTheme.textSecondary,
+                            color: authBodyColor(context),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-
                         SizedBox(height: metrics.titleToFormGap),
-
-                        _FieldLabel(label: 'Verification Code', isDark: isDark),
-
+                        const PlanoraFieldLabel(label: 'Verification Code'),
                         const SizedBox(height: 10),
+                        LayoutBuilder(
+                          builder: (context, otpConstraints) {
+                            final maxWidth = otpConstraints.maxWidth;
+                            final boxWidth = ((maxWidth - 40) / codeLength)
+                                .clamp(38.0, 46.0)
+                                .toDouble();
+                            final boxHeight = (boxWidth + 12)
+                                .clamp(52.0, 58.0)
+                                .toDouble();
+                            final gap =
+                                ((maxWidth - (boxWidth * codeLength)) /
+                                        (codeLength - 1))
+                                    .clamp(4.0, 10.0)
+                                    .toDouble();
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            codeLength,
-                            (index) => _OtpBox(
-                              controller: codeControllers[index],
-                              focusNode: codeFocusNodes[index],
-                              isDark: isDark,
-                              onChanged: (value) =>
-                                  _onCodeChanged(value, index),
-                            ),
-                          ),
+                            return Row(
+                              children: List.generate(codeLength * 2 - 1, (
+                                itemIndex,
+                              ) {
+                                if (itemIndex.isOdd) {
+                                  return SizedBox(width: gap);
+                                }
+
+                                final index = itemIndex ~/ 2;
+                                return _OtpBox(
+                                  width: boxWidth,
+                                  height: boxHeight,
+                                  controller: codeControllers[index],
+                                  focusNode: codeFocusNodes[index],
+                                  onChanged: (value) =>
+                                      _onCodeChanged(value, index),
+                                );
+                              }),
+                            );
+                          },
                         ),
-
                         SizedBox(height: metrics.sectionGap),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Didn’t receive the code? ',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? const Color(0xFFC8CAD5)
-                                    : PlanoraTheme.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: canResend ? _resendCode : null,
-                              child: Text(
-                                canResend
-                                    ? 'Resend'
-                                    : 'Resend in ${_timerText()}',
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: canResend
-                                      ? isDark
-                                            ? const Color(0xFFA78BFA)
-                                            : PlanoraTheme.primaryPurple
-                                      : isDark
-                                      ? const Color(0xFFA78BFA)
-                                      : PlanoraTheme.primaryPurple,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
+                        _ResendCodeRow(
+                          canResend: canResend,
+                          timerText: _timerText(),
+                          onResend: _resendCode,
                         ),
-
                         SizedBox(height: metrics.sectionGap + 10),
-
-                        _GradientActionButton(
-                          isDark: isDark,
+                        PlanoraGradientButton(
                           height: metrics.buttonHeight,
                           label: 'Verify Email',
-                          onPressed: _verifyEmail,
+                          onPressed: canVerify ? _verifyEmail : null,
                         ),
-
                         SizedBox(height: metrics.socialGap),
-
                         SizedBox(
                           height: metrics.socialButtonHeight,
                           child: OutlinedButton.icon(
@@ -362,23 +291,15 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                             icon: Icon(
                               Icons.email_outlined,
                               size: 18,
-                              color: isDark
-                                  ? const Color(0xFFA78BFA)
-                                  : PlanoraTheme.primaryPurple,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                             label: const Text('Change Email'),
                             style: OutlinedButton.styleFrom(
-                              backgroundColor: isDark
-                                  ? const Color(0xFF1D202C)
-                                  : PlanoraTheme.surface,
-                              foregroundColor: isDark
-                                  ? Colors.white
-                                  : PlanoraTheme.textPrimary,
-                              side: BorderSide(
-                                color: isDark
-                                    ? const Color(0xFF2A2D3A)
-                                    : PlanoraTheme.border,
-                              ),
+                              backgroundColor: authSurfaceColor(context),
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSurface,
+                              side: BorderSide(color: authBorderColor(context)),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -389,7 +310,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                             ),
                           ),
                         ),
-
                         SizedBox(height: metrics.bottomGap),
                       ],
                     ),
@@ -405,23 +325,25 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 }
 
 class _OtpBox extends StatelessWidget {
+  final double width;
+  final double height;
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool isDark;
   final ValueChanged<String> onChanged;
 
   const _OtpBox({
+    required this.width,
+    required this.height,
     required this.controller,
     required this.focusNode,
-    required this.isDark,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 46,
-      height: 58,
+      width: width,
+      height: height,
       child: TextField(
         controller: controller,
         focusNode: focusNode,
@@ -429,30 +351,30 @@ class _OtpBox extends StatelessWidget {
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
         textInputAction: TextInputAction.next,
-        maxLength: 1,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(
+            _EmailVerificationScreenState.codeLength,
+          ),
+        ],
         style: TextStyle(
-          color: isDark ? Colors.white : PlanoraTheme.textPrimary,
+          color: Theme.of(context).colorScheme.onSurface,
           fontSize: 22,
           fontWeight: FontWeight.w800,
         ),
         decoration: InputDecoration(
           counterText: '',
           filled: true,
-          fillColor: isDark ? const Color(0xFF1D202C) : PlanoraTheme.surface,
+          fillColor: authSurfaceColor(context),
           contentPadding: EdgeInsets.zero,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(
-              color: isDark ? const Color(0xFF2A2D3A) : PlanoraTheme.border,
-            ),
+            borderSide: BorderSide(color: authBorderColor(context)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(
-              color: isDark
-                  ? const Color(0xFF8B5CF6)
-                  : PlanoraTheme.primaryPurple,
+              color: Theme.of(context).colorScheme.primary,
               width: 1.8,
             ),
           ),
@@ -462,127 +384,43 @@ class _OtpBox extends StatelessWidget {
   }
 }
 
-class _FieldLabel extends StatelessWidget {
-  final String label;
-  final bool isDark;
+class _ResendCodeRow extends StatelessWidget {
+  final bool canResend;
+  final String timerText;
+  final VoidCallback onResend;
 
-  const _FieldLabel({required this.label, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-        color: isDark ? Colors.white : PlanoraTheme.textPrimary,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-}
-
-class _GradientActionButton extends StatelessWidget {
-  final bool isDark;
-  final double height;
-  final String label;
-  final VoidCallback onPressed;
-
-  const _GradientActionButton({
-    required this.isDark,
-    required this.height,
-    required this.label,
-    required this.onPressed,
+  const _ResendCodeRow({
+    required this.canResend,
+    required this.timerText,
+    required this.onResend,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? const LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  colors: [Color(0xFF6D47DB), Color(0xFF8B5CF6)],
-                )
-              : PlanoraTheme.primaryGradientFor(context),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isDark
-              ? const [
-                  BoxShadow(
-                    color: Color(0x4D6D47DB),
-                    blurRadius: 20,
-                    offset: Offset(0, 10),
-                  ),
-                ]
-              : PlanoraTheme.floatingShadowFor(context),
-        ),
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            minimumSize: Size.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ),
-    );
-  }
-}
+    final textTheme = Theme.of(context).textTheme;
 
-class _ThemeToggle extends StatelessWidget {
-  final bool isDark;
-  final VoidCallback onPressed;
-
-  const _ThemeToggle({required this.isDark, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-        width: 58,
-        height: 34,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1D202C) : const Color(0xFFF3EEFF),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isDark ? const Color(0xFF2A2D3A) : const Color(0xFFE6DDFB),
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          "Didn't receive the code? ",
+          style: textTheme.bodySmall?.copyWith(
+            color: authBodyColor(context),
+            fontWeight: FontWeight.w500,
           ),
         ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeInOutCubic,
-          alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 26,
-            height: 26,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
-              ),
-            ),
-            child: Icon(
-              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-              size: 15,
-              color: Colors.white,
-            ),
+        TextButton(
+          onPressed: canResend ? onResend : null,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+            minimumSize: const Size(44, 44),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            disabledForegroundColor: authMutedColor(context),
           ),
+          child: Text(canResend ? 'Resend' : 'Resend in $timerText'),
         ),
-      ),
+      ],
     );
   }
 }

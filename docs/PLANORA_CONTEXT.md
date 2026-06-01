@@ -156,15 +156,16 @@ Current theme includes:
   - `PlanoraTheme.softGradientFor(context)`
   - `PlanoraTheme.floatingShadowFor(context)`
 
-Dark onboarding background currently uses a near-black custom gradient in `onboarding_screen.dart`:
+Dark onboarding/auth background now uses the shared theme gradient from `PlanoraTheme.darkOnboardingBackground`:
 
-- `Color(0xFF05070B)`
-- `Color(0xFF0B1018)`
+- `PlanoraTheme.darkBackground`
+- `Color(0xFF1A1233)`
 
-Dark CTA button gradient currently uses:
+Dark CTA buttons now use `PlanoraTheme.primaryGradientFor(context)`, which keeps the stronger purple CTA gradient readable in dark mode.
 
-- `Color(0xFF7C3AED)`
-- `Color(0xFF5B2DDA)`
+Auth screens should not introduce one-off dark surfaces such as `0xFF1D202C` or `0xFF2A2D3A`; use `PlanoraTheme.darkSurface`, `PlanoraTheme.darkSurfaceVariant`, and `PlanoraTheme.darkBorder`.
+
+Soft lavender accents should use `PlanoraTheme.lavenderSurface`, `PlanoraTheme.lavenderBorder`, and `PlanoraTheme.lavenderCard`.
 
 ## Asset Registration
 
@@ -181,6 +182,12 @@ assets:
   - assets/images/onboardDark_2.png
   - assets/images/onboardDark_3.png
   - assets/images/onboardDark_4.png
+  - assets/images/email_verification_light.png
+  - assets/images/email_verification_dark.png
+  - assets/images/forgot_password_light.png
+  - assets/images/forgot_password_dark.png
+  - assets/images/reset_link_sent_light.png
+  - assets/images/reset_link_sent_dark.png
 ```
 
 If dark images do not show, check:
@@ -191,6 +198,34 @@ If dark images do not show, check:
 4. The emulator/app was fully restarted if hot reload does not pick up assets.
 
 ## Recent Mobile Work Completed
+
+Completed in the latest auth UI/UX review pass:
+
+- Added `lib/features/auth/shared/auth_widgets.dart` for shared auth UI pieces:
+  - `PlanoraAuthTopBar`
+  - `PlanoraAuthBrandHeader`
+  - `PlanoraAuthTextField`
+  - `PlanoraGradientButton`
+  - `PlanoraAuthDivider`
+  - `PlanoraSocialButton`
+  - `PlanoraAuthIllustration`
+- Removed the empty placeholder files under `lib/features/login/widgets/`.
+- Updated login/register/forgot-password/email-verification to use the shared auth widgets and theme colors.
+- Replaced hard-coded auth dark backgrounds with `PlanoraTheme.onboardingBackgroundFor(context)`.
+- Updated onboarding final primary action so `Create Account` opens `RegisterScreen` instead of showing a snackbar.
+- Register password validation now stays neutral while empty, then shows check/X states after typing.
+- Register password rules currently require:
+  - at least 8 characters
+  - one uppercase letter
+  - one symbol
+- Confirm password now shows neutral, matching, or non-matching feedback without showing an error before typing.
+- Forgot password validates email locally, uses the light/dark email image slots, and transitions to the reset-link-sent state without adding external images.
+- Email verification now shows the target email, uses responsive OTP boxes, supports multi-digit paste/autofill better, mutes the resend timer when disabled, and disables verify until 6 digits are entered.
+- `pubspec.yaml` registers the reset-link-sent light/dark assets.
+- Verification completed:
+  - `dart format .`
+  - `flutter analyze`
+  - `flutter test` was skipped because there is no `test/` directory yet.
 
 Completed through the latest mobile onboarding/theme-switch pass:
 

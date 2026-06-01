@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/features/login/login_screen.dart';
+import 'package:mobile/features/register/register_screen.dart';
 
 import '../../core/theme/planora_theme.dart';
 import 'data/onboarding_pages.dart';
@@ -60,9 +61,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Create account coming next')));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RegisterScreen(onThemeToggle: widget.onThemeToggle),
+      ),
+    );
   }
 
   void _goToSignIn() {
@@ -93,48 +96,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return Scaffold(
           body: DecoratedBox(
             decoration: BoxDecoration(
-              gradient: isDark
-                  ? const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF05070B), Color(0xFF0B1018)],
-                    )
-                  : PlanoraTheme.onboardingBackgroundFor(context),
+              gradient: PlanoraTheme.onboardingBackgroundFor(context),
             ),
             child: Stack(
               children: [
-                if (isDark) ...[
-                  Positioned(
-                    top: -120,
-                    left: -90,
-                    right: -90,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: 310,
-                        decoration: const BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [Color(0x332A1558), Colors.transparent],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -150,
-                    left: -70,
-                    right: -70,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: 330,
-                        decoration: const BoxDecoration(
-                          gradient: RadialGradient(
-                            colors: [Color(0x262A1558), Colors.transparent],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
                 SafeArea(
                   child: Center(
                     child: ConstrainedBox(
@@ -186,30 +151,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               height: metrics.primaryButtonHeight,
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  gradient: isDark
-                                      ? const LinearGradient(
-                                          begin: Alignment.centerLeft,
-                                          end: Alignment.centerRight,
-                                          colors: [
-                                            Color(0xFF7C3AED),
-                                            Color(0xFF5B2DDA),
-                                          ],
-                                        )
-                                      : PlanoraTheme.primaryGradientFor(
-                                          context,
-                                        ),
+                                  gradient: PlanoraTheme.primaryGradientFor(
+                                    context,
+                                  ),
                                   borderRadius: const BorderRadius.all(
                                     Radius.circular(16),
                                   ),
-                                  boxShadow: isDark
-                                      ? const [
-                                          BoxShadow(
-                                            color: Color(0x4D5B2DDA),
-                                            blurRadius: 22,
-                                            offset: Offset(0, 12),
-                                          ),
-                                        ]
-                                      : PlanoraTheme.floatingShadowFor(context),
+                                  boxShadow: PlanoraTheme.floatingShadowFor(
+                                    context,
+                                  ),
                                 ),
                                 child: ElevatedButton(
                                   onPressed: _goToNextPage,
@@ -241,14 +191,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   onPressed: _goToSignIn,
                                   style: OutlinedButton.styleFrom(
                                     backgroundColor: isDark
-                                        ? const Color(0x66111822)
+                                        ? PlanoraTheme.darkSurface
                                         : null,
                                     foregroundColor: isDark
-                                        ? const Color(0xFFE5E7EB)
+                                        ? PlanoraTheme.darkTextPrimary
                                         : null,
                                     side: isDark
                                         ? const BorderSide(
-                                            color: Color(0xFF222A36),
+                                            color: PlanoraTheme.darkBorder,
                                             width: 1.1,
                                           )
                                         : null,
@@ -326,19 +276,21 @@ class _ThemeToggleButton extends StatelessWidget {
             height: switchHeight,
             padding: const EdgeInsets.all(switchPadding),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF0E1420) : const Color(0xFFF3EEFF),
+              color: isDark
+                  ? PlanoraTheme.darkToggleSurface
+                  : PlanoraTheme.lavenderSurface,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: isDark
-                    ? const Color(0xFF273247)
-                    : const Color(0xFFE6DDFB),
+                    ? PlanoraTheme.darkBorder
+                    : PlanoraTheme.lavenderBorder,
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isDark
                       ? const Color(0x80000000)
-                      : const Color(0x1A6D28D9),
+                      : PlanoraTheme.primaryLight,
                   blurRadius: 14,
                   offset: const Offset(0, 6),
                 ),
@@ -360,11 +312,7 @@ class _ThemeToggleButton extends StatelessWidget {
                     child: const DecoratedBox(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
-                        ),
+                        gradient: PlanoraTheme.primaryGradient,
                         boxShadow: [
                           BoxShadow(
                             color: Color(0x4D6D28D9),
@@ -385,8 +333,8 @@ class _ThemeToggleButton extends StatelessWidget {
                       isActive: !isDark,
                       activeColor: Colors.white,
                       inactiveColor: isDark
-                          ? const Color(0xFF5D6880)
-                          : const Color(0xFFF59E0B),
+                          ? PlanoraTheme.darkTextMuted
+                          : PlanoraTheme.warning,
                     ),
                   ),
                   Positioned(
@@ -398,7 +346,7 @@ class _ThemeToggleButton extends StatelessWidget {
                       isActive: isDark,
                       activeColor: Colors.white,
                       inactiveColor: isDark
-                          ? const Color(0xFF7C8596)
+                          ? PlanoraTheme.darkTextMuted
                           : PlanoraTheme.primaryPurple,
                     ),
                   ),

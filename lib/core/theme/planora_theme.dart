@@ -15,6 +15,9 @@ class PlanoraTheme {
   static const Color secondaryBackground = Color(0xFFF1F5F9);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceVariant = Color(0xFFF3F4F6);
+  static const Color lavenderSurface = Color(0xFFF3EEFF);
+  static const Color lavenderBorder = Color(0xFFE6DDFB);
+  static const Color lavenderCard = Color(0xFFF7F4FF);
   static const Color textPrimary = Color(0xFF1E1B4B);
   static const Color textSecondary = Color(0xFF4B5563);
   static const Color textMuted = Color(0xFF9CA3AF);
@@ -27,6 +30,7 @@ class PlanoraTheme {
   static const Color darkBackground = Color(0xFF0F172A);
   static const Color darkSurface = Color(0xFF1E293B);
   static const Color darkSurfaceVariant = Color(0xFF273449);
+  static const Color darkToggleSurface = Color(0xFF0E1420);
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
   static const Color darkTextSecondary = Color(0xFFD8B4FE);
   static const Color darkTextMuted = Color(0xFF94A3B8);
@@ -68,7 +72,7 @@ class PlanoraTheme {
   static const LinearGradient darkPrimaryGradient = LinearGradient(
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
-    colors: [darkSecondary, darkPrimary],
+    colors: [secondaryPurple, primaryPurple],
   );
 
   // Light app/onboarding background.
@@ -81,7 +85,7 @@ class PlanoraTheme {
   static const LinearGradient darkOnboardingBackground = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [darkBackground, darkSurface],
+    colors: [darkBackground, Color(0xFF1A1233)],
   );
 
   // Soft purple card/illustration gradients.
@@ -163,42 +167,42 @@ class PlanoraTheme {
       fontWeight: FontWeight.w800,
       color: textPrimary,
       height: 1.1,
-      letterSpacing: -1.6,
+      letterSpacing: 0,
     ),
     displayMedium: GoogleFonts.plusJakartaSans(
       fontSize: 44,
       fontWeight: FontWeight.w800,
       color: textPrimary,
       height: 1.15,
-      letterSpacing: -1.3,
+      letterSpacing: 0,
     ),
     displaySmall: GoogleFonts.plusJakartaSans(
       fontSize: 36,
       fontWeight: FontWeight.w700,
       color: textPrimary,
       height: 1.2,
-      letterSpacing: -1.0,
+      letterSpacing: 0,
     ),
     headlineLarge: GoogleFonts.plusJakartaSans(
       fontSize: 32,
       fontWeight: FontWeight.w700,
       color: textPrimary,
       height: 1.2,
-      letterSpacing: -0.8,
+      letterSpacing: 0,
     ),
     headlineMedium: GoogleFonts.plusJakartaSans(
       fontSize: 28,
       fontWeight: FontWeight.w700,
       color: textPrimary,
       height: 1.2,
-      letterSpacing: -0.6,
+      letterSpacing: 0,
     ),
     headlineSmall: GoogleFonts.plusJakartaSans(
       fontSize: 24,
       fontWeight: FontWeight.w600,
       color: textPrimary,
       height: 1.3,
-      letterSpacing: -0.4,
+      letterSpacing: 0,
     ),
     titleLarge: GoogleFonts.plusJakartaSans(
       fontSize: 20,
@@ -253,111 +257,110 @@ class PlanoraTheme {
       fontWeight: FontWeight.w700,
       color: textSecondary,
       height: 1.2,
-      letterSpacing: 0.6,
+      letterSpacing: 0,
     ),
   );
 
-  static TextTheme get _darkTextTheme => GoogleFonts.interTextTheme(
-    ThemeData.dark().textTheme,
-  ).copyWith(
-    displayLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 56,
-      fontWeight: FontWeight.w800,
-      color: darkTextPrimary,
-      height: 1.1,
-      letterSpacing: -1.6,
-    ),
-    displayMedium: GoogleFonts.plusJakartaSans(
-      fontSize: 44,
-      fontWeight: FontWeight.w800,
-      color: darkTextPrimary,
-      height: 1.15,
-      letterSpacing: -1.3,
-    ),
-    displaySmall: GoogleFonts.plusJakartaSans(
-      fontSize: 36,
-      fontWeight: FontWeight.w700,
-      color: darkTextPrimary,
-      height: 1.2,
-      letterSpacing: -1.0,
-    ),
-    headlineLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 32,
-      fontWeight: FontWeight.w700,
-      color: darkTextPrimary,
-      height: 1.2,
-      letterSpacing: -0.8,
-    ),
-    headlineMedium: GoogleFonts.plusJakartaSans(
-      fontSize: 28,
-      fontWeight: FontWeight.w700,
-      color: darkTextPrimary,
-      height: 1.2,
-      letterSpacing: -0.6,
-    ),
-    headlineSmall: GoogleFonts.plusJakartaSans(
-      fontSize: 24,
-      fontWeight: FontWeight.w600,
-      color: darkTextPrimary,
-      height: 1.3,
-      letterSpacing: -0.4,
-    ),
-    titleLarge: GoogleFonts.plusJakartaSans(
-      fontSize: 20,
-      fontWeight: FontWeight.w600,
-      color: darkTextPrimary,
-      height: 1.3,
-    ),
-    titleMedium: GoogleFonts.plusJakartaSans(
-      fontSize: 17,
-      fontWeight: FontWeight.w600,
-      color: darkTextPrimary,
-      height: 1.4,
-    ),
-    titleSmall: GoogleFonts.plusJakartaSans(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: darkTextPrimary,
-      height: 1.4,
-    ),
-    bodyLarge: GoogleFonts.inter(
-      fontSize: 16,
-      fontWeight: FontWeight.w400,
-      color: darkTextPrimary,
-      height: 1.5,
-    ),
-    bodyMedium: GoogleFonts.inter(
-      fontSize: 14,
-      fontWeight: FontWeight.w400,
-      color: darkTextSecondary,
-      height: 1.5,
-    ),
-    bodySmall: GoogleFonts.inter(
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
-      color: darkTextSecondary,
-      height: 1.4,
-    ),
-    labelLarge: GoogleFonts.inter(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: darkBackground,
-      height: 1.3,
-    ),
-    labelMedium: GoogleFonts.inter(
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-      color: darkTextPrimary,
-      height: 1.3,
-    ),
-    labelSmall: GoogleFonts.inter(
-      fontSize: 10,
-      fontWeight: FontWeight.w700,
-      color: darkTextSecondary,
-      height: 1.2,
-      letterSpacing: 0.6,
-    ),
-  );
+  static TextTheme get _darkTextTheme =>
+      GoogleFonts.interTextTheme(ThemeData.dark().textTheme).copyWith(
+        displayLarge: GoogleFonts.plusJakartaSans(
+          fontSize: 56,
+          fontWeight: FontWeight.w800,
+          color: darkTextPrimary,
+          height: 1.1,
+          letterSpacing: 0,
+        ),
+        displayMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 44,
+          fontWeight: FontWeight.w800,
+          color: darkTextPrimary,
+          height: 1.15,
+          letterSpacing: 0,
+        ),
+        displaySmall: GoogleFonts.plusJakartaSans(
+          fontSize: 36,
+          fontWeight: FontWeight.w700,
+          color: darkTextPrimary,
+          height: 1.2,
+          letterSpacing: 0,
+        ),
+        headlineLarge: GoogleFonts.plusJakartaSans(
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          color: darkTextPrimary,
+          height: 1.2,
+          letterSpacing: 0,
+        ),
+        headlineMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          color: darkTextPrimary,
+          height: 1.2,
+          letterSpacing: 0,
+        ),
+        headlineSmall: GoogleFonts.plusJakartaSans(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: darkTextPrimary,
+          height: 1.3,
+          letterSpacing: 0,
+        ),
+        titleLarge: GoogleFonts.plusJakartaSans(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: darkTextPrimary,
+          height: 1.3,
+        ),
+        titleMedium: GoogleFonts.plusJakartaSans(
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: darkTextPrimary,
+          height: 1.4,
+        ),
+        titleSmall: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: darkTextPrimary,
+          height: 1.4,
+        ),
+        bodyLarge: GoogleFonts.inter(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: darkTextPrimary,
+          height: 1.5,
+        ),
+        bodyMedium: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: darkTextSecondary,
+          height: 1.5,
+        ),
+        bodySmall: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: darkTextSecondary,
+          height: 1.4,
+        ),
+        labelLarge: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: darkBackground,
+          height: 1.3,
+        ),
+        labelMedium: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: darkTextPrimary,
+          height: 1.3,
+        ),
+        labelSmall: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: darkTextSecondary,
+          height: 1.2,
+          letterSpacing: 0,
+        ),
+      );
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,

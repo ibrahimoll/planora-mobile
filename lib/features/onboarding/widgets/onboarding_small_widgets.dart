@@ -62,7 +62,7 @@ class AiPill extends StatelessWidget {
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           fontSize: 10.5,
           fontWeight: FontWeight.w800,
-          letterSpacing: .5,
+          letterSpacing: 0,
           color: colorScheme.onPrimaryContainer,
         ),
       ),
