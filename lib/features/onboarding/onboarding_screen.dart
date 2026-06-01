@@ -457,14 +457,17 @@ class _ThemeToggleMoonIcon extends StatelessWidget {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
-        scale: isActive ? 1.0 : 0.9,
+        scale: isActive ? 1.0 : 0.92,
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 180),
           opacity: isActive ? 1.0 : 0.72,
-          child: CustomPaint(
-            size: const Size.square(18),
-            painter: _MoonIconPainter(
-              color: isActive ? activeColor : inactiveColor,
+          child: Transform.translate(
+            offset: const Offset(-2.0, 0),
+            child: CustomPaint(
+              size: const Size(18, 18),
+              painter: _MoonIconPainter(
+                color: isActive ? activeColor : inactiveColor,
+              ),
             ),
           ),
         ),
@@ -488,16 +491,16 @@ class _MoonIconPainter extends CustomPainter {
     final fullMoonPath = Path()
       ..addOval(
         Rect.fromCircle(
-          center: Offset(size.width * 0.48, size.height * 0.50),
-          radius: size.width * 0.39,
+          center: Offset(size.width * 0.42, size.height * 0.52),
+          radius: size.width * 0.36,
         ),
       );
 
     final cutoutPath = Path()
       ..addOval(
         Rect.fromCircle(
-          center: Offset(size.width * 0.64, size.height * 0.38),
-          radius: size.width * 0.39,
+          center: Offset(size.width * 0.57, size.height * 0.43),
+          radius: size.width * 0.36,
         ),
       );
 
