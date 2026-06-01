@@ -293,11 +293,11 @@ class _ThemeToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double switchWidth = 78;
-    const double switchHeight = 36;
-    const double switchPadding = 3;
-    const double thumbSize = 30;
-    const double iconSlotSize = 30;
+    const double switchWidth = 92;
+    const double switchHeight = 44;
+    const double switchPadding = 4;
+    const double thumbSize = 36;
+    const double iconSlotSize = 36;
     const double thumbTravel = switchWidth - (switchPadding * 2) - thumbSize;
 
     return Tooltip(
@@ -346,18 +346,18 @@ class _ThemeToggleButton extends StatelessWidget {
                     top: 0,
                     width: thumbSize,
                     height: thumbSize,
-                    child: DecoratedBox(
+                    child: const DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [Color(0xFF8B5CF6), Color(0xFF5B2DDA)],
                         ),
-                        borderRadius: BorderRadius.circular(999),
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(
                             color: Color(0x4D6D28D9),
-                            blurRadius: 9,
+                            blurRadius: 10,
                             offset: Offset(0, 4),
                           ),
                         ],
@@ -383,7 +383,7 @@ class _ThemeToggleButton extends StatelessWidget {
                         width: iconSlotSize,
                         height: iconSlotSize,
                         child: _ThemeToggleIcon(
-                          icon: Icons.dark_mode_rounded,
+                          icon: Icons.nightlight_round,
                           isActive: isDark,
                           activeColor: Colors.white,
                           inactiveColor: isDark
@@ -422,7 +422,7 @@ class _ThemeToggleIcon extends StatelessWidget {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
-        scale: isActive ? 1.0 : 0.86,
+        scale: isActive ? 1.0 : 0.9,
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 180),
           opacity: isActive ? 1.0 : 0.72,
