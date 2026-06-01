@@ -41,6 +41,7 @@ dependencies:
   animated_bottom_navigation_bar: ^1.4.0
   lottie: ^3.3.3
   smooth_page_indicator: ^2.0.1
+  flutter_svg: ^2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -72,7 +73,8 @@ flutter:
     - assets/images/onboardDark_1.png
     - assets/images/onboardDark_2.png
     - assets/images/onboardDark_3.png
-    # - assets/images/onboardDark_4.png
+    - assets/images/onboardDark_4.png
+    - assets/icons/google_logo.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

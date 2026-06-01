@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../core/theme/planora_theme.dart';
 
@@ -341,10 +342,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
 
                     _SocialButton(
-                      label: 'Microsoft',
-                      logo: const _MicrosoftLogo(),
-                      onTap: () =>
-                          _showComingLater('Microsoft login coming later'),
+                      label: 'Apple',
+                      logo: const _AppleLogo(),
+                      onTap: () => _showComingLater('Apple login coming later'),
                     ),
 
                     const SizedBox(height: 30),
@@ -499,38 +499,25 @@ class _GoogleLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Text(
-      'G',
-      style: TextStyle(
-        color: Color(0xFF4285F4),
-        fontSize: 18,
-        fontWeight: FontWeight.w900,
-      ),
+    return SvgPicture.asset(
+      'assets/icons/google_logo.svg',
+      width: 20,
+      height: 20,
     );
   }
 }
 
-class _MicrosoftLogo extends StatelessWidget {
-  const _MicrosoftLogo();
+class _AppleLogo extends StatelessWidget {
+  const _AppleLogo();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 17,
-      height: 17,
-      child: GridView.count(
-        crossAxisCount: 2,
-        padding: EdgeInsets.zero,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 2,
-        crossAxisSpacing: 2,
-        children: const [
-          ColoredBox(color: Color(0xFFF25022)),
-          ColoredBox(color: Color(0xFF7FBA00)),
-          ColoredBox(color: Color(0xFF00A4EF)),
-          ColoredBox(color: Color(0xFFFFB900)),
-        ],
-      ),
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Icon(
+      Icons.apple_rounded,
+      size: 22,
+      color: isDark ? Colors.white : Colors.black,
     );
   }
 }
