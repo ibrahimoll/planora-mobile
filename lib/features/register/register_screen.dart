@@ -308,6 +308,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                                   child: _PasswordRulesCard(
                                     isDark: isDark,
+                                    hasStartedTyping:
+                                        passwordController.text.isNotEmpty,
                                     hasMinLength: hasMinLength,
                                     hasUppercase: hasUppercase,
                                     hasNumber: hasNumber,
@@ -458,6 +460,7 @@ class _PasswordRulesCard extends StatelessWidget {
   final bool hasUppercase;
   final bool hasNumber;
   final bool hasSpecialCharacter;
+  final bool hasStartedTyping;
 
   const _PasswordRulesCard({
     required this.isDark,
@@ -465,6 +468,7 @@ class _PasswordRulesCard extends StatelessWidget {
     required this.hasUppercase,
     required this.hasNumber,
     required this.hasSpecialCharacter,
+    required this.hasStartedTyping,
   });
 
   @override
