@@ -84,4 +84,10 @@ class AuthApi {
 
     return MessageResponse.fromJson(data as Map<String, dynamic>);
   }
+
+  static Future<UserResponse> getCurrentUser() async {
+    final data = await ApiClient.get('/auth/me');
+
+    return UserResponse.fromJson(data as Map<String, dynamic>);
+  }
 }
