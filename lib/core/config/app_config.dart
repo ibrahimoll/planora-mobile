@@ -3,7 +3,7 @@ class AppConfig {
 
   static const String _apiUrlFromEnv = String.fromEnvironment(
     'PLANORA_API_URL',
-    defaultValue: 'https://127.0.0.1:8000',
+    defaultValue: 'https://planora-api-dqmv.onrender.com',
   );
 
   static String get apiBaseUrl {

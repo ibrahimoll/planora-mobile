@@ -32,8 +32,14 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  bool _isValidEmail(String value) {
-    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value);
+  bool _isValidIdentifier(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.contains('@')) {
+      return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(trimmed);
+    }
+
+    return trimmed.length >= 3;
   }
 
   void _showMessage(String message) {
@@ -43,16 +49,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
-    final email = emailController.text.trim();
+    final identifier = emailController.text.trim();
     final password = passwordController.text;
 
-    if (email.isEmpty) {
-      _showMessage('Enter your email to continue');
+    if (identifier.isEmpty) {
+      _showMessage('Enter your email or username to continue');
       return;
     }
 
-    if (!_isValidEmail(email)) {
-      _showMessage('Enter a valid email address');
+    if (!_isValidIdentifier(identifier)) {
+      _showMessage('Enter a valid email or username');
       return;
     }
 
@@ -67,9 +73,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final tokenResponse = await AuthApi.login(
-        identifier: email,
+        identifier: identifier,
         password: password,
       );
+
       await TokenStorage.saveAccessToken(tokenResponse.accessToken);
 
       final user = await AuthApi.getCurrentUser();
@@ -163,11 +170,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         SizedBox(height: metrics.titleToFormGap),
-                        const PlanoraFieldLabel(label: 'Email'),
+                        const PlanoraFieldLabel(label: 'Email or Username'),
                         SizedBox(height: metrics.labelToFieldGap),
                         PlanoraAuthTextField(
                           controller: emailController,
-                          hintText: 'Enter your email',
+                          hintText: 'Enter your email or username',
                           prefixIcon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
