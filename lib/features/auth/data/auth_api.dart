@@ -73,21 +73,15 @@ class AuthApi {
 
   static Future<MessageResponse> resetPassword({
     required String email,
-    required String code,
+    required String resetToken,
     required String newPassword,
   }) async {
     final data = await ApiClient.postJson(
       '/auth/reset-password',
-      data: {'email': email, 'code': code, 'new_password': newPassword},
+      data: {'email': email, 'token': resetToken, 'new_password': newPassword},
       requiresAuth: false,
     );
 
     return MessageResponse.fromJson(data as Map<String, dynamic>);
-  }
-
-  static Future<UserResponse> getCurrentUser() async {
-    final data = await ApiClient.get('/auth/me');
-
-    return UserResponse.fromJson(data as Map<String, dynamic>);
   }
 }
