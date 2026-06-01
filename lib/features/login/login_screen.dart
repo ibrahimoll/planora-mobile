@@ -159,26 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 18),
 
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _FieldLabel(label: 'Password', isDark: isDark),
-                        GestureDetector(
-                          onTap: () => _showComingLater(
-                            'Forgot password screen coming next',
-                          ),
-                          child: Text(
-                            'Forgot password?',
-                            style: textTheme.labelSmall?.copyWith(
-                              color: isDark
-                                  ? const Color(0xFFA78BFA)
-                                  : PlanoraTheme.primaryPurple,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    _FieldLabel(label: 'Password', isDark: isDark),
 
                     const SizedBox(height: 8),
 
@@ -218,40 +199,61 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 14),
 
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: Checkbox(
-                            value: rememberMe,
-                            onChanged: (value) {
-                              setState(() {
-                                rememberMe = value ?? false;
-                              });
-                            },
-                            activeColor: isDark
-                                ? const Color(0xFF8B5CF6)
-                                : PlanoraTheme.primaryPurple,
-                            checkColor: Colors.white,
-                            side: BorderSide(
-                              color: isDark
-                                  ? const Color(0xFF2A2D3A)
-                                  : PlanoraTheme.border,
-                              width: 1.2,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: Checkbox(
+                                value: rememberMe,
+                                onChanged: (value) {
+                                  setState(() {
+                                    rememberMe = value ?? false;
+                                  });
+                                },
+                                activeColor: isDark
+                                    ? const Color(0xFF8B5CF6)
+                                    : PlanoraTheme.primaryPurple,
+                                checkColor: Colors.white,
+                                side: BorderSide(
+                                  color: isDark
+                                      ? const Color(0xFF2A2D3A)
+                                      : PlanoraTheme.border,
+                                  width: 1.2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Remember me',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: isDark
+                                    ? Colors.white
+                                    : PlanoraTheme.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Remember me',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? Colors.white
-                                : PlanoraTheme.textPrimary,
-                            fontWeight: FontWeight.w700,
+
+                        GestureDetector(
+                          onTap: () => _showComingLater(
+                            'Forgot password screen coming next',
+                          ),
+                          child: Text(
+                            'Forgot password?',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: isDark
+                                  ? const Color(0xFFA78BFA)
+                                  : PlanoraTheme.primaryPurple,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                       ],
