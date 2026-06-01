@@ -1,0 +1,93 @@
+import '../../../core/network/api_client.dart';
+import '../models/auth_models.dart';
+
+class AuthApi {
+  AuthApi._();
+
+  static Future<TokenResponse> login({
+    required String identifier,
+    required String password,
+  }) async {
+    final data = await ApiClient.postForm(
+      '/auth/login',
+      data: {'username': identifier, 'password': password},
+      requiresAuth: false,
+    );
+    return TokenResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  static Future<MessageResponse> register({
+    required String username,
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    final data = await ApiClient.postForm(
+      '/auth/register',
+      data: {
+        'username': username,
+        'email': email,
+        'password': password,
+        'fullname': fullName,
+      },
+      requiresAuth: false,
+    );
+
+    return MessageResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  static Future<MessageResponse> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    final data = await ApiClient.postJson(
+      '/auth/verify-email',
+      data: {'email': email, 'code': code},
+      requiresAuth: false,
+    );
+
+    return MessageResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  static Future<MessageResponse> resendVerificationCode({
+    required String email,
+  }) async {
+    final data = await ApiClient.postJson(
+      '/auth/resend-verification-code',
+      data: {'email': email},
+      requiresAuth: false,
+    );
+
+    return MessageResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  static Future<MessageResponse> forgotPassword({required String email}) async {
+    final data = await ApiClient.postJson(
+      '/auth/forgot-password',
+      data: {'email': email},
+      requiresAuth: false,
+    );
+
+    return MessageResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  static Future<MessageResponse> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final data = await ApiClient.postJson(
+      '/auth/reset-password',
+      data: {'email': email, 'code': code, 'new_password': newPassword},
+      requiresAuth: false,
+    );
+
+    return MessageResponse.fromJson(data as Map<String, dynamic>);
+  }
+
+  static Future<UserResponse> getCurrentUser() async {
+    final data = await ApiClient.get('/auth/me');
+
+    return UserResponse.fromJson(data as Map<String, dynamic>);
+  }
+}
