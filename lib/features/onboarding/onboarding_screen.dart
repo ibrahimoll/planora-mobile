@@ -386,8 +386,7 @@ class _ThemeToggleButton extends StatelessWidget {
                       SizedBox(
                         width: iconSlotSize,
                         height: iconSlotSize,
-                        child: _ThemeToggleIcon(
-                          icon: Icons.nightlight_round,
+                        child: _ThemeToggleMoonIcon(
                           isActive: isDark,
                           activeColor: Colors.white,
                           inactiveColor: isDark
@@ -438,5 +437,81 @@ class _ThemeToggleIcon extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ThemeToggleMoonIcon extends StatelessWidget {
+  final bool isActive;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  const _ThemeToggleMoonIcon({
+    required this.isActive,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutBack,
+        scale: isActive ? 1.0 : 0.9,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 180),
+          opacity: isActive ? 1.0 : 0.72,
+          child: CustomPaint(
+            size: const Size.square(18),
+            painter: _MoonIconPainter(
+              color: isActive ? activeColor : inactiveColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoonIconPainter extends CustomPainter {
+  final Color color;
+
+  const _MoonIconPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    final fullMoonPath = Path()
+      ..addOval(
+        Rect.fromCircle(
+          center: Offset(size.width * 0.48, size.height * 0.50),
+          radius: size.width * 0.39,
+        ),
+      );
+
+    final cutoutPath = Path()
+      ..addOval(
+        Rect.fromCircle(
+          center: Offset(size.width * 0.64, size.height * 0.38),
+          radius: size.width * 0.39,
+        ),
+      );
+
+    final crescentPath = Path.combine(
+      PathOperation.difference,
+      fullMoonPath,
+      cutoutPath,
+    );
+
+    canvas.drawPath(crescentPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoonIconPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }
