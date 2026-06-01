@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
+import '../register/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -253,9 +254,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(height: metrics.sectionGap + 4),
                         _SignUpPrompt(
                           isDark: isDark,
-                          onTap: () => _showComingLater(
-                            'Register screen coming next',
-                          ),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => RegisterScreen(
+                                  onThemeToggle: widget.onThemeToggle,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         SizedBox(height: metrics.bottomGap),
                       ],
