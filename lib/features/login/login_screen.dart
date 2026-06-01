@@ -86,22 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           horizontal: 12,
                           vertical: 5,
                         ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0x332A1558)
-                              : PlanoraTheme.primaryLight,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'AI-POWERED PROJECT PLANNING',
-                          style: textTheme.labelSmall?.copyWith(
-                            color: isDark
-                                ? const Color(0xFFA78BFA)
-                                : PlanoraTheme.primaryPurple,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.7,
-                          ),
-                        ),
                       ),
                     ),
 
