@@ -80,6 +80,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -142,16 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                         child: Column(
                           children: [
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 2, right: 2),
-                                child: _ThemeToggleButton(
-                                  isDark: isDark,
-                                  onPressed: widget.onThemeToggle,
-                                ),
-                              ),
-                            ),
+                            const SizedBox(height: 44),
                             Expanded(
                               child: PageView.builder(
                                 controller: _pageController,
@@ -276,6 +268,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                   ),
                 ),
+                Positioned(
+                  top: topInset + 8,
+                  right: 18,
+                  child: _ThemeToggleButton(
+                    isDark: isDark,
+                    onPressed: widget.onThemeToggle,
+                  ),
+                ),
               ],
             ),
           ),
@@ -293,11 +293,11 @@ class _ThemeToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double switchWidth = 84;
-    const double switchHeight = 40;
+    const double switchWidth = 78;
+    const double switchHeight = 36;
     const double switchPadding = 3;
-    const double thumbSize = 34;
-    const double iconSlotSize = 34;
+    const double thumbSize = 30;
+    const double iconSlotSize = 30;
     const double thumbTravel = switchWidth - (switchPadding * 2) - thumbSize;
 
     return Tooltip(
@@ -315,21 +315,21 @@ class _ThemeToggleButton extends StatelessWidget {
             height: switchHeight,
             padding: const EdgeInsets.all(switchPadding),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF111822) : const Color(0xFFF3EEFF),
+              color: isDark ? const Color(0xFF0E1420) : const Color(0xFFF3EEFF),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: isDark
-                    ? const Color(0xFF253044)
+                    ? const Color(0xFF273247)
                     : const Color(0xFFE6DDFB),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isDark
-                      ? const Color(0x66000000)
+                      ? const Color(0x80000000)
                       : const Color(0x1A6D28D9),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
+                  blurRadius: 12,
+                  offset: const Offset(0, 5),
                 ),
               ],
             ),
@@ -357,7 +357,7 @@ class _ThemeToggleButton extends StatelessWidget {
                         boxShadow: const [
                           BoxShadow(
                             color: Color(0x4D6D28D9),
-                            blurRadius: 10,
+                            blurRadius: 9,
                             offset: Offset(0, 4),
                           ),
                         ],
@@ -374,7 +374,7 @@ class _ThemeToggleButton extends StatelessWidget {
                           isActive: !isDark,
                           activeColor: Colors.white,
                           inactiveColor: isDark
-                              ? const Color(0xFF64748B)
+                              ? const Color(0xFF5D6880)
                               : const Color(0xFFF59E0B),
                         ),
                       ),
@@ -422,14 +422,14 @@ class _ThemeToggleIcon extends StatelessWidget {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
-        scale: isActive ? 1.0 : 0.82,
+        scale: isActive ? 1.0 : 0.86,
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 180),
-          opacity: isActive ? 1.0 : 0.66,
+          opacity: isActive ? 1.0 : 0.72,
           child: Icon(
             icon,
             color: isActive ? activeColor : inactiveColor,
-            size: 19,
+            size: 18,
           ),
         ),
       ),
