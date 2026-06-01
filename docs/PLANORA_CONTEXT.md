@@ -1,6 +1,6 @@
 # Planora Mobile Context
 
-Last updated: 2026-05-28
+Last updated: 2026-06-01
 
 ## Repository
 
@@ -49,7 +49,7 @@ Current onboarding files:
 
 ## Light and Dark Theme Implementation
 
-`lib/main.dart` now owns the current theme state:
+`lib/main.dart` owns the current theme state:
 
 - Uses `PlanoraTheme.lightTheme`
 - Uses `PlanoraTheme.darkTheme`
@@ -66,32 +66,51 @@ Current behavior:
 
 ## Onboarding Theme Switch
 
-A professional theme switch exists on the onboarding screen near the top-right.
+A professional theme switch exists on the onboarding screen and is pinned to the real top-right screen corner.
+
+Current position:
+
+- Implemented with `Positioned` inside the main onboarding `Stack`, not inside the onboarding content column.
+- Uses `top: MediaQuery.paddingOf(context).top + 10`.
+- Uses `right: 20`.
+- Content column includes top spacing so the page content does not collide with the switch.
 
 Current switch behavior:
 
 - Shows both icons side by side.
-- Sun icon represents light mode.
-- Moon icon represents dark mode.
-- Purple rounded thumb slides smoothly between sun and moon.
+- Sun icon represents light mode and uses `Icons.light_mode_rounded`.
+- Moon icon represents dark mode and uses `CupertinoIcons.moon_fill`.
+- Purple circular thumb slides smoothly between sun and moon.
 - Active icon is centered inside the thumb and turns white.
 - Inactive icon remains visible with muted color.
-- Uses fixed geometry so sun/moon stay centered:
-  - switch width: `84`
-  - switch height: `40`
-  - switch padding: `3`
-  - thumb size: `34`
-  - icon slot size: `34`
+- The dark-mode purple thumb is intentionally shifted left so it has better spacing from the right edge.
+- The moon slot is shifted left by the same amount so the moon remains centered inside the purple thumb.
+
+Current switch geometry in `_ThemeToggleButton`:
+
+- switch width: `104`
+- switch height: `52`
+- switch padding: `6`
+- thumb size: `36`
+- icon slot size: `36`
+- dark thumb inset: `5`
+- `innerWidth = switchWidth - (switchPadding * 2)`
+- `innerHeight = switchHeight - (switchPadding * 2)`
+- `thumbTravel = innerWidth - thumbSize - darkThumbInset`
+- `thumbTop = (innerHeight - thumbSize) / 2`
+- `iconTop = (innerHeight - iconSlotSize) / 2`
 
 Current switch classes are private inside `onboarding_screen.dart`:
 
 - `_ThemeToggleButton`
 - `_ThemeToggleIcon`
+- `_ThemeToggleMoonIcon`
 
 Important implementation detail:
 
-- The switch uses `AnimatedPositioned` instead of `AnimatedAlign` so the thumb moves by exact pixels and lines up with the icon centers.
-- Each icon is wrapped in a fixed `SizedBox(width: 34, height: 34)` and `Center` to prevent drifting.
+- The switch uses `AnimatedPositioned` instead of `AnimatedAlign` so the thumb moves by exact pixels and lines up with icon centers.
+- The sun and moon use fixed `Positioned` slots instead of a loose `Row + Spacer` layout.
+- Do not return to the custom painted moon crescent; it looked bad. The current preferred moon is `CupertinoIcons.moon_fill`.
 
 ## Onboarding Images
 
@@ -173,7 +192,7 @@ If dark images do not show, check:
 
 ## Recent Mobile Work Completed
 
-Completed on 2026-05-28:
+Completed through the latest mobile onboarding/theme-switch pass:
 
 - Added complete app-level light/dark theme support.
 - Added dark onboarding asset support.
@@ -182,6 +201,10 @@ Completed on 2026-05-28:
 - Added manual onboarding theme switch.
 - Refined switch to show sun/moon side by side.
 - Fixed switch alignment so icons and thumb centers line up.
+- Pinned the switch to the real top-right corner outside the onboarding content column.
+- Increased switch card spacing to prevent thumb clipping.
+- Replaced the custom painted moon with `CupertinoIcons.moon_fill`.
+- Shifted the dark-mode purple thumb and moon slot left by `5px` so the moon sits centered inside the purple circle.
 
 Important recent commit hashes:
 
@@ -190,6 +213,26 @@ Important recent commit hashes:
 - `221a6aee91914fb049e2a1a80a17182889ea04de` — animated two-icon switch.
 - `6078ca4d73edb351a9a217c698a289b92beb8517` — refined switch design.
 - `522818a260fa9454f5329f555906fecf6d56e952` — centered sun/moon and thumb geometry.
+- `00ed66f3ec1d2e8a31b42565373188a48cb9ab94` — pinned onboarding theme switch to screen corner.
+- `189564f74daf1804422c1c43f3200407f311acf6` — increased onboarding theme switch spacing.
+- `e31ffcf1e9d9b5d4314cfb7867ee17c5a4385722` — added more space around the switch thumb.
+- `76c1a7f7aa53055c6b8767a6f74c4c8bee9c0157` — tried custom painted moon for theme switch.
+- `dadc6f423db75cc5245d1086bfe025694e5ead77` — shifted and reshaped custom moon.
+- `559b832b66deac5a30456a2467ae7b0ce9ce0429` — final preferred moon fix: Cupertino moon icon and left-shifted dark thumb.
+
+## Local Git Conflict Recovery
+
+If `git pull` or commit fails because of unmerged files/conflicts and there are no local changes to preserve, reset to GitHub `main`:
+
+```powershell
+cd C:\Users\Ibrahim\Documents\Planora\planora-mobile
+git merge --abort
+git fetch origin
+git reset --hard origin/main
+git clean -fd
+```
+
+Then continue with normal verification.
 
 ## Local Verification Commands
 
@@ -207,7 +250,7 @@ If the local path is different, adjust the `cd` path.
 
 ## Next Recommended Mobile Steps
 
-1. Add the actual dark onboarding images:
+1. Add or verify the actual dark onboarding images:
    - `assets/images/onboardDark_1.png`
    - `assets/images/onboardDark_2.png`
    - `assets/images/onboardDark_3.png`
