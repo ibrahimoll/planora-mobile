@@ -7,6 +7,7 @@ import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
 import '../forgot_password/forgot_password_screen.dart';
 import '../register/register_screen.dart';
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -84,6 +85,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       _showMessage('Welcome back, ${user.fullName}');
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              HomeScreen(user: user, onThemeToggle: widget.onThemeToggle),
+        ),
+      );
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
