@@ -114,7 +114,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       children: [
                         SizedBox(height: metrics.topGap),
                         PlanoraAuthTopBar(onThemeToggle: widget.onThemeToggle),
-                        SizedBox(height: metrics.pillToTitleGap),
+                        SizedBox(height: metrics.sectionGap),
                         PlanoraAuthIllustration(
                           lightAsset: 'assets/images/forgot_password_light.png',
                           darkAsset: 'assets/images/forgot_password_dark.png',
