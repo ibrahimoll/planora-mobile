@@ -71,7 +71,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
-      _showMessage('Could not send reset code. Please try again.');
+      _showMessage('Could not send reset link. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -146,7 +146,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          "No worries. Enter your email address and we'll send you a code to reset your password.",
+                          "No worries. Enter your email address and we'll send you a link to reset your password.",
                           textAlign: TextAlign.center,
                           style: textTheme.bodyMedium?.copyWith(
                             fontSize: metrics.subtitleSize,
@@ -169,7 +169,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         SizedBox(height: metrics.sectionGap),
                         PlanoraGradientButton(
                           height: metrics.buttonHeight,
-                          label: isLoading ? 'Sending...' : 'Send Reset Code',
+                          label: isLoading ? 'Sending...' : 'Send Reset Link',
                           onPressed: isLoading ? null : _sendResetLink,
                         ),
                         SizedBox(height: metrics.sectionGap * 2),
@@ -237,12 +237,7 @@ class ResetLinkSentScreen extends StatelessWidget {
                       children: [
                         SizedBox(height: metrics.topGap),
                         PlanoraAuthTopBar(onThemeToggle: onThemeToggle),
-                        SizedBox(height: metrics.logoToPillGap),
-                        PlanoraAuthBrandHeader(
-                          logoSize: metrics.logoSize,
-                          logoToPillGap: metrics.logoToPillGap,
-                        ),
-                        SizedBox(height: metrics.pillToTitleGap),
+                        SizedBox(height: metrics.sectionGap * 2),
                         PlanoraAuthIllustration(
                           lightAsset: 'assets/images/reset_link_sent_light.png',
                           darkAsset: 'assets/images/reset_link_sent_dark.png',
