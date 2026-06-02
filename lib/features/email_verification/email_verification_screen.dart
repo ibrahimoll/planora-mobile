@@ -184,11 +184,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                       children: [
                         SizedBox(height: metrics.topGap),
                         PlanoraAuthTopBar(onThemeToggle: widget.onThemeToggle),
-                        SizedBox(height: metrics.logoToPillGap),
-                        PlanoraAuthBrandHeader(
-                          logoSize: metrics.logoSize,
-                          logoToPillGap: metrics.logoToPillGap,
-                        ),
                         SizedBox(height: metrics.pillToTitleGap),
                         PlanoraAuthIllustration(
                           lightAsset:
