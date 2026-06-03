@@ -134,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: CircleAvatar(
               backgroundColor: Colors.transparent,
-              backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
+              backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
               child: hasProfilePic
                   ? null
                   : Text(
@@ -157,11 +157,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: isDark
-                          ? PlanoraTheme.darkTextPrimary
-                          : PlanoraTheme.textPrimary,
-                    ),
+                  fontWeight: FontWeight.w800,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
@@ -169,9 +169,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(context),
-                      fontWeight: FontWeight.w500,
-                    ),
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -232,20 +232,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(
                   'Project Overview',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                      ),
+                    fontWeight: FontWeight.w900,
+                    color: isDark
+                        ? PlanoraTheme.darkTextPrimary
+                        : PlanoraTheme.textPrimary,
+                  ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: isDark ? 0.12 : 0.08),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: isDark ? 0.12 : 0.08),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
@@ -254,9 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       'This Month',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(width: 4),
                     Icon(
@@ -286,10 +288,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         strokeWidth: 9,
                         strokeCap: StrokeCap.round,
                         color: Theme.of(context).colorScheme.primary,
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.12),
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.12),
                       ),
                     ),
                     Column(
@@ -297,13 +298,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(
                           '${(progress * 100).round()}%',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         Text(
                           'On Track',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -317,9 +318,24 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: Column(
                   children: [
-                    buildLegendRow(context, 'On Track', '12', Theme.of(context).colorScheme.primary),
-                    buildLegendRow(context, 'In Progress', '6', Colors.blueAccent),
-                    buildLegendRow(context, 'At Risk', '3', Colors.orangeAccent),
+                    buildLegendRow(
+                      context,
+                      'On Track',
+                      '12',
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                    buildLegendRow(
+                      context,
+                      'In Progress',
+                      '6',
+                      Colors.blueAccent,
+                    ),
+                    buildLegendRow(
+                      context,
+                      'At Risk',
+                      '3',
+                      Colors.orangeAccent,
+                    ),
                     buildLegendRow(context, 'Completed', '24', Colors.green),
                   ],
                 ),
@@ -351,37 +367,44 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           Text(
             value,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),
     );
   }
 
-  Widget buildSectionTitle(BuildContext context, String title, {String? action}) {
+  Widget buildSectionTitle(
+    BuildContext context,
+    String title, {
+    String? action,
+  }) {
     return Row(
       children: [
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         if (action != null)
           TextButton(
             onPressed: () {},
-            child: Text(action, style: const TextStyle(fontWeight: FontWeight.w800)),
+            child: Text(
+              action,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
       ],
     );
@@ -405,10 +428,15 @@ class _HomeScreenState extends State<HomeScreen> {
             final action = actions[index];
             return Expanded(
               child: Padding(
-                padding: EdgeInsets.only(right: index == actions.length - 1 ? 0 : 10),
+                padding: EdgeInsets.only(
+                  right: index == actions.length - 1 ? 0 : 10,
+                ),
                 child: Container(
                   height: 86,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
+                  ),
                   decoration: cardDecoration(context),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -429,8 +457,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ],
                   ),
@@ -449,11 +477,32 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         buildSectionTitle(context, 'My Projects', action: 'See All'),
         const SizedBox(height: 10),
-        buildProjectTile(context, Icons.public_rounded, 'Website Redesign', 0.75, '75%', Theme.of(context).colorScheme.primary),
+        buildProjectTile(
+          context,
+          Icons.public_rounded,
+          'Website Redesign',
+          0.75,
+          '75%',
+          Theme.of(context).colorScheme.primary,
+        ),
         const SizedBox(height: 10),
-        buildProjectTile(context, Icons.phone_iphone_rounded, 'Mobile App Development', 0.60, '60%', Colors.blueAccent),
+        buildProjectTile(
+          context,
+          Icons.phone_iphone_rounded,
+          'Mobile App Development',
+          0.60,
+          '60%',
+          Colors.blueAccent,
+        ),
         const SizedBox(height: 10),
-        buildProjectTile(context, Icons.rocket_launch_rounded, 'Marketing Campaign', 0.30, '30%', Colors.green),
+        buildProjectTile(
+          context,
+          Icons.rocket_launch_rounded,
+          'Marketing Campaign',
+          0.30,
+          '30%',
+          Colors.green,
+        ),
       ],
     );
   }
@@ -500,9 +549,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
                 ClipRRect(
@@ -537,7 +586,10 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: cardDecoration(context),
           child: Row(
             children: [
-              Icon(Icons.radio_button_unchecked_rounded, color: mutedColor(context)),
+              Icon(
+                Icons.radio_button_unchecked_rounded,
+                color: mutedColor(context),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -546,17 +598,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       'Design homepage wireframe',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        Icon(Icons.calendar_today_outlined, size: 13, color: mutedColor(context)),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 13,
+                          color: mutedColor(context),
+                        ),
                         const SizedBox(width: 5),
                         Text(
                           'May 24, 2024',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 color: mutedColor(context),
                                 fontWeight: FontWeight.w600,
                               ),
@@ -567,17 +624,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   'High',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
