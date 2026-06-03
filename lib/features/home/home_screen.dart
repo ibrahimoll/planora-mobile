@@ -412,10 +412,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildQuickActions(BuildContext context) {
     final actions = [
-      (Icons.add_rounded, 'New Project'),
-      (Icons.task_alt_rounded, 'New Task'),
-      (Icons.group_add_rounded, 'Invite Team'),
-      (Icons.analytics_outlined, 'Reports'),
+      (Icons.add_rounded, 'New Project', true),
+      (Icons.check_box_outlined, 'New Task', false),
+      (Icons.groups_2_outlined, 'Invite Team', false),
+      (Icons.description_outlined, 'View Reports', false),
     ];
 
     return Column(
@@ -431,43 +431,80 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: EdgeInsets.only(
                   right: index == actions.length - 1 ? 0 : 10,
                 ),
-                child: Container(
-                  height: 86,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 12,
-                  ),
-                  decoration: cardDecoration(context),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          gradient: PlanoraTheme.primaryGradientFor(context),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: PlanoraTheme.floatingShadowFor(context),
-                        ),
-                        child: Icon(action.$1, size: 18, color: Colors.white),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        action.$2,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
+                child: buildQuickActionTile(
+                  context,
+                  icon: action.$1,
+                  label: action.$2,
+                  isFilled: action.$3,
                 ),
               ),
             );
           }),
         ),
       ],
+    );
+  }
+
+  Widget buildQuickActionTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required bool isFilled,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      height: 74,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isFilled)
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                gradient: PlanoraTheme.primaryGradientFor(context),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, size: 18, color: Colors.white),
+            )
+          else
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: Icon(icon, size: 24, color: primary),
+            ),
+          const SizedBox(height: 7),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
