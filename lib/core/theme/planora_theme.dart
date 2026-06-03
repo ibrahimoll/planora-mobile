@@ -32,7 +32,7 @@ class PlanoraTheme {
   static const Color darkSurfaceVariant = Color(0xFF273449);
   static const Color darkToggleSurface = Color(0xFF0E1420);
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
-  static const Color darkTextSecondary = Color(0xFFD8B4FE);
+  static const Color darkTextSecondary = Color(0xFFCBD5E1);
   static const Color darkTextMuted = Color(0xFF94A3B8);
   static const Color darkBorder = Color(0xFF334155);
   static const Color darkDivider = Color(0xFF1E293B);
@@ -711,7 +711,7 @@ class PlanoraTheme {
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: darkSurface,
       selectedItemColor: darkPrimary,
-      unselectedItemColor: darkTextSecondary,
+      unselectedItemColor: darkTextMuted,
       type: BottomNavigationBarType.fixed,
       elevation: 0,
       selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
