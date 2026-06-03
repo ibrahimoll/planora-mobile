@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/projects/projects_screen.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
@@ -686,6 +687,112 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget buildHomeDashboard(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildProjectOverview(context),
+          const SizedBox(height: 22),
+          buildQuickActions(context),
+          const SizedBox(height: 22),
+          buildProjects(context),
+          const SizedBox(height: 22),
+          buildUpcomingTask(context),
+        ],
+      ),
+    );
+  }
+
+  Widget buildComingSoonPage(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Center(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: cardDecoration(context, radius: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                gradient: PlanoraTheme.primaryGradientFor(context),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Icon(icon, color: Colors.white, size: 30),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildCurrentPage(BuildContext context) {
+    switch (selectedIndex) {
+      case 0:
+        return buildHomeDashboard(context);
+
+      case 1:
+        return const ProjectsScreen();
+
+      case 2:
+        return buildComingSoonPage(
+          context,
+          icon: Icons.auto_awesome_rounded,
+          title: 'Planora AI',
+          message: 'Your AI project assistant screen will be connected next.',
+        );
+
+      case 3:
+        return buildComingSoonPage(
+          context,
+          icon: Icons.check_box_rounded,
+          title: 'Tasks',
+          message: 'Your real tasks screen will be built after projects.',
+        );
+
+      case 4:
+        return buildComingSoonPage(
+          context,
+          icon: Icons.calendar_month_rounded,
+          title: 'Calendar',
+          message: 'Calendar planning will be connected later.',
+        );
+
+      default:
+        return buildHomeDashboard(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -713,19 +820,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     buildHeader(context),
                     const SizedBox(height: 24),
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.only(bottom: 18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            buildProjectOverview(context),
-                            const SizedBox(height: 22),
-                            buildQuickActions(context),
-                            const SizedBox(height: 22),
-                            buildProjects(context),
-                            const SizedBox(height: 22),
-                            buildUpcomingTask(context),
-                          ],
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: KeyedSubtree(
+                          key: ValueKey<int>(selectedIndex),
+                          child: buildCurrentPage(context),
                         ),
                       ),
                     ),
