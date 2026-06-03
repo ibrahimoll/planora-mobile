@@ -32,9 +32,7 @@ class HomeBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
-    final inactiveColor = isDark
-        ? PlanoraTheme.darkTextMuted
-        : PlanoraTheme.textSecondary;
+    final inactiveColor = isDark ? Colors.white : PlanoraTheme.textSecondary;
 
     return SafeArea(
       top: false,
