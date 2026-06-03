@@ -762,7 +762,13 @@ class _HomeScreenState extends State<HomeScreen> {
         return buildHomeDashboard(context);
 
       case 1:
-        return const ProjectsScreen();
+        return ProjectsScreen(
+          onBack: () {
+            setState(() {
+              selectedIndex = 0;
+            });
+          },
+        );
 
       case 2:
         return buildComingSoonPage(
@@ -817,8 +823,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Column(
                   children: [
-                    buildHeader(context),
-                    const SizedBox(height: 24),
+                    if (selectedIndex == 0) ...[
+                      buildHeader(context),
+                      const SizedBox(height: 24),
+                    ],
                     Expanded(
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 260),
