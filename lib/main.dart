@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/theme/planora_theme.dart';
+import 'package:mobile/features/auth/auth_gate.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
 import 'package:mobile/features/reset_password/reset_password_screen.dart';
 
@@ -46,7 +47,7 @@ class _PlanoraAppState extends State<PlanoraApp> {
       );
     }
 
-    return OnboardingScreen(onThemeToggle: _toggleThemeMode);
+    return AuthGate(onThemeToggle: _toggleThemeMode, onLoggedOut: () {});
   }
 
   @override

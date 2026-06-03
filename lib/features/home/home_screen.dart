@@ -7,17 +7,24 @@ import '../auth/models/auth_models.dart';
 class HomeScreen extends StatelessWidget {
   final UserResponse user;
   final VoidCallback onThemeToggle;
+  final VoidCallback? onLoggedOut;
 
   const HomeScreen({
     super.key,
     required this.user,
     required this.onThemeToggle,
+    this.onLoggedOut,
   });
 
   Future<void> _logout(BuildContext context) async {
     await TokenStorage.clearAccessToken();
 
     if (!context.mounted) return;
+
+    if (onLoggedOut != null) {
+      onLoggedOut!();
+      return;
+    }
 
     Navigator.of(context).pop();
   }
