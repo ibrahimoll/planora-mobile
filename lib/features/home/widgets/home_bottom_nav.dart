@@ -31,6 +31,7 @@ class HomeBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
     final inactiveColor = isDark
         ? PlanoraTheme.darkTextMuted
         : PlanoraTheme.textSecondary;
@@ -56,8 +57,8 @@ class HomeBottomNav extends StatelessWidget {
             return Stack(
               children: [
                 AnimatedAlign(
-                  duration: const Duration(milliseconds: 330),
-                  curve: Curves.easeOutCubic,
+                  duration: const Duration(milliseconds: 360),
+                  curve: Curves.easeInOutCubic,
                   alignment: Alignment(
                     -1 + (selectedIndex * 2 / (icons.length - 1)),
                     0,
@@ -69,9 +70,8 @@ class HomeBottomNav extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 3),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          gradient: PlanoraTheme.primaryGradientFor(context),
+                          color: primary.withValues(alpha: isDark ? 0.18 : 0.12),
                           borderRadius: BorderRadius.circular(18),
-                          boxShadow: PlanoraTheme.floatingShadowFor(context),
                         ),
                       ),
                     ),
@@ -85,25 +85,38 @@ class HomeBottomNav extends StatelessWidget {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(18),
                         onTap: () => onTap(index),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              icons[index],
-                              size: active ? 23 : 21,
-                              color: active ? Colors.white : inactiveColor,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              labels[index],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                                    color: active ? Colors.white : inactiveColor,
-                                  ),
-                            ),
-                          ],
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AnimatedScale(
+                                scale: active ? 1.10 : 1.0,
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutBack,
+                                child: Icon(
+                                  icons[index],
+                                  size: active ? 23 : 21,
+                                  color: active ? primary : inactiveColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                                      fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                                      color: active ? primary : inactiveColor,
+                                    ),
+                                child: Text(
+                                  labels[index],
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
