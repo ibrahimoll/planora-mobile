@@ -22,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
+  bool hasUnreadNotifications = false;
 
   Future<void> logout(BuildContext context) async {
     await TokenStorage.clearAccessToken();
@@ -101,14 +102,14 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         buildAvatar(context),
 
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
 
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$greeting, $firstName👋',
+                '$greeting, $firstName 👋',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(
@@ -116,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
               ),
 
-              SizedBox(height: 3),
+              const SizedBox(height: 3),
 
               Text(
                 'Ready to plan something amazing?',
@@ -131,13 +132,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
 
-        buildHeaderIconButton(
-          context: context,
-          icon: Icons.notifications_none_rounded,
-          onTap: () {},
-        ),
+        buildSearchButton(context),
+
+        const SizedBox(width: 10),
+
+        buildNotificationButton(context),
       ],
     );
   }
@@ -193,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: CircleAvatar(
           backgroundColor: Colors.transparent,
-          backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
+          backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
           child: hasProfilePic
               ? null
               : Text(
@@ -208,28 +209,81 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildHeaderIconButton({
-    required BuildContext context,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
+  Widget buildSearchButton(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        // Later this will open the search screen.
+      },
       child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
           color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
           ),
           boxShadow: PlanoraTheme.cardShadowFor(context),
         ),
-        child: Icon(icon, size: 21),
+        child: Icon(
+          Icons.search_rounded,
+          size: 21,
+          color: isDark
+              ? PlanoraTheme.darkTextPrimary
+              : PlanoraTheme.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget buildNotificationButton(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        // Later this will open the notifications screen.
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+              ),
+              boxShadow: PlanoraTheme.cardShadowFor(context),
+            ),
+            child: Icon(
+              Icons.notifications_none_rounded,
+              size: 21,
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+            ),
+          ),
+
+          if (hasUnreadNotifications)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -252,6 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
                     buildHeader(context),
+
                     const SizedBox(height: 24),
 
                     Expanded(
