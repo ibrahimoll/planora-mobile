@@ -1,3 +1,4 @@
+import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/planora_theme.dart';
@@ -15,7 +16,6 @@ class HomeBottomNav extends StatelessWidget {
   static const icons = [
     Icons.home_rounded,
     Icons.folder_rounded,
-    Icons.auto_awesome_rounded,
     Icons.check_box_rounded,
     Icons.calendar_month_rounded,
   ];
@@ -23,7 +23,6 @@ class HomeBottomNav extends StatelessWidget {
   static const labels = [
     'Home',
     'Projects',
-    'AI',
     'Tasks',
     'Calendar',
   ];
@@ -32,130 +31,63 @@ class HomeBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
-    final barColor = isDark ? const Color(0xFF252A29) : PlanoraTheme.surface;
     final inactiveColor = isDark ? Colors.white : PlanoraTheme.textSecondary;
+    final backgroundColor = isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface;
 
-    return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: 92,
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.bottomCenter,
-          children: [
-            Container(
-              height: 64,
-              margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: barColor,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(0),
+    return AnimatedBottomNavigationBar.builder(
+      itemCount: icons.length,
+      activeIndex: selectedIndex > 1 ? selectedIndex - 1 : selectedIndex,
+      gapLocation: GapLocation.center,
+      notchSmoothness: NotchSmoothness.softEdge,
+      leftCornerRadius: 24,
+      rightCornerRadius: 24,
+      height: 72,
+      elevation: 0,
+      backgroundColor: backgroundColor,
+      splashColor: primary.withValues(alpha: 0.12),
+      onTap: (index) {
+        final mappedIndex = index > 1 ? index + 1 : index;
+        onTap(mappedIndex);
+      },
+      tabBuilder: (index, isActive) {
+        final mappedIndex = index > 1 ? index + 1 : index;
+        final selected = selectedIndex == mappedIndex;
+        final color = selected ? primary : inactiveColor;
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 10, bottom: 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedScale(
+                scale: selected ? 1.10 : 1.0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutBack,
+                child: Icon(
+                  icons[index],
+                  size: 22,
+                  color: color,
                 ),
-                boxShadow: PlanoraTheme.cardShadowFor(context),
               ),
-              child: Row(
-                children: List.generate(icons.length, (index) {
-                  if (index == 2) {
-                    return const Expanded(child: SizedBox.shrink());
-                  }
-
-                  final active = selectedIndex == index;
-
-                  return Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
-                      onTap: () => onTap(index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            AnimatedScale(
-                              scale: active ? 1.10 : 1.0,
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeOutBack,
-                              child: Icon(
-                                icons[index],
-                                size: 23,
-                                color: active ? primary : inactiveColor,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            AnimatedDefaultTextStyle(
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeOutCubic,
-                              style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                                    color: active ? primary : inactiveColor,
-                                  ),
-                              child: Text(
-                                labels[index],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              const SizedBox(height: 5),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                      color: color,
                     ),
-                  );
-                }),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              child: GestureDetector(
-                onTap: () => onTap(2),
-                child: AnimatedScale(
-                  scale: selectedIndex == 2 ? 1.06 : 1.0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: selectedIndex == 2 ? primary : const Color(0xFFF9A825),
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF3B403E) : Colors.white,
-                            width: 6,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.22),
-                              blurRadius: 16,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.auto_awesome_rounded,
-                          color: selectedIndex == 2 ? Colors.white : const Color(0xFF252A29),
-                          size: 26,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 220),
-                        style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                              color: selectedIndex == 2 ? primary : inactiveColor,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 9,
-                            ),
-                        child: const Text('Planora AI'),
-                      ),
-                    ],
-                  ),
+                child: Text(
+                  labels[index],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
