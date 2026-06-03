@@ -57,7 +57,26 @@ class _PlanoraAppState extends State<PlanoraApp> {
       theme: PlanoraTheme.lightTheme,
       darkTheme: PlanoraTheme.darkTheme,
       themeMode: _themeMode,
+      scrollBehavior: const PlanoraScrollBehavior(),
       home: _buildInitialScreen(),
     );
+  }
+}
+
+class PlanoraScrollBehavior extends MaterialScrollBehavior {
+  const PlanoraScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
+  }
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const ClampingScrollPhysics();
   }
 }
