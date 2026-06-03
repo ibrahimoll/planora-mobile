@@ -192,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: CircleAvatar(
           backgroundColor: Colors.transparent,
-          backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
+          backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
           child: hasProfilePic
               ? null
               : Text(
