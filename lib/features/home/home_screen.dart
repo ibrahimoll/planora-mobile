@@ -1,3 +1,4 @@
+import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/storage/token_storage.dart';
@@ -30,6 +31,22 @@ class _HomeScreenState extends State<HomeScreen> {
   final int inProgressProjects = 6;
   final int atRiskProjects = 3;
   final int completedProjects = 24;
+
+  final List<IconData> bottomNavIcons = [
+    Icons.home_rounded,
+    Icons.folder_rounded,
+    Icons.check_box_rounded,
+    Icons.calendar_month_rounded,
+    Icons.person_rounded,
+  ];
+
+  final List<String> bottomNavLabels = [
+    'Home',
+    'Projects',
+    'Tasks',
+    'Calendar',
+    'Profile',
+  ];
 
   Future<void> logout(BuildContext context) async {
     await TokenStorage.clearAccessToken();
@@ -192,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: CircleAvatar(
           backgroundColor: Colors.transparent,
-          backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
+          backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
           child: hasProfilePic
               ? null
               : Text(
@@ -855,72 +872,87 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget buildBottomNavigation(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
 
-    final items = [
-      (Icons.home_rounded, 'Home'),
-      (Icons.folder_rounded, 'Projects'),
-      (Icons.check_box_rounded, 'Tasks'),
-      (Icons.calendar_month_rounded, 'Calendar'),
-      (Icons.person_rounded, 'Profile'),
-    ];
+    final backgroundColor = isDark
+        ? PlanoraTheme.darkSurface
+        : PlanoraTheme.surface;
+
+    final inactiveColor = isDark
+        ? PlanoraTheme.darkTextMuted
+        : PlanoraTheme.textSecondary;
 
     return SafeArea(
       top: false,
-      child: Container(
-        height: 72,
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-          ),
-          boxShadow: PlanoraTheme.cardShadowFor(context),
-        ),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final isSelected = selectedIndex == index;
+          child: AnimatedBottomNavigationBar.builder(
+            itemCount: bottomNavIcons.length,
+            activeIndex: selectedIndex,
+            gapLocation: GapLocation.none,
+            notchSmoothness: NotchSmoothness.defaultEdge,
+            backgroundColor: backgroundColor,
+            splashColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.12),
+            elevation: 0,
+            height: 72,
+            onTap: (index) {
+              setState(() {
+                selectedIndex = index;
+              });
+            },
+            tabBuilder: (index, isActive) {
+              final color = isActive
+                  ? Theme.of(context).colorScheme.primary
+                  : inactiveColor;
 
-            return Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
-                onTap: () {
-                  setState(() {
-                    selectedIndex = index;
-                  });
-                },
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? Theme.of(context).colorScheme.primary.withValues(
+                          alpha: isDark ? 0.14 : 0.10,
+                        )
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(18),
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      item.$1,
-                      size: 22,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : isDark
-                          ? PlanoraTheme.darkTextMuted
-                          : PlanoraTheme.textSecondary,
+                    AnimatedScale(
+                      scale: isActive ? 1.12 : 1.0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutBack,
+                      child: Icon(
+                        bottomNavIcons[index],
+                        size: isActive ? 23 : 21,
+                        color: color,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      item.$2,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : isDark
-                            ? PlanoraTheme.darkTextMuted
-                            : PlanoraTheme.textSecondary,
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      style: Theme.of(context).textTheme.labelSmall!.copyWith(
+                        fontWeight: isActive
+                            ? FontWeight.w900
+                            : FontWeight.w700,
+                        color: color,
+                      ),
+                      child: Text(
+                        bottomNavLabels[index],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-              ),
-            );
-          }),
+              );
+            },
+          ),
         ),
       ),
     );
