@@ -9,6 +9,8 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
+  int selectedFilterIndex = 0;
+
   Widget buildProjectsHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -41,7 +43,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           onTap: () {},
         ),
         const SizedBox(width: 10),
-        buildCircleIconButton(context, icon: Icons.tune_rounded, onTap: () {}),
+        buildCircleIconButton(
+          context,
+          icon: Icons.filter_alt_outlined,
+          onTap: () {},
+        ),
       ],
     );
   }
@@ -84,10 +90,47 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  Widget buildProjectTabsAndAction(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: buildProjectTabs(context)),
+        const SizedBox(width: 12),
+        buildNewProjectButton(context),
+      ],
+    );
+  }
+
+  Widget buildProjectTabs(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+    );
+  }
+
+  Widget buildNewProjectButton(BuildContext context) {
+    return Container(
+      height: 48,
+      width: 142,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(16),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      child: Column(children: [buildProjectsHeader(context)]),
+      child: Column(
+        children: [
+          buildProjectsHeader(context),
+          const SizedBox(height: 22),
+          buildProjectTabsAndAction(context),
+        ],
+      ),
     );
   }
 }

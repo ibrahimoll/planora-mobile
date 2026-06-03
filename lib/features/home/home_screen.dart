@@ -832,6 +832,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         duration: const Duration(milliseconds: 260),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
+                        layoutBuilder: (currentChild, previousChildren) {
+                          return Stack(
+                            alignment: Alignment.topCenter,
+                            children: [
+                              ...previousChildren,
+                              if (currentChild != null) currentChild,
+                            ],
+                          );
+                        },
                         child: KeyedSubtree(
                           key: ValueKey<int>(selectedIndex),
                           child: buildCurrentPage(context),
