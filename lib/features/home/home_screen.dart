@@ -192,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: CircleAvatar(
           backgroundColor: Colors.transparent,
-          backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
+          backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
           child: hasProfilePic
               ? null
               : Text(
@@ -536,7 +536,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: buildQuickActionCard(
                 context: context,
-                icon: Icons.check_box_outlined,
+                icon: Icons.task_alt_rounded,
                 label: 'New Task',
               ),
             ),
@@ -544,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: buildQuickActionCard(
                 context: context,
-                icon: Icons.groups_2_outlined,
+                icon: Icons.group_add_rounded,
                 label: 'Invite Team',
               ),
             ),
@@ -552,8 +552,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: buildQuickActionCard(
                 context: context,
-                icon: Icons.description_outlined,
-                label: 'View Reports',
+                icon: Icons.analytics_outlined,
+                label: 'Reports',
               ),
             ),
           ],
@@ -575,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Later this will navigate to each feature.
       },
       child: Container(
-        height: 82,
+        height: 86,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         decoration: BoxDecoration(
           color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
@@ -588,7 +588,16 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 23, color: Theme.of(context).colorScheme.primary),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                gradient: PlanoraTheme.primaryGradientFor(context),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: PlanoraTheme.floatingShadowFor(context),
+              ),
+              child: Icon(icon, size: 18, color: Colors.white),
+            ),
             const SizedBox(height: 8),
             Text(
               label,
@@ -620,7 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 10),
         buildProjectTile(
           context: context,
-          icon: Icons.language_rounded,
+          icon: Icons.public_rounded,
           title: 'Website Redesign',
           progress: 0.75,
           percentageText: '75%',
@@ -638,13 +647,40 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 10),
         buildProjectTile(
           context: context,
-          icon: Icons.campaign_rounded,
+          icon: Icons.rocket_launch_rounded,
           title: 'Marketing Campaign',
           progress: 0.30,
           percentageText: '30%',
           color: Colors.green,
         ),
       ],
+    );
+  }
+
+  Widget buildProjectLogo({
+    required BuildContext context,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color, color.withValues(alpha: 0.68)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.24),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: 22),
     );
   }
 
@@ -670,15 +706,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
+          buildProjectLogo(context: context, icon: icon, color: color),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -829,10 +857,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final items = [
       (Icons.home_rounded, 'Home'),
-      (Icons.folder_copy_outlined, 'Projects'),
-      (Icons.check_box_outlined, 'Tasks'),
-      (Icons.calendar_month_outlined, 'Calendar'),
-      (Icons.person_outline_rounded, 'Profile'),
+      (Icons.folder_rounded, 'Projects'),
+      (Icons.check_box_rounded, 'Tasks'),
+      (Icons.calendar_month_rounded, 'Calendar'),
+      (Icons.person_rounded, 'Profile'),
     ];
 
     return SafeArea(
