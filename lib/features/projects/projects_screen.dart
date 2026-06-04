@@ -101,22 +101,100 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Widget buildProjectTabs(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tabs = ['All', 'Active', 'Completed'];
+
     return Container(
       height: 48,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Row(
+        children: List.generate(tabs.length, (index) {
+          final isSelected = selectedFilterIndex == index;
+
+          return Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  selectedFilterIndex = index;
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary.withValues(
+                          alpha: isDark ? 0.22 : 0.10,
+                        )
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  tabs[index],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : isDark
+                        ? Colors.white70
+                        : const Color(0xFF4B5563),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
 
   Widget buildNewProjectButton(BuildContext context) {
-    return Container(
-      height: 48,
-      width: 142,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(16),
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 48,
+        width: 142,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6D28D9).withValues(alpha: 0.25),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+            const SizedBox(width: 6),
+            Text(
+              'New Project',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
