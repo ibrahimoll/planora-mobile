@@ -835,10 +835,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         layoutBuilder: (currentChild, previousChildren) {
                           return Stack(
                             alignment: Alignment.topCenter,
-                            children: [
-                              ...previousChildren,
-                              if (currentChild != null) currentChild,
-                            ],
+                            children: [...previousChildren, ?currentChild],
                           );
                         },
                         child: KeyedSubtree(
