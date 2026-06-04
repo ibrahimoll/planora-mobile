@@ -7,13 +7,15 @@ import 'api_exception.dart';
 class ApiClient {
   ApiClient._();
 
+  static const Duration _defaultTimeout = Duration(seconds: 75);
+
   static final Dio _dio =
       Dio(
           BaseOptions(
             baseUrl: AppConfig.apiBaseUrl,
-            connectTimeout: const Duration(seconds: 20),
-            receiveTimeout: const Duration(seconds: 20),
-            sendTimeout: const Duration(seconds: 20),
+            connectTimeout: _defaultTimeout,
+            receiveTimeout: _defaultTimeout,
+            sendTimeout: _defaultTimeout,
             headers: {'Accept': 'application/json'},
             validateStatus: (status) {
               return status != null && status < 500;
@@ -160,11 +162,15 @@ class ApiClient {
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
         return const ApiException(
-          message: 'Connection timed out. Please try again.',
+          message:
+              'The Planora server is still starting. Please try again in a moment.',
         );
 
       case DioExceptionType.connectionError:
-        return const ApiException(message: 'Could not connect to the server.');
+        return const ApiException(
+          message:
+              'Could not reach the Planora server. Check your connection and try again.',
+        );
 
       case DioExceptionType.cancel:
         return const ApiException(message: 'Request was cancelled.');
