@@ -16,26 +16,30 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
 
   int selectedFilterIndex = 0;
+  int selectedProjectColorIndex = 0;
+
   bool isLoading = true;
+  bool isCreatingProject = false;
+
   String? errorMessage;
+  DateTime? selectedDeadline;
+
   List<ProjectModel> projects = [];
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
-  DateTime? selectedDeadline;
-  bool isCreatingProject = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadProjects();
+  }
 
   @override
   void dispose() {
     titleController.dispose();
     descriptionController.dispose();
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    loadProjects();
   }
 
   Future<void> loadProjects() async {
@@ -309,11 +313,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget buildNewProjectButton(BuildContext context) {
     return InkWell(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Create project screen is next.')),
-        );
-      },
+      onTap: showCreateProjectSheet,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         height: 48,
@@ -486,9 +486,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         message:
             'Create your first project and Planora will help you organize it.',
         buttonText: 'New Project',
-        onPressed: () {
-          showCreateProjectSheet();
-        },
+        onPressed: showCreateProjectSheet,
       );
     }
 
@@ -777,6 +775,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     setState(() {
       selectedDeadline = null;
+      selectedProjectColorIndex = 0;
       isCreatingProject = false;
     });
 
@@ -795,21 +794,24 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               padding: EdgeInsets.only(bottom: bottomInset),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.92,
+                ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  color: isDark ? const Color(0xFF050816) : Colors.white,
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
+                    top: Radius.circular(34),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      blurRadius: 30,
-                      offset: const Offset(0, -10),
+                      color: Colors.black.withValues(alpha: 0.22),
+                      blurRadius: 32,
+                      offset: const Offset(0, -12),
                     ),
                   ],
                 ),
                 child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -820,27 +822,39 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           height: 5,
                           decoration: BoxDecoration(
                             color: isDark
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFE5E7EB),
+                                ? const Color(0xFF475569)
+                                : const Color(0xFFCBD5E1),
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
                       ),
                       const SizedBox(height: 22),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF8B5CF6,
-                              ).withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(
-                              Icons.folder_rounded,
-                              color: Color(0xFF7C3AED),
+                          InkWell(
+                            onTap: () => Navigator.of(sheetContext).pop(),
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isDark
+                                    ? const Color(0xFF111827)
+                                    : const Color(0xFFF8FAFC),
+                                border: Border.all(
+                                  color: isDark
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF111827),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 14),
@@ -849,18 +863,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Create Project',
-                                  style: Theme.of(context).textTheme.titleLarge
+                                  'New Project',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w900,
                                         color: isDark
                                             ? Colors.white
-                                            : const Color(0xFF1E1B4B),
+                                            : const Color(0xFF111827),
                                       ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 Text(
-                                  'Add a new personal project.',
+                                  'Create a new project to start organizing your work.',
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w600,
@@ -874,37 +890,45 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 22),
-                      TextField(
+                      const SizedBox(height: 28),
+                      buildCreateFieldLabel(context, 'Project Name'),
+                      const SizedBox(height: 8),
+                      buildCreateProjectTextField(
+                        context,
                         controller: titleController,
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: 'Project title',
-                          hintText: 'Example: Planora Mobile App',
-                          prefixIcon: const Icon(Icons.title_rounded),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ),
+                        hintText: 'e.g. Website Redesign',
+                        icon: Icons.folder_outlined,
+                        maxLines: 1,
                       ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: descriptionController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: 'Description',
-                          hintText: 'Short project description',
-                          prefixIcon: const Padding(
-                            padding: EdgeInsets.only(bottom: 42),
-                            child: Icon(Icons.notes_rounded),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                        ),
+                      const SizedBox(height: 20),
+                      buildCreateFieldLabel(context, 'Description (Optional)'),
+                      const SizedBox(height: 8),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: descriptionController,
+                        builder: (context, value, child) {
+                          return buildCreateProjectTextField(
+                            context,
+                            controller: descriptionController,
+                            hintText: 'Describe your project...',
+                            icon: Icons.notes_rounded,
+                            maxLines: 4,
+                            maxLength: 200,
+                            counterText: '${value.text.length}/200',
+                          );
+                        },
                       ),
-                      const SizedBox(height: 14),
-                      InkWell(
+                      const SizedBox(height: 20),
+
+                      buildCreateFieldLabel(context, 'Team Members (Optional)'),
+                      const SizedBox(height: 8),
+                      buildTeamMembersInviteCard(context),
+
+                      const SizedBox(height: 20),
+
+                      buildCreateFieldLabel(context, 'Deadline'),
+                      const SizedBox(height: 8),
+                      buildDeadlinePickerCard(
+                        context,
                         onTap: () async {
                           final pickedDate = await pickDeadlineDate();
 
@@ -920,60 +944,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                             selectedDeadline = pickedDate;
                           });
                         },
-                        borderRadius: BorderRadius.circular(18),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF334155)
-                                  : const Color(0xFFE5E7EB),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_month_rounded,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  selectedDeadline == null
-                                      ? 'Choose deadline'
-                                      : formatDeadlineDate(selectedDeadline!),
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        color: selectedDeadline == null
-                                            ? isDark
-                                                  ? Colors.white54
-                                                  : const Color(0xFF64748B)
-                                            : isDark
-                                            ? Colors.white
-                                            : const Color(0xFF1E1B4B),
-                                      ),
-                                ),
-                              ),
-                              Icon(
-                                Icons.chevron_right_rounded,
-                                color: isDark
-                                    ? Colors.white54
-                                    : const Color(0xFF94A3B8),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
-                      const SizedBox(height: 22),
+
+                      const SizedBox(height: 20),
+                      buildCreateFieldLabel(context, 'Project Color'),
+                      const SizedBox(height: 12),
+                      buildProjectColorSelector(
+                        context,
+                        setSheetState: setSheetState,
+                      ),
+                      const SizedBox(height: 20),
+                      buildCreateFieldLabel(context, 'Privacy'),
+                      const SizedBox(height: 8),
+                      buildPrivacyCard(context),
+                      const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
-                        height: 56,
+                        height: 58,
                         child: ElevatedButton(
                           onPressed: isCreatingProject
                               ? null
@@ -984,27 +971,43 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                   );
                                 },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.primary,
-                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          child: isCreatingProject
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.4,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Create Project',
-                                  style: TextStyle(fontWeight: FontWeight.w900),
-                                ),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Center(
+                              child: isCreatingProject
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.4,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Create Project',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -1015,6 +1018,241 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget buildCreateFieldLabel(BuildContext context, String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w900,
+        color: isDark ? Colors.white : const Color(0xFF111827),
+      ),
+    );
+  }
+
+  Widget buildCreateProjectTextField(
+    BuildContext context, {
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    required int maxLines,
+    int? maxLength,
+    String? counterText,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      textInputAction: maxLines == 1
+          ? TextInputAction.next
+          : TextInputAction.newline,
+      style: TextStyle(
+        color: isDark ? Colors.white : const Color(0xFF111827),
+        fontWeight: FontWeight.w700,
+      ),
+      decoration: InputDecoration(
+        counterText: counterText,
+        hintText: hintText,
+        hintStyle: TextStyle(
+          color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+          fontWeight: FontWeight.w600,
+        ),
+        prefixIcon: Padding(
+          padding: EdgeInsets.only(bottom: maxLines > 1 ? 58 : 0),
+          child: Icon(icon, color: const Color(0xFF7C3AED)),
+        ),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF7C3AED), width: 1.4),
+        ),
+      ),
+    );
+  }
+
+  Widget buildDeadlinePickerCard(
+    BuildContext context, {
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_month_rounded, color: Color(0xFF7C3AED)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                selectedDeadline == null
+                    ? 'Choose project deadline'
+                    : formatDeadlineDate(selectedDeadline!),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: selectedDeadline == null
+                      ? isDark
+                            ? Colors.white38
+                            : const Color(0xFF94A3B8)
+                      : isDark
+                      ? Colors.white
+                      : const Color(0xFF111827),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: isDark ? Colors.white54 : const Color(0xFF64748B),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildProjectColorSelector(
+    BuildContext context, {
+    required StateSetter setSheetState,
+  }) {
+    final colors = [
+      const Color(0xFF6D28D9),
+      const Color(0xFF60A5FA),
+      const Color(0xFF5ECAC6),
+      const Color(0xFF7ACB5A),
+      const Color(0xFFF2AA3C),
+      const Color(0xFFE75E5E),
+      const Color(0xFFD957A7),
+      const Color(0xFFA8ADBF),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(colors.length, (index) {
+        final isSelected = selectedProjectColorIndex == index;
+        final color = colors[index];
+
+        return InkWell(
+          onTap: () {
+            setSheetState(() {
+              selectedProjectColorIndex = index;
+            });
+
+            setState(() {
+              selectedProjectColorIndex = index;
+            });
+          },
+          borderRadius: BorderRadius.circular(999),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              boxShadow: [
+                if (isSelected)
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+              ],
+            ),
+            child: isSelected
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                : null,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget buildPrivacyCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.lock_outline_rounded,
+              size: 18,
+              color: Color(0xFF7C3AED),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Private',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Only you can access this project',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1117,6 +1355,77 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         const SnackBar(content: Text('Could not create project. Try again.')),
       );
     }
+  }
+
+  Widget buildTeamMembersInviteCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invite members flow is next.')),
+              );
+            },
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                border: Border.all(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                ),
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Color(0xFF7C3AED),
+                size: 22,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No members invited yet',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invite members flow is next.')),
+              );
+            },
+            child: const Text(
+              'Invite Members',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF7C3AED),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
