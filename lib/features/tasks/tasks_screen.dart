@@ -49,6 +49,7 @@ class _TasksScreenState extends State<TasksScreen> {
   bool isCreatingTask = false;
   bool _openCreateAfterLoad = false;
   bool _isCreateSheetOpen = false;
+  bool addAnotherTask = true;
 
   String? errorMessage;
   DateTime? selectedDueDate;
@@ -300,11 +301,7 @@ class _TasksScreenState extends State<TasksScreen> {
         buildCircleIconButton(
           context,
           icon: Icons.tune_rounded,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Use the task cards to filter.')),
-            );
-          },
+          onTap: showTaskFilterSheet,
         ),
       ],
     );
@@ -368,11 +365,6 @@ class _TasksScreenState extends State<TasksScreen> {
               context,
               stat: stats[index],
               isSelected: selectedFilterIndex == index,
-              onTap: () {
-                setState(() {
-                  selectedFilterIndex = index;
-                });
-              },
             ),
           ),
           if (index != stats.length - 1) const SizedBox(width: 9),
@@ -381,51 +373,88 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Widget buildStatusTabs(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
+  Future<void> showTaskFilterSheet() async {
+    final selectedIndex = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
+      builder: (sheetContext) {
+        final isDark = PlanoraTheme.isDark(sheetContext);
 
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.fromLTRB(8, 5, 8, 4),
-      decoration: BoxDecoration(
-        color: isDark
-            ? PlanoraTheme.darkSurface.withValues(alpha: 0.78)
-            : PlanoraTheme.surface.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark
-              ? PlanoraTheme.darkBorder.withValues(alpha: 0.62)
-              : PlanoraTheme.border.withValues(alpha: 0.82),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < _filters.length; index++)
-            Expanded(
-              child: buildStatusTab(
-                context,
-                label: filterLabel(_filters[index]),
-                isSelected: selectedFilterIndex == index,
-                onTap: () {
-                  setState(() {
-                    selectedFilterIndex = index;
-                  });
-                },
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF111827) : PlanoraTheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
               ),
+              boxShadow: PlanoraTheme.softCardShadowFor(sheetContext),
             ),
-        ],
-      ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? PlanoraTheme.darkBorder
+                        : PlanoraTheme.border,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Filter Tasks',
+                        style: Theme.of(sheetContext).textTheme.titleMedium
+                            ?.copyWith(
+                              color: isDark
+                                  ? PlanoraTheme.darkTextPrimary
+                                  : PlanoraTheme.textPrimary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                for (var index = 0; index < _filters.length; index++) ...[
+                  buildTaskFilterOption(
+                    sheetContext,
+                    label: filterLabel(_filters[index]),
+                    isSelected: selectedFilterIndex == index,
+                    onTap: () => Navigator.of(sheetContext).pop(index),
+                  ),
+                  if (index != _filters.length - 1) const SizedBox(height: 8),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
+
+    if (selectedIndex == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      selectedFilterIndex = selectedIndex;
+    });
   }
 
-  Widget buildStatusTab(
+  Widget buildTaskFilterOption(
     BuildContext context, {
     required String label,
     required bool isSelected,
@@ -433,51 +462,69 @@ class _TasksScreenState extends State<TasksScreen> {
   }) {
     final isDark = PlanoraTheme.isDark(context);
     final selectedColor = Theme.of(context).colorScheme.primary;
-    final textColor = isSelected
-        ? selectedColor
-        : isDark
-        ? PlanoraTheme.darkTextSecondary
-        : PlanoraTheme.textSecondary;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: SizedBox(
-        height: double.infinity,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 52),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? selectedColor.withValues(alpha: isDark ? 0.18 : 0.10)
+              : isDark
+              ? PlanoraTheme.darkBackground
+              : PlanoraTheme.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? selectedColor
+                : isDark
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.border,
+          ),
+        ),
+        child: Row(
           children: [
             Expanded(
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: textColor,
-                      fontWeight: isSelected
-                          ? FontWeight.w900
-                          : FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isSelected
+                      ? selectedColor
+                      : isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: isSelected ? 28 : 0,
-              height: 3,
-              decoration: BoxDecoration(
-                color: selectedColor,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
+            if (isSelected)
+              Icon(Icons.check_rounded, color: selectedColor, size: 20),
           ],
         ),
       ),
+    );
+  }
+
+  Widget buildCreateSheetSurface(
+    BuildContext context, {
+    required Widget child,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0B1120) : const Color(0xFFFBFAFF),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+        boxShadow: PlanoraTheme.softCardShadowFor(context),
+      ),
+      child: child,
     );
   }
 
@@ -485,7 +532,6 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context, {
     required _TaskStatData stat,
     required bool isSelected,
-    required VoidCallback onTap,
   }) {
     final isDark = PlanoraTheme.isDark(context);
     final labelColor = isSelected
@@ -495,81 +541,75 @@ class _TasksScreenState extends State<TasksScreen> {
         : PlanoraTheme.textPrimary;
     final countColor = isSelected ? Colors.white : stat.color;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        height: 76,
-        padding: const EdgeInsets.fromLTRB(6, 12, 6, 9),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? PlanoraTheme.primaryGradientFor(context)
-              : null,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      height: 76,
+      padding: const EdgeInsets.fromLTRB(6, 12, 6, 9),
+      decoration: BoxDecoration(
+        gradient: isSelected ? PlanoraTheme.primaryGradientFor(context) : null,
+        color: isSelected
+            ? null
+            : isDark
+            ? PlanoraTheme.darkSurface
+            : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
           color: isSelected
-              ? null
+              ? Colors.transparent
               : isDark
-              ? PlanoraTheme.darkSurface
-              : PlanoraTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? Colors.transparent
-                : isDark
-                ? PlanoraTheme.darkBorder.withValues(alpha: 0.52)
-                : PlanoraTheme.border.withValues(alpha: 0.78),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
-              blurRadius: isDark ? 18 : 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
+              ? PlanoraTheme.darkBorder.withValues(alpha: 0.52)
+              : PlanoraTheme.border.withValues(alpha: 0.78),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    stat.value,
-                    maxLines: 1,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: 23,
-                      fontWeight: FontWeight.w900,
-                      color: countColor,
-                      height: 1,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 5),
-            SizedBox(
-              width: double.infinity,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
+            blurRadius: isDark ? 18 : 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  stat.label,
+                  stat.value,
                   maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontSize: 9.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                    color: labelColor,
-                    height: 1.12,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w900,
+                    color: countColor,
+                    height: 1,
                     letterSpacing: 0,
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 5),
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                stat.label,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 9.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                  color: labelColor,
+                  height: 1.12,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -701,7 +741,7 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context,
     List<TaskListItem> visibleTasks,
   ) {
-    const sectionOrder = ['Today', 'Tomorrow', 'Upcoming'];
+    const sectionOrder = ['Overdue', 'Today', 'Tomorrow', 'Upcoming'];
     final grouped = <String, List<TaskListItem>>{};
 
     for (final item in visibleTasks) {
@@ -721,6 +761,10 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   String sectionKeyForTask(TaskModel task) {
+    if (task.isOverdue) {
+      return 'Overdue';
+    }
+
     final dueDate = task.dueDate;
 
     if (dueDate == null) {
@@ -1183,82 +1227,34 @@ class _TasksScreenState extends State<TasksScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
-            final isDark = PlanoraTheme.isDark(sheetContext);
-
             return FractionallySizedBox(
-              heightFactor: 0.88,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? PlanoraTheme.darkSurface
-                      : PlanoraTheme.surface,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
-                  ),
-                ),
+              heightFactor: 0.94,
+              child: buildCreateSheetSurface(
+                sheetContext,
                 child: SafeArea(
                   top: false,
                   child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
-                      22,
-                      12,
-                      22,
+                      20,
+                      18,
+                      20,
                       MediaQuery.of(sheetContext).viewInsets.bottom + 24,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Center(
-                          child: Container(
-                            width: 42,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? PlanoraTheme.darkBorder
-                                  : PlanoraTheme.border,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
+                        buildCreateSheetHeader(sheetContext),
+                        const SizedBox(height: 24),
+                        buildCreateFieldLabel(sheetContext, 'Task Name'),
+                        const SizedBox(height: 8),
+                        buildTaskTextField(
+                          sheetContext,
+                          controller: titleController,
+                          hintText: 'e.g. Design homepage wireframe',
+                          icon: Icons.short_text_rounded,
+                          maxLines: 1,
                         ),
                         const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                gradient: PlanoraTheme.primaryGradientFor(
-                                  sheetContext,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.check_box_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'New Task',
-                                style: Theme.of(sheetContext)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                      color: isDark
-                                          ? PlanoraTheme.darkTextPrimary
-                                          : PlanoraTheme.textPrimary,
-                                    ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.of(sheetContext).pop(),
-                              icon: const Icon(Icons.close_rounded),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
                         buildCreateFieldLabel(sheetContext, 'Project'),
                         const SizedBox(height: 8),
                         buildProjectPicker(
@@ -1266,102 +1262,107 @@ class _TasksScreenState extends State<TasksScreen> {
                           setSheetState: setSheetState,
                         ),
                         const SizedBox(height: 18),
-                        buildCreateFieldLabel(sheetContext, 'Task Name'),
-                        const SizedBox(height: 8),
-                        buildTaskTextField(
-                          sheetContext,
-                          controller: titleController,
-                          hintText: 'e.g. Draft launch checklist',
-                          icon: Icons.task_alt_rounded,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 18),
                         buildCreateFieldLabel(sheetContext, 'Description'),
                         const SizedBox(height: 8),
                         buildTaskTextField(
                           sheetContext,
                           controller: descriptionController,
-                          hintText: 'Add useful context...',
-                          icon: Icons.notes_rounded,
+                          hintText: 'Add more details about this task...',
+                          icon: Icons.format_align_left_rounded,
                           maxLines: 4,
                           maxLength: 500,
                         ),
                         const SizedBox(height: 18),
-                        buildCreateFieldLabel(sheetContext, 'Priority'),
-                        const SizedBox(height: 10),
-                        buildPrioritySelector(
-                          sheetContext,
-                          setSheetState: setSheetState,
-                        ),
-                        const SizedBox(height: 18),
-                        buildCreateFieldLabel(sheetContext, 'Due Date'),
-                        const SizedBox(height: 8),
-                        buildDueDatePicker(
-                          sheetContext,
-                          onTap: () async {
-                            final date = await pickTaskDate();
-
-                            if (date == null) {
-                              return;
-                            }
-
-                            setSheetState(() {
-                              selectedDueDate = date;
-                            });
-
-                            setState(() {
-                              selectedDueDate = date;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: isCreatingTask
-                                ? null
-                                : () => createTaskFromSheet(
-                                    sheetContext: sheetContext,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  buildCreateFieldLabel(
+                                    sheetContext,
+                                    'Priority',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  buildPrioritySelector(
+                                    sheetContext,
                                     setSheetState: setSheetState,
                                   ),
-                            style: ElevatedButton.styleFrom(
-                              elevation: 0,
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                ],
                               ),
                             ),
-                            child: Ink(
-                              decoration: BoxDecoration(
-                                gradient: PlanoraTheme.primaryGradientFor(
-                                  sheetContext,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  buildCreateFieldLabel(
+                                    sheetContext,
+                                    'Due Date',
+                                  ),
+                                  const SizedBox(height: 8),
+                                  buildDueDatePicker(
+                                    sheetContext,
+                                    onTap: () async {
+                                      final date = await pickTaskDate();
+
+                                      if (date == null) {
+                                        return;
+                                      }
+
+                                      setSheetState(() {
+                                        selectedDueDate = date;
+                                      });
+
+                                      setState(() {
+                                        selectedDueDate = date;
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
-                              child: Center(
-                                child: isCreatingTask
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.4,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Create Task',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 15,
-                                        ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        buildCreateFieldLabel(
+                          sheetContext,
+                          'Assignee (Optional)',
+                        ),
+                        const SizedBox(height: 8),
+                        buildCreateStaticSelect(
+                          sheetContext,
+                          icon: Icons.person_outline_rounded,
+                          label: 'Assign to someone',
+                        ),
+                        const SizedBox(height: 18),
+                        buildCreateFieldLabel(sheetContext, 'Tags (Optional)'),
+                        const SizedBox(height: 8),
+                        buildCreateStaticSelect(
+                          sheetContext,
+                          icon: Icons.sell_outlined,
+                          label: 'Add tags...',
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            buildAddAnotherTaskToggle(
+                              sheetContext,
+                              setSheetState: setSheetState,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: buildCreateTaskButton(
+                                sheetContext,
+                                onPressed: isCreatingTask
+                                    ? null
+                                    : () => createTaskFromSheet(
+                                        sheetContext: sheetContext,
+                                        setSheetState: setSheetState,
                                       ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -1377,16 +1378,130 @@ class _TasksScreenState extends State<TasksScreen> {
     _isCreateSheetOpen = false;
   }
 
+  Widget buildCreateSheetHeader(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            gradient: PlanoraTheme.primaryGradientFor(context),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: PlanoraTheme.floatingShadowFor(context),
+          ),
+          child: const Icon(Icons.check_rounded, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'New Task',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                'Create a new task and add it to your project.',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : PlanoraTheme.surfaceVariant,
+            ),
+            child: Icon(Icons.close_rounded, color: mutedColor(context)),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget buildCreateFieldLabel(BuildContext context, String label) {
     final isDark = PlanoraTheme.isDark(context);
 
     return Text(
       label,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        fontSize: 11,
         fontWeight: FontWeight.w900,
         color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
       ),
     );
+  }
+
+  InputDecoration createInputDecoration(
+    BuildContext context, {
+    required String hintText,
+    required IconData icon,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return InputDecoration(
+      hintText: hintText,
+      prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      filled: true,
+      fillColor: createInputFillColor(context),
+      hintStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: mutedColor(context),
+        fontWeight: FontWeight.w600,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: createInputBorderColor(context)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: createInputBorderColor(context)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 1.4,
+        ),
+      ),
+      counterStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: isDark ? PlanoraTheme.darkTextMuted : PlanoraTheme.textMuted,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  Color createInputFillColor(BuildContext context) {
+    return PlanoraTheme.isDark(context)
+        ? const Color(0xFF111827)
+        : PlanoraTheme.surface;
+  }
+
+  Color createInputBorderColor(BuildContext context) {
+    return PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkBorder
+        : PlanoraTheme.lavenderBorder;
   }
 
   Widget buildProjectPicker(
@@ -1398,14 +1513,12 @@ class _TasksScreenState extends State<TasksScreen> {
     return DropdownButtonFormField<int>(
       initialValue: selectedProjectId,
       isExpanded: true,
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
       dropdownColor: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-      decoration: InputDecoration(
-        prefixIcon: const Icon(
-          Icons.folder_rounded,
-          color: PlanoraTheme.secondaryPurple,
-        ),
-        filled: true,
-        fillColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.surface,
+      decoration: createInputDecoration(
+        context,
+        hintText: 'Select a project',
+        icon: Icons.folder_outlined,
       ),
       items: [
         for (final project in projects)
@@ -1451,14 +1564,10 @@ class _TasksScreenState extends State<TasksScreen> {
         color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
         fontWeight: FontWeight.w700,
       ),
-      decoration: InputDecoration(
+      decoration: createInputDecoration(
+        context,
         hintText: hintText,
-        prefixIcon: Padding(
-          padding: EdgeInsets.only(bottom: maxLines > 1 ? 58 : 0),
-          child: Icon(icon, color: PlanoraTheme.secondaryPurple),
-        ),
-        filled: true,
-        fillColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.surface,
+        icon: icon,
       ),
     );
   }
@@ -1467,19 +1576,47 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context, {
     required StateSetter setSheetState,
   }) {
-    return Row(
-      children: [
-        for (final priority in TaskPriority.values) ...[
-          Expanded(
-            child: buildPriorityOption(
-              context,
-              priority: priority,
-              setSheetState: setSheetState,
+    return PopupMenuButton<TaskPriority>(
+      onSelected: (priority) {
+        setSheetState(() {
+          selectedPriority = priority;
+        });
+
+        setState(() {
+          selectedPriority = priority;
+        });
+      },
+      color: PlanoraTheme.isDark(context)
+          ? PlanoraTheme.darkSurface
+          : PlanoraTheme.surface,
+      itemBuilder: (context) {
+        return [
+          for (final priority in TaskPriority.values)
+            PopupMenuItem<TaskPriority>(
+              value: priority,
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: priorityColor(priority),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Text(priority.label),
+                ],
+              ),
             ),
-          ),
-          if (priority != TaskPriority.values.last) const SizedBox(width: 8),
-        ],
-      ],
+        ];
+      },
+      child: buildCreateSelectButton(
+        context,
+        icon: Icons.circle,
+        label: selectedPriority.label,
+        dotColor: priorityColor(selectedPriority),
+      ),
     );
   }
 
@@ -1539,48 +1676,185 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context, {
     required VoidCallback onTap,
   }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: buildCreateSelectButton(
+        context,
+        icon: Icons.calendar_today_outlined,
+        label: selectedDueDate == null
+            ? 'Select date'
+            : formatInputDate(selectedDueDate!),
+        isPlaceholder: selectedDueDate == null,
+      ),
+    );
+  }
+
+  Widget buildCreateSelectButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    Color? dotColor,
+    bool isPlaceholder = false,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+    final textColor = isPlaceholder
+        ? mutedColor(context)
+        : isDark
+        ? PlanoraTheme.darkTextPrimary
+        : PlanoraTheme.textPrimary;
+
+    return Container(
+      width: double.infinity,
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 13),
+      decoration: BoxDecoration(
+        color: createInputFillColor(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: createInputBorderColor(context)),
+      ),
+      child: Row(
+        children: [
+          if (dotColor != null)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            )
+          else
+            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 19),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget buildCreateStaticSelect(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
+    return buildCreateSelectButton(
+      context,
+      icon: icon,
+      label: label,
+      isPlaceholder: true,
+    );
+  }
+
+  Widget buildAddAnotherTaskToggle(
+    BuildContext context, {
+    required StateSetter setSheetState,
+  }) {
     final isDark = PlanoraTheme.isDark(context);
 
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        height: 54,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.calendar_month_rounded,
-              color: PlanoraTheme.secondaryPurple,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                selectedDueDate == null
-                    ? 'Choose due date'
-                    : formatInputDate(selectedDueDate!),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: selectedDueDate == null
-                      ? mutedColor(context)
-                      : isDark
-                      ? PlanoraTheme.darkTextPrimary
-                      : PlanoraTheme.textPrimary,
-                ),
+      onTap: () {
+        final nextValue = !addAnotherTask;
+
+        setSheetState(() {
+          addAnotherTask = nextValue;
+        });
+
+        setState(() {
+          addAnotherTask = nextValue;
+        });
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: addAnotherTask
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(
+                color: addAnotherTask
+                    ? Theme.of(context).colorScheme.primary
+                    : mutedColor(context).withValues(alpha: 0.45),
               ),
             ),
-            Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
-          ],
+            child: addAnotherTask
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Add another task',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildCreateTaskButton(
+    BuildContext context, {
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      height: 50,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          padding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          minimumSize: const Size(0, 50),
+        ),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: PlanoraTheme.primaryGradientFor(context),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Center(
+            child: isCreatingTask
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.3,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Create Task',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+          ),
         ),
       ),
     );
@@ -1648,19 +1922,34 @@ class _TasksScreenState extends State<TasksScreen> {
         return;
       }
 
-      Navigator.of(sheetContext).pop();
-      resetCreateForm();
+      await loadTasks();
+      widget.onTasksChanged?.call();
+
+      if (!mounted || !sheetContext.mounted) {
+        return;
+      }
+
+      setSheetState(() {
+        isCreatingTask = false;
+      });
 
       setState(() {
         isCreatingTask = false;
       });
 
-      await loadTasks();
-      widget.onTasksChanged?.call();
+      if (addAnotherTask) {
+        resetCreateForm(keepProject: true);
 
-      if (!mounted) {
+        setSheetState(() {});
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Task created. Add another task.')),
+        );
         return;
       }
+
+      Navigator.of(sheetContext).pop();
+      resetCreateForm();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Task created successfully.')),
@@ -1684,12 +1973,22 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  void resetCreateForm() {
+  void resetCreateForm({bool keepProject = false}) {
+    final projectId = selectedProjectId;
+
     titleController.clear();
     descriptionController.clear();
     selectedDueDate = null;
     selectedPriority = TaskPriority.medium;
-    selectedProjectId = projects.isEmpty ? null : projects.first.projectId;
+
+    if (!keepProject) {
+      selectedProjectId = projects.isEmpty ? null : projects.first.projectId;
+      addAnotherTask = true;
+      return;
+    }
+
+    selectedProjectId =
+        projectId ?? (projects.isEmpty ? null : projects.first.projectId);
   }
 
   @override
@@ -1704,9 +2003,7 @@ class _TasksScreenState extends State<TasksScreen> {
             child: Column(
               children: [
                 buildTasksHeader(context),
-                const SizedBox(height: 18),
-                buildStatusTabs(context),
-                const SizedBox(height: 18),
+                const SizedBox(height: 24),
                 buildTaskStatsFilterRow(context),
                 const SizedBox(height: 20),
                 buildTaskContent(context),
