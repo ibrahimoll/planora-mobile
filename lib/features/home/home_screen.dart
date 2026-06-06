@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/features/projects/projects_screen.dart';
+import 'package:mobile/features/tasks/data/tasks_api.dart';
+import 'package:mobile/features/tasks/models/task_models.dart';
+import 'package:mobile/features/tasks/task_detail_screen.dart';
+import 'package:mobile/features/tasks/tasks_screen.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
@@ -22,8 +26,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final TasksApi _tasksApi = const TasksApi();
+
   int selectedIndex = 0;
+  int taskCreateRequestId = 0;
+
   bool hasUnreadNotifications = false;
+  bool isLoadingUpcomingTasks = true;
+
+  String? upcomingTasksError;
+
+  List<TaskListItem> upcomingTasks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadUpcomingTasks();
+  }
 
   String get displayName {
     final fullName = widget.user.fullName.trim();
@@ -55,6 +74,109 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return source[0].toUpperCase();
+  }
+
+  Future<void> loadUpcomingTasks() async {
+    setState(() {
+      isLoadingUpcomingTasks = true;
+      upcomingTasksError = null;
+    });
+
+    try {
+      final data = await _tasksApi.getTasks();
+      final nextTasks =
+          data.tasks.where((item) => !item.task.isCompleted).toList()
+            ..sort(compareUpcomingTasks);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        upcomingTasks = nextTasks.take(3).toList();
+        isLoadingUpcomingTasks = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        upcomingTasksError = 'Could not load upcoming tasks.';
+        isLoadingUpcomingTasks = false;
+      });
+    }
+  }
+
+  int compareUpcomingTasks(TaskListItem first, TaskListItem second) {
+    final firstDue = first.task.dueDate;
+    final secondDue = second.task.dueDate;
+
+    if (firstDue == null && secondDue != null) {
+      return 1;
+    }
+
+    if (firstDue != null && secondDue == null) {
+      return -1;
+    }
+
+    if (firstDue != null && secondDue != null) {
+      final dueComparison = firstDue.compareTo(secondDue);
+
+      if (dueComparison != 0) {
+        return dueComparison;
+      }
+    }
+
+    final priorityComparison =
+        priorityRank(second.task.priority) - priorityRank(first.task.priority);
+
+    if (priorityComparison != 0) {
+      return priorityComparison;
+    }
+
+    return second.task.createdAt.compareTo(first.task.createdAt);
+  }
+
+  int priorityRank(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.low:
+        return 0;
+      case TaskPriority.medium:
+        return 1;
+      case TaskPriority.high:
+        return 2;
+    }
+  }
+
+  void openNewTaskFlow() {
+    setState(() {
+      selectedIndex = 3;
+      taskCreateRequestId += 1;
+    });
+  }
+
+  void openTasksTab() {
+    setState(() {
+      selectedIndex = 3;
+    });
+  }
+
+  void openProjectsTab() {
+    setState(() {
+      selectedIndex = 1;
+    });
+  }
+
+  Future<void> openUpcomingTaskDetail(TaskListItem item) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => TaskDetailScreen(
+          initialTask: item,
+          onTaskChanged: loadUpcomingTasks,
+        ),
+      ),
+    );
   }
 
   Color mutedColor(BuildContext context) {
@@ -388,6 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
     BuildContext context,
     String title, {
     String? action,
+    VoidCallback? onAction,
   }) {
     return Row(
       children: [
@@ -401,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         if (action != null)
           TextButton(
-            onPressed: () {},
+            onPressed: onAction,
             child: Text(
               action,
               style: const TextStyle(fontWeight: FontWeight.w800),
@@ -413,10 +536,38 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildQuickActions(BuildContext context) {
     final actions = [
-      (Icons.add_rounded, 'New Project', true),
-      (Icons.check_box_outlined, 'New Task', false),
-      (Icons.groups_2_outlined, 'Invite Team', false),
-      (Icons.description_outlined, 'View Reports', false),
+      _HomeQuickAction(
+        icon: Icons.add_rounded,
+        label: 'New Project',
+        isFilled: true,
+        onTap: openProjectsTab,
+      ),
+      _HomeQuickAction(
+        icon: Icons.check_box_outlined,
+        label: 'New Task',
+        isFilled: false,
+        onTap: openNewTaskFlow,
+      ),
+      _HomeQuickAction(
+        icon: Icons.groups_2_outlined,
+        label: 'Invite Team',
+        isFilled: false,
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invite team flow is next.')),
+          );
+        },
+      ),
+      _HomeQuickAction(
+        icon: Icons.description_outlined,
+        label: 'View Reports',
+        isFilled: false,
+        onTap: () {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Reports are next.')));
+        },
+      ),
     ];
 
     return Column(
@@ -434,9 +585,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: buildQuickActionTile(
                   context,
-                  icon: action.$1,
-                  label: action.$2,
-                  isFilled: action.$3,
+                  icon: action.icon,
+                  label: action.label,
+                  isFilled: action.isFilled,
+                  onTap: action.onTap,
                 ),
               ),
             );
@@ -451,60 +603,65 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String label,
     required bool isFilled,
+    required VoidCallback onTap,
   }) {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
 
-    return Container(
-      height: 74,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 74,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (isFilled)
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                gradient: PlanoraTheme.primaryGradientFor(context),
-                borderRadius: BorderRadius.circular(9),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isFilled)
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: PlanoraTheme.primaryGradientFor(context),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, size: 18, color: Colors.white),
+              )
+            else
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: Icon(icon, size: 24, color: primary),
               ),
-              child: Icon(icon, size: 18, color: Colors.white),
-            )
-          else
-            SizedBox(
-              width: 28,
-              height: 28,
-              child: Icon(icon, size: 24, color: primary),
+            const SizedBox(height: 7),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+              ),
             ),
-          const SizedBox(height: 7),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : PlanoraTheme.textPrimary,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -513,7 +670,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        buildSectionTitle(context, 'My Projects', action: 'See All'),
+        buildSectionTitle(
+          context,
+          'My Projects',
+          action: 'See All',
+          onAction: openProjectsTab,
+        ),
         const SizedBox(height: 10),
         buildProjectTile(
           context,
@@ -617,74 +779,206 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        buildSectionTitle(context, 'Upcoming Tasks', action: 'See All'),
+        buildSectionTitle(
+          context,
+          'Upcoming Tasks',
+          action: 'See All',
+          onAction: openTasksTab,
+        ),
         const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: cardDecoration(context),
-          child: Row(
-            children: [
-              Icon(
-                Icons.radio_button_unchecked_rounded,
+        if (isLoadingUpcomingTasks)
+          buildUpcomingStateCard(
+            context,
+            icon: Icons.sync_rounded,
+            title: 'Loading upcoming tasks...',
+            showSpinner: true,
+          )
+        else if (upcomingTasksError != null)
+          buildUpcomingStateCard(
+            context,
+            icon: Icons.wifi_off_rounded,
+            title: upcomingTasksError!,
+            actionText: 'Try Again',
+            onAction: loadUpcomingTasks,
+          )
+        else if (upcomingTasks.isEmpty)
+          buildUpcomingStateCard(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            title: 'No upcoming tasks',
+            actionText: 'New Task',
+            onAction: openNewTaskFlow,
+          )
+        else
+          for (final item in upcomingTasks) ...[
+            buildUpcomingTaskTile(context, item),
+            if (item != upcomingTasks.last) const SizedBox(height: 10),
+          ],
+      ],
+    );
+  }
+
+  Widget buildUpcomingStateCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    bool showSpinner = false,
+    String? actionText,
+    VoidCallback? onAction,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: cardDecoration(context),
+      child: Row(
+        children: [
+          if (showSpinner)
+            const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            )
+          else
+            Icon(icon, color: mutedColor(context)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: mutedColor(context),
+                fontWeight: FontWeight.w800,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Design homepage wireframe',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+            ),
+          ),
+          if (actionText != null && onAction != null) ...[
+            const SizedBox(width: 8),
+            TextButton(onPressed: onAction, child: Text(actionText)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget buildUpcomingTaskTile(BuildContext context, TaskListItem item) {
+    final task = item.task;
+    final priorityColor = upcomingPriorityColor(task.priority);
+
+    return InkWell(
+      onTap: () => openUpcomingTaskDetail(item),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: cardDecoration(context),
+        child: Row(
+          children: [
+            Icon(
+              task.isBlocked
+                  ? Icons.pause_circle_outline_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: task.isBlocked
+                  ? PlanoraTheme.warning
+                  : mutedColor(context),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w900,
                     ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          size: 13,
-                          color: mutedColor(context),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'May 24, 2024',
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.folder_rounded,
+                        size: 13,
+                        color: mutedColor(context),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          item.project.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
                                 color: mutedColor(context),
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'High',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w900,
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 13,
+                        color: task.isOverdue
+                            ? PlanoraTheme.error
+                            : mutedColor(context),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          task.dueDateLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: task.isOverdue
+                                    ? PlanoraTheme.error
+                                    : mutedColor(context),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              constraints: const BoxConstraints(maxWidth: 72),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: priorityColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                task.priority.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: priorityColor,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
+  }
+
+  Color upcomingPriorityColor(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.low:
+        return PlanoraTheme.success;
+      case TaskPriority.medium:
+        return PlanoraTheme.info;
+      case TaskPriority.high:
+        return Theme.of(context).colorScheme.primary;
+    }
   }
 
   Widget buildHomeDashboard(BuildContext context) {
@@ -779,11 +1073,14 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
       case 3:
-        return buildComingSoonPage(
-          context,
-          icon: Icons.check_box_rounded,
-          title: 'Tasks',
-          message: 'Your real tasks screen will be built after projects.',
+        return TasksScreen(
+          createRequestId: taskCreateRequestId,
+          onTasksChanged: loadUpcomingTasks,
+          onBack: () {
+            setState(() {
+              selectedIndex = 0;
+            });
+          },
         );
 
       case 4:
@@ -853,4 +1150,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+class _HomeQuickAction {
+  final IconData icon;
+  final String label;
+  final bool isFilled;
+  final VoidCallback onTap;
+
+  const _HomeQuickAction({
+    required this.icon,
+    required this.label,
+    required this.isFilled,
+    required this.onTap,
+  });
 }
