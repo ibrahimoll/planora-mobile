@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'data/projects_api.dart';
-import 'models/project_models.dart';
+import '../auth/data/project_api.dart';
+import '../auth/models/project_models.dart';
 
 class ProjectsScreen extends StatefulWidget {
   final VoidCallback onBack;
