@@ -402,92 +402,103 @@ class _TasksScreenState extends State<TasksScreen> {
 
         return SafeArea(
           top: false,
-          child: Container(
-            margin: const EdgeInsets.all(14),
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF111827) : PlanoraTheme.surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-              ),
-              boxShadow: PlanoraTheme.softCardShadowFor(sheetContext),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(sheetContext).size.height * 0.78,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? PlanoraTheme.darkBorder
-                        : PlanoraTheme.border,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+            child: Container(
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF111827) : PlanoraTheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
                 ),
-                const SizedBox(height: 18),
-                Row(
+                boxShadow: PlanoraTheme.softCardShadowFor(sheetContext),
+              ),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Filter Tasks',
-                        style: Theme.of(sheetContext).textTheme.titleMedium
-                            ?.copyWith(
-                              color: isDark
-                                  ? PlanoraTheme.darkTextPrimary
-                                  : PlanoraTheme.textPrimary,
-                              fontWeight: FontWeight.w900,
-                            ),
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? PlanoraTheme.darkBorder
+                            : PlanoraTheme.border,
+                        borderRadius: BorderRadius.circular(999),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Filter Tasks',
+                            style: Theme.of(sheetContext).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: isDark
+                                      ? PlanoraTheme.darkTextPrimary
+                                      : PlanoraTheme.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    buildFilterSheetSectionLabel(sheetContext, 'Status'),
+                    const SizedBox(height: 8),
+                    for (var index = 0; index < _filters.length; index++) ...[
+                      buildTaskFilterOption(
+                        sheetContext,
+                        label: filterLabel(_filters[index]),
+                        isSelected: selectedFilterIndex == index,
+                        onTap: () => Navigator.of(
+                          sheetContext,
+                        ).pop(_TaskFilterSheetResult(filterIndex: index)),
+                      ),
+                      if (index != _filters.length - 1)
+                        const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 18),
+                    buildFilterSheetSectionLabel(sheetContext, 'Sort'),
+                    const SizedBox(height: 8),
+                    buildTaskFilterOption(
+                      sheetContext,
+                      label: 'Overdue first',
+                      subtitle: 'Oldest due dates at the top',
+                      isSelected:
+                          selectedSortOrder == TaskSortOrder.overdueFirst,
+                      onTap: () => Navigator.of(sheetContext).pop(
+                        const _TaskFilterSheetResult(
+                          sortOrder: TaskSortOrder.overdueFirst,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    buildTaskFilterOption(
+                      sheetContext,
+                      label: 'Upcoming first',
+                      subtitle: 'Newest upcoming dates at the top',
+                      isSelected:
+                          selectedSortOrder == TaskSortOrder.upcomingFirst,
+                      onTap: () => Navigator.of(sheetContext).pop(
+                        const _TaskFilterSheetResult(
+                          sortOrder: TaskSortOrder.upcomingFirst,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                buildFilterSheetSectionLabel(sheetContext, 'Status'),
-                const SizedBox(height: 8),
-                for (var index = 0; index < _filters.length; index++) ...[
-                  buildTaskFilterOption(
-                    sheetContext,
-                    label: filterLabel(_filters[index]),
-                    isSelected: selectedFilterIndex == index,
-                    onTap: () => Navigator.of(
-                      sheetContext,
-                    ).pop(_TaskFilterSheetResult(filterIndex: index)),
-                  ),
-                  if (index != _filters.length - 1) const SizedBox(height: 8),
-                ],
-                const SizedBox(height: 18),
-                buildFilterSheetSectionLabel(sheetContext, 'Sort'),
-                const SizedBox(height: 8),
-                buildTaskFilterOption(
-                  sheetContext,
-                  label: 'Overdue first',
-                  subtitle: 'Oldest due dates at the top',
-                  isSelected: selectedSortOrder == TaskSortOrder.overdueFirst,
-                  onTap: () => Navigator.of(sheetContext).pop(
-                    const _TaskFilterSheetResult(
-                      sortOrder: TaskSortOrder.overdueFirst,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                buildTaskFilterOption(
-                  sheetContext,
-                  label: 'Upcoming first',
-                  subtitle: 'Newest upcoming dates at the top',
-                  isSelected: selectedSortOrder == TaskSortOrder.upcomingFirst,
-                  onTap: () => Navigator.of(sheetContext).pop(
-                    const _TaskFilterSheetResult(
-                      sortOrder: TaskSortOrder.upcomingFirst,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );
