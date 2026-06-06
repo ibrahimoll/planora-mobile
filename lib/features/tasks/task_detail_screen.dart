@@ -120,7 +120,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       case TaskStatus.completed:
         return PlanoraTheme.success;
       case TaskStatus.blocked:
-        return PlanoraTheme.warning;
+        return PlanoraTheme.textMuted;
     }
   }
 

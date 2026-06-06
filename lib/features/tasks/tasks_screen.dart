@@ -8,12 +8,20 @@ import 'task_detail_screen.dart';
 class TasksScreen extends StatefulWidget {
   final VoidCallback onBack;
   final int createRequestId;
+  final bool openCreateOnStart;
+  final String? profilePic;
+  final String userInitials;
+  final VoidCallback? onCreateRequestConsumed;
   final VoidCallback? onTasksChanged;
 
   const TasksScreen({
     super.key,
     required this.onBack,
     this.createRequestId = 0,
+    this.openCreateOnStart = false,
+    this.profilePic,
+    this.userInitials = 'P',
+    this.onCreateRequestConsumed,
     this.onTasksChanged,
   });
 
@@ -53,7 +61,7 @@ class _TasksScreenState extends State<TasksScreen> {
   void initState() {
     super.initState();
 
-    if (widget.createRequestId > 0) {
+    if (widget.openCreateOnStart) {
       _openCreateAfterLoad = true;
     }
 
@@ -143,7 +151,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
     if (_openCreateAfterLoad && errorMessage == null) {
       _openCreateAfterLoad = false;
-      scheduleCreateTaskSheet();
+      scheduleCreateTaskSheet(consumeRequest: true);
     }
   }
 
@@ -170,13 +178,17 @@ class _TasksScreenState extends State<TasksScreen> {
       return;
     }
 
-    scheduleCreateTaskSheet();
+    scheduleCreateTaskSheet(consumeRequest: true);
   }
 
-  void scheduleCreateTaskSheet() {
+  void scheduleCreateTaskSheet({bool consumeRequest = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
+      }
+
+      if (consumeRequest) {
+        widget.onCreateRequestConsumed?.call();
       }
 
       showCreateTaskSheet();
@@ -211,7 +223,7 @@ class _TasksScreenState extends State<TasksScreen> {
       case TaskStatus.completed:
         return PlanoraTheme.success;
       case TaskStatus.blocked:
-        return PlanoraTheme.warning;
+        return PlanoraTheme.textMuted;
     }
   }
 
@@ -228,24 +240,39 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Widget buildTasksHeader(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
+    final profilePic = widget.profilePic;
+    final hasProfilePic = profilePic != null && profilePic.trim().isNotEmpty;
 
     return Row(
       children: [
-        InkWell(
-          onTap: widget.onBack,
-          borderRadius: BorderRadius.circular(999),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              size: 28,
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : PlanoraTheme.textPrimary,
-            ),
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: hasProfilePic
+                ? null
+                : PlanoraTheme.primaryGradientFor(context),
+            boxShadow: PlanoraTheme.cardShadowFor(context),
+          ),
+          child: CircleAvatar(
+            backgroundColor: Colors.transparent,
+            backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
+            child: hasProfilePic
+                ? null
+                : Text(
+                    widget.userInitials,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             'Tasks',
@@ -354,6 +381,106 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  Widget buildStatusTabs(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.fromLTRB(8, 5, 8, 4),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PlanoraTheme.darkSurface.withValues(alpha: 0.78)
+            : PlanoraTheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? PlanoraTheme.darkBorder.withValues(alpha: 0.62)
+              : PlanoraTheme.border.withValues(alpha: 0.82),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          for (var index = 0; index < _filters.length; index++)
+            Expanded(
+              child: buildStatusTab(
+                context,
+                label: filterLabel(_filters[index]),
+                isSelected: selectedFilterIndex == index,
+                onTap: () {
+                  setState(() {
+                    selectedFilterIndex = index;
+                  });
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildStatusTab(
+    BuildContext context, {
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+    final selectedColor = Theme.of(context).colorScheme.primary;
+    final textColor = isSelected
+        ? selectedColor
+        : isDark
+        ? PlanoraTheme.darkTextSecondary
+        : PlanoraTheme.textSecondary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        height: double.infinity,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: textColor,
+                      fontWeight: isSelected
+                          ? FontWeight.w900
+                          : FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: isSelected ? 28 : 0,
+              height: 3,
+              decoration: BoxDecoration(
+                color: selectedColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget buildTaskStatFilterCard(
     BuildContext context, {
     required _TaskStatData stat,
@@ -447,6 +574,18 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  String filterLabel(TaskStatus? status) {
+    if (status == null) {
+      return 'All';
+    }
+
+    if (status == TaskStatus.completed) {
+      return 'Done';
+    }
+
+    return status.label;
+  }
+
   Widget buildTaskContent(BuildContext context) {
     if (isLoading) {
       return buildLoadingState(context);
@@ -482,7 +621,7 @@ class _TasksScreenState extends State<TasksScreen> {
         icon: Icons.check_box_outlined,
         title: selectedStatus == null
             ? 'No tasks yet'
-            : 'No ${selectedStatus!.label.toLowerCase()} tasks',
+            : 'No ${filterLabel(selectedStatus).toLowerCase()} tasks',
         message: selectedStatus == null
             ? 'Create your first task and connect it to a confirmed project.'
             : 'Try another status or create a new task for this project set.',
@@ -562,13 +701,7 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context,
     List<TaskListItem> visibleTasks,
   ) {
-    const sectionOrder = [
-      'Overdue',
-      'Today',
-      'Tomorrow',
-      'Upcoming',
-      'No Due Date',
-    ];
+    const sectionOrder = ['Today', 'Tomorrow', 'Upcoming'];
     final grouped = <String, List<TaskListItem>>{};
 
     for (final item in visibleTasks) {
@@ -588,14 +721,10 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   String sectionKeyForTask(TaskModel task) {
-    if (task.isOverdue) {
-      return 'Overdue';
-    }
-
     final dueDate = task.dueDate;
 
     if (dueDate == null) {
-      return 'No Due Date';
+      return 'Upcoming';
     }
 
     final now = DateTime.now();
@@ -656,15 +785,14 @@ class _TasksScreenState extends State<TasksScreen> {
     final taskStatusColor = statusColor(task.status);
     final taskPriorityColor = priorityColor(task.priority);
     final isCompleting = completingTaskId == task.taskId;
-    final assignee = task.assigneeLabel;
 
     return InkWell(
       onTap: () => openTaskDetail(item),
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(15),
-        decoration: cardDecoration(context, radius: 22),
+        padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+        decoration: taskCardDecoration(context),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -675,9 +803,9 @@ class _TasksScreenState extends State<TasksScreen> {
               borderRadius: BorderRadius.circular(999),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 26,
-                height: 26,
-                margin: const EdgeInsets.only(top: 2),
+                width: 24,
+                height: 24,
+                margin: const EdgeInsets.only(top: 3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: task.isCompleted
@@ -686,7 +814,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   border: Border.all(
                     color: task.isCompleted
                         ? Theme.of(context).colorScheme.primary
-                        : mutedColor(context).withValues(alpha: 0.55),
+                        : mutedColor(context).withValues(alpha: 0.46),
                     width: 1.4,
                   ),
                 ),
@@ -714,7 +842,9 @@ class _TasksScreenState extends State<TasksScreen> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 13,
                       fontWeight: FontWeight.w900,
+                      height: 1.25,
                       decoration: task.isCompleted
                           ? TextDecoration.lineThrough
                           : TextDecoration.none,
@@ -778,31 +908,6 @@ class _TasksScreenState extends State<TasksScreen> {
                       ),
                     ],
                   ),
-                  if (assignee != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline_rounded,
-                          size: 14,
-                          color: mutedColor(context),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            assignee,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: mutedColor(context),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -810,28 +915,155 @@ class _TasksScreenState extends State<TasksScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                buildBadge(
-                  context,
-                  label: task.priority.label,
-                  color: taskPriorityColor,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    buildBadge(
+                      context,
+                      label: task.priority.label,
+                      color: taskPriorityColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.more_horiz_rounded,
+                      color: isDark ? Colors.white54 : PlanoraTheme.textMuted,
+                      size: 21,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                buildBadge(
-                  context,
-                  label: task.status.label,
-                  color: taskStatusColor,
-                  isSubtle: true,
-                ),
-                const SizedBox(height: 8),
-                Icon(
-                  Icons.more_horiz_rounded,
-                  color: isDark ? Colors.white38 : PlanoraTheme.textMuted,
-                  size: 21,
-                ),
+                const SizedBox(height: 20),
+                buildTaskMembers(context, item),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  BoxDecoration taskCardDecoration(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return BoxDecoration(
+      color: isDark ? const Color(0xFF121A2A) : PlanoraTheme.surface,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : PlanoraTheme.border.withValues(alpha: 0.72),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.055),
+          blurRadius: 18,
+          offset: const Offset(0, 9),
+        ),
+      ],
+    );
+  }
+
+  Widget buildTaskMembers(BuildContext context, TaskListItem item) {
+    final members = item.task.memberPreviews;
+
+    if (members.isEmpty && !item.project.isTeamProject) {
+      return const SizedBox.shrink();
+    }
+
+    if (members.isEmpty) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          buildMemberAvatar(context, null, placeholder: true),
+          const SizedBox(width: 5),
+          Text(
+            'Unassigned',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mutedColor(context),
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final visibleMembers = members.take(3).toList();
+    final extraCount = members.length - visibleMembers.length;
+    final width = 22.0 + ((visibleMembers.length - 1) * 15.0);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: width,
+          height: 24,
+          child: Stack(
+            children: [
+              for (var index = 0; index < visibleMembers.length; index++)
+                Positioned(
+                  left: index * 15.0,
+                  child: buildMemberAvatar(context, visibleMembers[index]),
+                ),
+            ],
+          ),
+        ),
+        if (extraCount > 0) ...[
+          const SizedBox(width: 5),
+          Text(
+            '+$extraCount',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mutedColor(context),
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget buildMemberAvatar(
+    BuildContext context,
+    TaskMemberPreview? member, {
+    bool placeholder = false,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+    final avatarUrl = member?.avatarUrl;
+    final hasAvatar = avatarUrl != null && avatarUrl.trim().isNotEmpty;
+    final label = placeholder ? '?' : member?.initials ?? '?';
+
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isDark
+            ? PlanoraTheme.darkSurfaceVariant
+            : PlanoraTheme.lavenderSurface,
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.surface,
+          width: 1.6,
+        ),
+      ),
+      child: CircleAvatar(
+        backgroundColor: Colors.transparent,
+        backgroundImage: hasAvatar ? NetworkImage(avatarUrl) : null,
+        child: hasAvatar
+            ? null
+            : Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: TextStyle(
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.primaryPurple,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
       ),
     );
   }
@@ -1472,7 +1704,9 @@ class _TasksScreenState extends State<TasksScreen> {
             child: Column(
               children: [
                 buildTasksHeader(context),
-                const SizedBox(height: 24),
+                const SizedBox(height: 18),
+                buildStatusTabs(context),
+                const SizedBox(height: 18),
                 buildTaskStatsFilterRow(context),
                 const SizedBox(height: 20),
                 buildTaskContent(context),

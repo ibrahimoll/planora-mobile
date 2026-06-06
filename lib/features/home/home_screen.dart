@@ -33,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool hasUnreadNotifications = false;
   bool isLoadingUpcomingTasks = true;
+  bool shouldOpenTaskCreateOnStart = false;
 
   String? upcomingTasksError;
 
@@ -112,12 +113,15 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       selectedIndex = 3;
       taskCreateRequestId += 1;
+      shouldOpenTaskCreateOnStart = true;
     });
   }
 
   void openTasksTab() {
     setState(() {
       selectedIndex = 3;
+      taskCreateRequestId = 0;
+      shouldOpenTaskCreateOnStart = false;
     });
   }
 
@@ -1033,11 +1037,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
       case 3:
         return TasksScreen(
+          profilePic: widget.user.profilePic,
+          userInitials: initials,
           createRequestId: taskCreateRequestId,
+          openCreateOnStart: shouldOpenTaskCreateOnStart,
+          onCreateRequestConsumed: () {
+            if (!mounted) {
+              return;
+            }
+
+            setState(() {
+              taskCreateRequestId = 0;
+              shouldOpenTaskCreateOnStart = false;
+            });
+          },
           onTasksChanged: loadUpcomingTasks,
           onBack: () {
             setState(() {
               selectedIndex = 0;
+              taskCreateRequestId = 0;
+              shouldOpenTaskCreateOnStart = false;
             });
           },
         );
@@ -1062,6 +1081,11 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: selectedIndex,
         onTap: (index) {
           setState(() {
+            if (index == 3) {
+              taskCreateRequestId = 0;
+              shouldOpenTaskCreateOnStart = false;
+            }
+
             selectedIndex = index;
           });
         },
