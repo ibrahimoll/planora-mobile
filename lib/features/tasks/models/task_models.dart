@@ -98,10 +98,6 @@ class TaskModel {
     return status == TaskStatus.blocked;
   }
 
-  bool get hasDescription {
-    return description != null && description!.trim().isNotEmpty;
-  }
-
   bool get isOverdue {
     if (dueDate == null || isCompleted) {
       return false;
@@ -150,33 +146,6 @@ class TaskModel {
     }
 
     return formatShortDate(date);
-  }
-
-  TaskModel copyWith({
-    String? title,
-    String? description,
-    TaskPriority? priority,
-    double? estimatedHours,
-    double? actualHours,
-    TaskStatus? status,
-    DateTime? dueDate,
-    DateTime? completedAt,
-  }) {
-    return TaskModel(
-      taskId: taskId,
-      projectId: projectId,
-      assignedTo: assignedTo,
-      createdBy: createdBy,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      priority: priority ?? this.priority,
-      estimatedHours: estimatedHours ?? this.estimatedHours,
-      actualHours: actualHours ?? this.actualHours,
-      status: status ?? this.status,
-      dueDate: dueDate ?? this.dueDate,
-      completedAt: completedAt ?? this.completedAt,
-      createdAt: createdAt,
-    );
   }
 
   static int _parseInt(dynamic value) {
@@ -235,25 +204,19 @@ class TaskModel {
 class TaskProjectSummary {
   final int projectId;
   final String title;
-  final String status;
   final String projectType;
-  final DateTime deadline;
 
   const TaskProjectSummary({
     required this.projectId,
     required this.title,
-    required this.status,
     required this.projectType,
-    required this.deadline,
   });
 
   factory TaskProjectSummary.fromProject(ProjectModel project) {
     return TaskProjectSummary(
       projectId: project.projectId,
       title: project.title,
-      status: project.status,
       projectType: project.projectType,
-      deadline: project.deadline,
     );
   }
 
@@ -267,13 +230,6 @@ class TaskListItem {
   final TaskProjectSummary project;
 
   const TaskListItem({required this.task, required this.project});
-
-  TaskListItem copyWith({TaskModel? task, TaskProjectSummary? project}) {
-    return TaskListItem(
-      task: task ?? this.task,
-      project: project ?? this.project,
-    );
-  }
 }
 
 class TaskBoardData {
@@ -299,12 +255,17 @@ class TaskCreateRequest {
   });
 
   Map<String, dynamic> toJson() {
-    return {
-      'title': title,
-      'description': description,
-      'priority': priority.value,
-      'due_date': dueDate?.toIso8601String(),
-    };
+    final data = <String, dynamic>{'title': title, 'priority': priority.value};
+
+    if (description != null) {
+      data['description'] = description;
+    }
+
+    if (dueDate != null) {
+      data['due_date'] = dueDate!.toIso8601String();
+    }
+
+    return data;
   }
 }
 
@@ -375,4 +336,64 @@ String formatInputDate(DateTime date) {
   final year = date.year.toString();
 
   return '$day/$month/$year';
+}
+
+int compareTaskItemsByDueDate(TaskListItem first, TaskListItem second) {
+  final dueComparison = _compareNullableDates(
+    first.task.dueDate,
+    second.task.dueDate,
+  );
+
+  if (dueComparison != 0) {
+    return dueComparison;
+  }
+
+  return second.task.createdAt.compareTo(first.task.createdAt);
+}
+
+int compareUpcomingTaskItems(TaskListItem first, TaskListItem second) {
+  final dueComparison = _compareNullableDates(
+    first.task.dueDate,
+    second.task.dueDate,
+  );
+
+  if (dueComparison != 0) {
+    return dueComparison;
+  }
+
+  final priorityComparison =
+      _priorityRank(second.task.priority) - _priorityRank(first.task.priority);
+
+  if (priorityComparison != 0) {
+    return priorityComparison;
+  }
+
+  return second.task.createdAt.compareTo(first.task.createdAt);
+}
+
+int _compareNullableDates(DateTime? first, DateTime? second) {
+  if (first == null && second != null) {
+    return 1;
+  }
+
+  if (first != null && second == null) {
+    return -1;
+  }
+
+  if (first != null && second != null) {
+    return first.compareTo(second);
+  }
+
+  return 0;
+}
+
+int _priorityRank(TaskPriority priority) {
+  switch (priority) {
+    case TaskPriority.low:
+      return 0;
+    case TaskPriority.medium:
+      return 1;
+    case TaskPriority.high:
+      return 2;
+  }
 }

@@ -3,10 +3,12 @@ import '../../auth/data/project_api.dart';
 import '../models/task_models.dart';
 
 class TasksApi {
-  const TasksApi();
+  final ProjectsApi _projectsApi;
+
+  const TasksApi([this._projectsApi = const ProjectsApi()]);
 
   Future<TaskBoardData> getTasks({TaskStatus? status}) async {
-    final projects = await const ProjectsApi().getProjects();
+    final projects = await _projectsApi.getProjects();
     final projectSummaries = projects
         .map(TaskProjectSummary.fromProject)
         .toList();
@@ -18,7 +20,7 @@ class TasksApi {
     );
 
     final tasks = taskGroups.expand((group) => group).toList()
-      ..sort(_compareTaskListItems);
+      ..sort(compareTaskItemsByDueDate);
 
     return TaskBoardData(projects: projectSummaries, tasks: tasks);
   }
@@ -100,31 +102,5 @@ class TasksApi {
       taskId: taskId,
       request: const TaskUpdateRequest(status: TaskStatus.completed),
     );
-  }
-
-  int _compareTaskListItems(TaskListItem first, TaskListItem second) {
-    final firstTask = first.task;
-    final secondTask = second.task;
-
-    final firstDue = firstTask.dueDate;
-    final secondDue = secondTask.dueDate;
-
-    if (firstDue == null && secondDue != null) {
-      return 1;
-    }
-
-    if (firstDue != null && secondDue == null) {
-      return -1;
-    }
-
-    if (firstDue != null && secondDue != null) {
-      final dueComparison = firstDue.compareTo(secondDue);
-
-      if (dueComparison != 0) {
-        return dueComparison;
-      }
-    }
-
-    return secondTask.createdAt.compareTo(firstTask.createdAt);
   }
 }

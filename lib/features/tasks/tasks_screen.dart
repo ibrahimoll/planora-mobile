@@ -922,31 +922,8 @@ class _TasksScreenState extends State<TasksScreen> {
                     : item,
               )
               .toList()
-            ..sort(_compareTaskListItems);
+            ..sort(compareTaskItemsByDueDate);
     });
-  }
-
-  int _compareTaskListItems(TaskListItem first, TaskListItem second) {
-    final firstDue = first.task.dueDate;
-    final secondDue = second.task.dueDate;
-
-    if (firstDue == null && secondDue != null) {
-      return 1;
-    }
-
-    if (firstDue != null && secondDue == null) {
-      return -1;
-    }
-
-    if (firstDue != null && secondDue != null) {
-      final dueComparison = firstDue.compareTo(secondDue);
-
-      if (dueComparison != 0) {
-        return dueComparison;
-      }
-    }
-
-    return second.task.createdAt.compareTo(first.task.createdAt);
   }
 
   Future<void> showCreateTaskSheet() async {

@@ -86,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final data = await _tasksApi.getTasks();
       final nextTasks =
           data.tasks.where((item) => !item.task.isCompleted).toList()
-            ..sort(compareUpcomingTasks);
+            ..sort(compareUpcomingTaskItems);
 
       if (!mounted) {
         return;
@@ -105,47 +105,6 @@ class _HomeScreenState extends State<HomeScreen> {
         upcomingTasksError = 'Could not load upcoming tasks.';
         isLoadingUpcomingTasks = false;
       });
-    }
-  }
-
-  int compareUpcomingTasks(TaskListItem first, TaskListItem second) {
-    final firstDue = first.task.dueDate;
-    final secondDue = second.task.dueDate;
-
-    if (firstDue == null && secondDue != null) {
-      return 1;
-    }
-
-    if (firstDue != null && secondDue == null) {
-      return -1;
-    }
-
-    if (firstDue != null && secondDue != null) {
-      final dueComparison = firstDue.compareTo(secondDue);
-
-      if (dueComparison != 0) {
-        return dueComparison;
-      }
-    }
-
-    final priorityComparison =
-        priorityRank(second.task.priority) - priorityRank(first.task.priority);
-
-    if (priorityComparison != 0) {
-      return priorityComparison;
-    }
-
-    return second.task.createdAt.compareTo(first.task.createdAt);
-  }
-
-  int priorityRank(TaskPriority priority) {
-    switch (priority) {
-      case TaskPriority.low:
-        return 0;
-      case TaskPriority.medium:
-        return 1;
-      case TaskPriority.high:
-        return 2;
     }
   }
 
@@ -276,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$greeting, $firstName 👋',
+                '$greeting, $firstName',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
