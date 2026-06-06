@@ -44,6 +44,7 @@ class _TasksScreenState extends State<TasksScreen> {
   int selectedFilterIndex = 0;
   int? selectedProjectId;
   int? completingTaskId;
+  TaskSortOrder selectedSortOrder = TaskSortOrder.overdueFirst;
 
   bool isLoading = true;
   bool isCreatingTask = false;
@@ -94,10 +95,12 @@ class _TasksScreenState extends State<TasksScreen> {
     final status = selectedStatus;
 
     if (status == null) {
-      return tasks;
+      return sortedTaskItems(tasks);
     }
 
-    return tasks.where((item) => item.task.status == status).toList();
+    return sortedTaskItems(
+      tasks.where((item) => item.task.status == status).toList(),
+    );
   }
 
   int get todoCount {
@@ -114,6 +117,22 @@ class _TasksScreenState extends State<TasksScreen> {
 
   int countByStatus(TaskStatus status) {
     return tasks.where((item) => item.task.status == status).length;
+  }
+
+  List<TaskListItem> sortedTaskItems(List<TaskListItem> items) {
+    final sorted = [...items];
+
+    sorted.sort((first, second) {
+      final comparison = compareTaskItemsByDueDate(first, second);
+
+      if (selectedSortOrder == TaskSortOrder.upcomingFirst) {
+        return -comparison;
+      }
+
+      return comparison;
+    });
+
+    return sorted;
   }
 
   Future<void> loadTasks() async {
@@ -374,7 +393,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> showTaskFilterSheet() async {
-    final selectedIndex = await showModalBottomSheet<int>(
+    final result = await showModalBottomSheet<_TaskFilterSheetResult>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: false,
@@ -429,15 +448,45 @@ class _TasksScreenState extends State<TasksScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
+                buildFilterSheetSectionLabel(sheetContext, 'Status'),
+                const SizedBox(height: 8),
                 for (var index = 0; index < _filters.length; index++) ...[
                   buildTaskFilterOption(
                     sheetContext,
                     label: filterLabel(_filters[index]),
                     isSelected: selectedFilterIndex == index,
-                    onTap: () => Navigator.of(sheetContext).pop(index),
+                    onTap: () => Navigator.of(
+                      sheetContext,
+                    ).pop(_TaskFilterSheetResult(filterIndex: index)),
                   ),
                   if (index != _filters.length - 1) const SizedBox(height: 8),
                 ],
+                const SizedBox(height: 18),
+                buildFilterSheetSectionLabel(sheetContext, 'Sort'),
+                const SizedBox(height: 8),
+                buildTaskFilterOption(
+                  sheetContext,
+                  label: 'Overdue first',
+                  subtitle: 'Oldest due dates at the top',
+                  isSelected: selectedSortOrder == TaskSortOrder.overdueFirst,
+                  onTap: () => Navigator.of(sheetContext).pop(
+                    const _TaskFilterSheetResult(
+                      sortOrder: TaskSortOrder.overdueFirst,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                buildTaskFilterOption(
+                  sheetContext,
+                  label: 'Upcoming first',
+                  subtitle: 'Newest upcoming dates at the top',
+                  isSelected: selectedSortOrder == TaskSortOrder.upcomingFirst,
+                  onTap: () => Navigator.of(sheetContext).pop(
+                    const _TaskFilterSheetResult(
+                      sortOrder: TaskSortOrder.upcomingFirst,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -445,18 +494,41 @@ class _TasksScreenState extends State<TasksScreen> {
       },
     );
 
-    if (selectedIndex == null || !mounted) {
+    if (result == null || !mounted) {
       return;
     }
 
     setState(() {
-      selectedFilterIndex = selectedIndex;
+      final filterIndex = result.filterIndex;
+      final sortOrder = result.sortOrder;
+
+      if (filterIndex != null) {
+        selectedFilterIndex = filterIndex;
+      }
+
+      if (sortOrder != null) {
+        selectedSortOrder = sortOrder;
+      }
     });
+  }
+
+  Widget buildFilterSheetSectionLabel(BuildContext context, String label) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: mutedColor(context),
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
   }
 
   Widget buildTaskFilterOption(
     BuildContext context, {
     required String label,
+    String? subtitle,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
@@ -487,18 +559,36 @@ class _TasksScreenState extends State<TasksScreen> {
         child: Row(
           children: [
             Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isSelected
-                      ? selectedColor
-                      : isDark
-                      ? PlanoraTheme.darkTextPrimary
-                      : PlanoraTheme.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isSelected
+                          ? selectedColor
+                          : isDark
+                          ? PlanoraTheme.darkTextPrimary
+                          : PlanoraTheme.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             if (isSelected)
@@ -741,7 +831,9 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context,
     List<TaskListItem> visibleTasks,
   ) {
-    const sectionOrder = ['Overdue', 'Today', 'Tomorrow', 'Upcoming'];
+    final sectionOrder = selectedSortOrder == TaskSortOrder.overdueFirst
+        ? const ['Overdue', 'Today', 'Tomorrow', 'Upcoming']
+        : const ['Upcoming', 'Tomorrow', 'Today', 'Overdue'];
     final grouped = <String, List<TaskListItem>>{};
 
     for (final item in visibleTasks) {
@@ -2036,4 +2128,13 @@ class _TaskStatData {
     required this.label,
     required this.color,
   });
+}
+
+enum TaskSortOrder { overdueFirst, upcomingFirst }
+
+class _TaskFilterSheetResult {
+  final int? filterIndex;
+  final TaskSortOrder? sortOrder;
+
+  const _TaskFilterSheetResult({this.filterIndex, this.sortOrder});
 }
