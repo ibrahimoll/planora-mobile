@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'data/projects_api.dart';
+import 'models/project_models.dart';
+
 class ProjectsScreen extends StatefulWidget {
   final VoidCallback onBack;
+
   const ProjectsScreen({super.key, required this.onBack});
 
   @override
@@ -9,7 +13,72 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
+  final ProjectsApi _projectsApi = const ProjectsApi();
+
   int selectedFilterIndex = 0;
+  bool isLoading = true;
+  String? errorMessage;
+  List<ProjectModel> projects = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadProjects();
+  }
+
+  Future<void> loadProjects() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final loadedProjects = await _projectsApi.getProjects();
+
+      if (!mounted) return;
+
+      setState(() {
+        projects = loadedProjects;
+        isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage = 'Could not load projects. Please try again.';
+        isLoading = false;
+      });
+    }
+  }
+
+  List<ProjectModel> get filteredProjects {
+    if (selectedFilterIndex == 1) {
+      return projects.where((project) => project.isActive).toList();
+    }
+
+    if (selectedFilterIndex == 2) {
+      return projects.where((project) => project.isCompleted).toList();
+    }
+
+    return projects;
+  }
+
+  Color getStatusColor(BuildContext context, ProjectModel project) {
+    switch (project.status) {
+      case 'completed':
+        return Colors.green;
+      case 'in_progress':
+        return Theme.of(context).colorScheme.primary;
+      case 'on_hold':
+        return Colors.orange;
+      case 'cancelled':
+        return Colors.redAccent;
+      case 'not_started':
+        return Colors.blueAccent;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
+  }
 
   Widget buildProjectsHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -39,14 +108,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         const Spacer(),
         buildCircleIconButton(
           context,
-          icon: Icons.search_rounded,
-          onTap: () {},
-        ),
-        const SizedBox(width: 10),
-        buildCircleIconButton(
-          context,
-          icon: Icons.filter_alt_outlined,
-          onTap: () {},
+          icon: Icons.refresh_rounded,
+          onTap: loadProjects,
         ),
       ],
     );
@@ -68,7 +131,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isDark
-              ? Color(0xFF1E293B)
+              ? const Color(0xFF1E293B)
               : const Color.fromARGB(255, 240, 238, 238),
           border: Border.all(
             color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
@@ -161,7 +224,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget buildNewProjectButton(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Create project screen is next.')),
+        );
+      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         height: 48,
@@ -199,15 +266,192 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
+  Widget buildProjectContent(BuildContext context) {
+    if (isLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 80),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (errorMessage != null) {
+      return buildMessageState(
+        context,
+        icon: Icons.wifi_off_rounded,
+        title: 'Could not load projects',
+        message: errorMessage!,
+        buttonText: 'Try Again',
+        onPressed: loadProjects,
+      );
+    }
+
+    final visibleProjects = filteredProjects;
+
+    if (visibleProjects.isEmpty) {
+      return buildMessageState(
+        context,
+        icon: Icons.folder_open_rounded,
+        title: 'No projects yet',
+        message:
+            'Create your first project and Planora will help you organize it.',
+        buttonText: 'New Project',
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Create project screen is next.')),
+          );
+        },
+      );
+    }
+
+    return Column(
+      children: [
+        for (final project in visibleProjects) ...[
+          buildProjectCard(context, project),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget buildMessageState(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+    required String buttonText,
+    required VoidCallback onPressed,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 40),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+        ),
+      ),
       child: Column(
         children: [
-          buildProjectsHeader(context),
-          const SizedBox(height: 22),
-          buildProjectTabsAndAction(context),
+          Icon(icon, size: 42, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : const Color(0xFF1E1B4B),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: isDark ? Colors.white70 : const Color(0xFF4B5563),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton(onPressed: onPressed, child: Text(buttonText)),
         ],
+      ),
+    );
+  }
+
+  Widget buildProjectCard(BuildContext context, ProjectModel project) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusColor = getStatusColor(context, project);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              project.isTeamProject
+                  ? Icons.groups_2_rounded
+                  : Icons.folder_rounded,
+              color: statusColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  project.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF1E1B4B),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${project.statusLabel} • ${project.deadlineLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isDark ? Colors.white70 : const Color(0xFF4B5563),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: isDark ? Colors.white54 : const Color(0xFF9CA3AF),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: loadProjects,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            buildProjectsHeader(context),
+            const SizedBox(height: 22),
+            buildProjectTabsAndAction(context),
+            const SizedBox(height: 20),
+            buildProjectContent(context),
+          ],
+        ),
       ),
     );
   }
