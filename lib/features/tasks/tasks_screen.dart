@@ -13,4 +13,18 @@ class TasksScreen extends StatefulWidget {
   const TasksScreen({
     super.key,
     required this.onBack,
+    this.createRequestId = 0,
+    this.onTasksChanged,
+  });
+
+  @override
+  State<TasksScreen> createState() => _TasksScreenState();
+}
+
+class _TasksScreenState extends State<TasksScreen> {
+  final TasksApi _tasksApi = const TasksApi();
+  final TextEditingController titleController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
+
+  static const List<TaskStatus?> _filters = [
    
