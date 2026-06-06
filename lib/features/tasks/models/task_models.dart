@@ -45,6 +45,8 @@ class TaskModel {
   final int taskId;
   final int projectId;
   final int? assignedTo;
+  final String? assignedToName;
+  final String? assignedToEmail;
   final int createdBy;
   final String title;
   final String? description;
@@ -60,6 +62,8 @@ class TaskModel {
     required this.taskId,
     required this.projectId,
     required this.assignedTo,
+    required this.assignedToName,
+    required this.assignedToEmail,
     required this.createdBy,
     required this.title,
     required this.description,
@@ -77,6 +81,8 @@ class TaskModel {
       taskId: _parseInt(json['task_id']),
       projectId: _parseInt(json['project_id']),
       assignedTo: _parseOptionalInt(json['assigned_to']),
+      assignedToName: _parseAssigneeName(json),
+      assignedToEmail: _parseAssigneeEmail(json),
       createdBy: _parseInt(json['created_by']),
       title: json['title'] as String? ?? '',
       description: json['description'] as String?,
@@ -108,6 +114,26 @@ class TaskModel {
     final dueDay = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
 
     return dueDay.isBefore(today);
+  }
+
+  String? get assigneeLabel {
+    final name = assignedToName?.trim();
+
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+
+    final email = assignedToEmail?.trim();
+
+    if (email != null && email.isNotEmpty) {
+      return email;
+    }
+
+    if (assignedTo != null) {
+      return 'Member #$assignedTo';
+    }
+
+    return null;
   }
 
   String get dueDateLabel {
@@ -195,6 +221,61 @@ class TaskModel {
 
     if (value is String && value.trim().isNotEmpty) {
       return DateTime.parse(value).toLocal();
+    }
+
+    return null;
+  }
+
+  static String? _parseAssigneeName(Map<String, dynamic> json) {
+    final direct = _firstNonEmptyString([
+      json['assigned_to_name'],
+      json['assignee_name'],
+      json['assignee_full_name'],
+      json['assigned_user_name'],
+    ]);
+
+    if (direct != null) {
+      return direct;
+    }
+
+    final nested = json['assigned_user'] ?? json['assignee'];
+
+    if (nested is Map<String, dynamic>) {
+      return _firstNonEmptyString([
+        nested['full_name'],
+        nested['username'],
+        nested['name'],
+      ]);
+    }
+
+    return null;
+  }
+
+  static String? _parseAssigneeEmail(Map<String, dynamic> json) {
+    final direct = _firstNonEmptyString([
+      json['assigned_to_email'],
+      json['assignee_email'],
+      json['assigned_user_email'],
+    ]);
+
+    if (direct != null) {
+      return direct;
+    }
+
+    final nested = json['assigned_user'] ?? json['assignee'];
+
+    if (nested is Map<String, dynamic>) {
+      return _firstNonEmptyString([nested['email']]);
+    }
+
+    return null;
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
     }
 
     return null;
