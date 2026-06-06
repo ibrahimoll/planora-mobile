@@ -771,6 +771,354 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  void showCreateProjectSheet() {
+    titleController.clear();
+    descriptionController.clear();
+
+    setState(() {
+      selectedDeadline = null;
+      isCreatingProject = false;
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 30,
+                      offset: const Offset(0, -10),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFE5E7EB),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF8B5CF6,
+                              ).withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.folder_rounded,
+                              color: Color(0xFF7C3AED),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Create Project',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        color: isDark
+                                            ? Colors.white
+                                            : const Color(0xFF1E1B4B),
+                                      ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Add a new personal project.',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark
+                                            ? Colors.white60
+                                            : const Color(0xFF64748B),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      TextField(
+                        controller: titleController,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: 'Project title',
+                          hintText: 'Example: Planora Mobile App',
+                          prefixIcon: const Icon(Icons.title_rounded),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: descriptionController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Description',
+                          hintText: 'Short project description',
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.only(bottom: 42),
+                            child: Icon(Icons.notes_rounded),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      InkWell(
+                        onTap: () async {
+                          final pickedDate = await pickDeadlineDate();
+
+                          if (pickedDate == null) {
+                            return;
+                          }
+
+                          setSheetState(() {
+                            selectedDeadline = pickedDate;
+                          });
+
+                          setState(() {
+                            selectedDeadline = pickedDate;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF334155)
+                                  : const Color(0xFFE5E7EB),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_month_rounded,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  selectedDeadline == null
+                                      ? 'Choose deadline'
+                                      : formatDeadlineDate(selectedDeadline!),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: selectedDeadline == null
+                                            ? isDark
+                                                  ? Colors.white54
+                                                  : const Color(0xFF64748B)
+                                            : isDark
+                                            ? Colors.white
+                                            : const Color(0xFF1E1B4B),
+                                      ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                color: isDark
+                                    ? Colors.white54
+                                    : const Color(0xFF94A3B8),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: isCreatingProject
+                              ? null
+                              : () async {
+                                  await createProjectFromSheet(
+                                    sheetContext: sheetContext,
+                                    setSheetState: setSheetState,
+                                  );
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          child: isCreatingProject
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Create Project',
+                                  style: TextStyle(fontWeight: FontWeight.w900),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> pickDeadlineDate() async {
+    final now = DateTime.now();
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: selectedDeadline ?? now.add(const Duration(days: 7)),
+      firstDate: now,
+      lastDate: DateTime(now.year + 5),
+    );
+
+    return pickedDate;
+  }
+
+  String formatDeadlineDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+
+    return '$day/$month/$year';
+  }
+
+  Future<void> createProjectFromSheet({
+    required BuildContext sheetContext,
+    required StateSetter setSheetState,
+  }) async {
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
+
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Project title is required.')),
+      );
+      return;
+    }
+
+    if (selectedDeadline == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Project deadline is required.')),
+      );
+      return;
+    }
+
+    setSheetState(() {
+      isCreatingProject = true;
+    });
+
+    setState(() {
+      isCreatingProject = true;
+    });
+
+    try {
+      await _projectsApi.createProject(
+        ProjectCreateRequest(
+          title: title,
+          description: description.isEmpty ? null : description,
+          deadline: selectedDeadline!,
+        ),
+      );
+
+      if (!mounted || !sheetContext.mounted) {
+        return;
+      }
+
+      Navigator.of(sheetContext).pop();
+
+      titleController.clear();
+      descriptionController.clear();
+
+      setState(() {
+        selectedDeadline = null;
+        isCreatingProject = false;
+      });
+
+      await loadProjects();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Project created successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setSheetState(() {
+        isCreatingProject = false;
+      });
+
+      setState(() {
+        isCreatingProject = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not create project. Try again.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
