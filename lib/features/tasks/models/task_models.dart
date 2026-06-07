@@ -930,10 +930,12 @@ class TaskCommentModel {
       taskId: TaskModel._parseInt(json['task_id']),
       userId: TaskModel._parseInt(json['user_id']),
       userName: TaskModel._firstNonEmptyString([
+        json['user_full_name'],
         json['user_name'],
         json['author_name'],
         userMap?['full_name'],
         userMap?['name'],
+        json['user_username'],
         userMap?['username'],
       ]),
       userEmail: TaskModel._firstNonEmptyString([
@@ -942,6 +944,8 @@ class TaskCommentModel {
         userMap?['email'],
       ]),
       userAvatarUrl: TaskModel._firstNonEmptyString([
+        json['user_profile_pic'],
+        json['profile_pic'],
         json['user_avatar_url'],
         json['author_avatar_url'],
         userMap?['profile_pic'],
@@ -960,7 +964,7 @@ class TaskCommentModel {
       name: userName,
       email: userEmail,
       avatarUrl: userAvatarUrl,
-      fallbackLabel: 'Member #$userId',
+      fallbackLabel: 'Comment author',
     );
   }
 }

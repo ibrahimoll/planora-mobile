@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/theme/planora_theme.dart';
 import 'data/tasks_api.dart';
 import 'models/task_models.dart';
@@ -985,7 +987,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     TaskMemberPreview? member, {
     required double size,
   }) {
-    final avatarUrl = member?.avatarUrl;
+    final avatarUrl = resolveProfileImageUrl(member?.avatarUrl);
     final hasAvatar = avatarUrl != null && avatarUrl.trim().isNotEmpty;
 
     return Container(
@@ -1003,18 +1005,80 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       child: CircleAvatar(
         radius: size / 2,
         backgroundColor: PlanoraTheme.secondaryPurple.withValues(alpha: 0.14),
-        backgroundImage: hasAvatar ? NetworkImage(avatarUrl) : null,
         child: hasAvatar
-            ? null
-            : Text(
-                member?.initials ?? '?',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: PlanoraTheme.secondaryPurple,
-                  fontWeight: FontWeight.w900,
+            ? ClipOval(
+                child: buildProfileImage(
+                  context,
+                  avatarUrl: avatarUrl,
+                  member: member,
+                  size: size,
                 ),
-              ),
+              )
+            : buildAvatarInitials(context, member),
       ),
     );
+  }
+
+  Widget buildProfileImage(
+    BuildContext context, {
+    required String avatarUrl,
+    required TaskMemberPreview? member,
+    required double size,
+  }) {
+    final lowerUrl = avatarUrl.toLowerCase();
+    final isSvg = lowerUrl.endsWith('.svg') || lowerUrl.contains('/svg');
+
+    if (isSvg) {
+      return SvgPicture.network(
+        avatarUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        placeholderBuilder: (context) {
+          return Center(child: buildAvatarInitials(context, member));
+        },
+      );
+    }
+
+    return Image.network(
+      avatarUrl,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Center(child: buildAvatarInitials(context, member));
+      },
+    );
+  }
+
+  Widget buildAvatarInitials(BuildContext context, TaskMemberPreview? member) {
+    return Text(
+      member?.initials ?? '?',
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: PlanoraTheme.secondaryPurple,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+
+  String? resolveProfileImageUrl(String? rawUrl) {
+    final trimmed = rawUrl?.trim();
+
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(trimmed);
+
+    if (uri != null && uri.hasScheme) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/')) {
+      return '${AppConfig.apiBaseUrl}$trimmed';
+    }
+
+    return '${AppConfig.apiBaseUrl}/$trimmed';
   }
 
   Widget buildCountAvatar(BuildContext context, int count) {
