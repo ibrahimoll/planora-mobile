@@ -809,11 +809,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   TaskMemberPreview? detailAssigneePreview() {
     final task = taskItem.task;
     final assignee = task.assigneePreview;
-    final generatedLabel = task.assignedTo == null
-        ? null
-        : 'Member #${task.assignedTo}';
 
-    if (assignee != null && assignee.displayLabel != generatedLabel) {
+    if (assignee != null && assignee.displayLabel != 'Unknown user') {
       return assignee;
     }
 

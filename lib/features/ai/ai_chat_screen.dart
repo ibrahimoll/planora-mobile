@@ -533,6 +533,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
           buildMessageBubble(context, message),
           const SizedBox(height: 10),
         ],
+        if (isSending) ...[
+          buildTypingIndicator(context),
+          const SizedBox(height: 10),
+        ],
         if (errorMessage != null) buildInlineError(context, errorMessage!),
       ],
     );
@@ -624,6 +628,45 @@ class _AiChatScreenState extends State<AiChatScreen> {
               height: 1.45,
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildTypingIndicator(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
+            boxShadow: PlanoraTheme.cardShadowFor(context),
+          ),
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  'Planora AI is typing',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _AiTypingDots(color: Theme.of(context).colorScheme.primary),
+            ],
           ),
         ),
       ),
@@ -728,6 +771,74 @@ class _AiChatScreenState extends State<AiChatScreen> {
         buildComposer(context),
         const SizedBox(height: 14),
       ],
+    );
+  }
+}
+
+class _AiTypingDots extends StatefulWidget {
+  final Color color;
+
+  const _AiTypingDots({required this.color});
+
+  @override
+  State<_AiTypingDots> createState() => _AiTypingDotsState();
+}
+
+class _AiTypingDotsState extends State<_AiTypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < 3; index++) ...[
+          buildDot(index),
+          if (index != 2) const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+
+  Widget buildDot(int index) {
+    final animation = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(
+        index * 0.18,
+        0.64 + index * 0.18,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.35, end: 1).animate(animation),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.75, end: 1).animate(animation),
+        child: Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: widget.color,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
     );
   }
 }

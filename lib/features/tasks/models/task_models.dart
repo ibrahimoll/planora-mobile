@@ -152,10 +152,6 @@ class TaskModel {
       return email;
     }
 
-    if (assignedTo != null) {
-      return 'Member #$assignedTo';
-    }
-
     return null;
   }
 
@@ -732,11 +728,7 @@ class TaskMemberPreview {
       return preferred;
     }
 
-    if (userId != null) {
-      return 'Member #$userId';
-    }
-
-    return 'Member';
+    return 'Unknown user';
   }
 
   String get initials {

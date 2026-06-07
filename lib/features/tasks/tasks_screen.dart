@@ -843,8 +843,24 @@ class _TasksScreenState extends State<TasksScreen> {
     List<TaskListItem> visibleTasks,
   ) {
     final sectionOrder = selectedSortOrder == TaskSortOrder.overdueFirst
-        ? const ['Overdue', 'Today', 'Tomorrow', 'Upcoming']
-        : const ['Upcoming', 'Tomorrow', 'Today', 'Overdue'];
+        ? const [
+            'Overdue',
+            'Today',
+            'Tomorrow',
+            'Next Week',
+            'Upcoming',
+            'Later',
+            'Completed',
+          ]
+        : const [
+            'Today',
+            'Tomorrow',
+            'Next Week',
+            'Upcoming',
+            'Later',
+            'Overdue',
+            'Completed',
+          ];
     final grouped = <String, List<TaskListItem>>{};
 
     for (final item in visibleTasks) {
@@ -864,6 +880,10 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   String sectionKeyForTask(TaskModel task) {
+    if (task.isCompleted) {
+      return 'Completed';
+    }
+
     if (task.isOverdue) {
       return 'Overdue';
     }
@@ -871,7 +891,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final dueDate = task.dueDate;
 
     if (dueDate == null) {
-      return 'Upcoming';
+      return 'Later';
     }
 
     final now = DateTime.now();
@@ -885,6 +905,10 @@ class _TasksScreenState extends State<TasksScreen> {
 
     if (difference == 1) {
       return 'Tomorrow';
+    }
+
+    if (difference > 1 && difference <= 7) {
+      return 'Next Week';
     }
 
     return 'Upcoming';

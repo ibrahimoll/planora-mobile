@@ -67,7 +67,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             return await _tasksApi.getProjectTasks(
               project: TaskProjectSummary.fromProject(project),
             );
-          } catch (_) {
+          } catch (error, stackTrace) {
+            debugPrint(
+              'Project task summary load failed for project ${project.projectId}: $error',
+            );
+            debugPrintStack(stackTrace: stackTrace);
             hadTaskLoadError = true;
             return <TaskListItem>[];
           }
@@ -85,7 +89,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             : null;
         isLoading = false;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Project list load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       setState(() {
@@ -1523,7 +1530,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           );
 
           generatedTaskCount = aiPlan.tasksCreated;
-        } catch (_) {
+        } catch (error, stackTrace) {
+          debugPrint(
+            'AI task generation after project creation failed: $error',
+          );
+          debugPrintStack(stackTrace: stackTrace);
           aiGenerationFailed = true;
         }
       }
@@ -1560,7 +1571,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Project creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }

@@ -54,14 +54,22 @@ class AiPlanGenerateResponse {
     final tasks = json['tasks'] as List? ?? [];
 
     return AiPlanGenerateResponse(
-      projectId: json['project_id'] as int,
-      planId: json['plan_id'] as int,
+      projectId: _parseInt(json['project_id']),
+      planId: _parseInt(json['plan_id']),
       summary: json['summary'] as String? ?? '',
-      tasksCreated: json['tasks_created'] as int? ?? 0,
+      tasksCreated: _parseInt(json['tasks_created'], fallback: 0),
       tasks: tasks
           .map((item) => AiGeneratedTask.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
+  }
+
+  static int _parseInt(dynamic value, {int fallback = 0}) {
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 }
 
@@ -86,14 +94,22 @@ class AiGeneratedTask {
 
   factory AiGeneratedTask.fromJson(Map<String, dynamic> json) {
     return AiGeneratedTask(
-      taskId: json['task_id'] as int,
-      title: json['title'] as String,
+      taskId: _parseInt(json['task_id']),
+      title: json['title'] as String? ?? 'Untitled task',
       description: json['description'] as String?,
-      priority: json['priority'] as String,
+      priority: json['priority'] as String? ?? 'medium',
       estimatedHours: _parseOptionalDouble(json['estimated_hours']),
-      status: json['status'] as String,
+      status: json['status'] as String? ?? 'todo',
       dueDate: _parseOptionalDate(json['due_date']),
     );
+  }
+
+  static int _parseInt(dynamic value, {int fallback = 0}) {
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   static double? _parseOptionalDouble(dynamic value) {

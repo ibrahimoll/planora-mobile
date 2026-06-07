@@ -140,12 +140,91 @@ class TeamModel {
   }
 }
 
+class UserSummaryModel {
+  final int? userId;
+  final String? username;
+  final String? email;
+  final String? fullName;
+  final String? profilePic;
+
+  const UserSummaryModel({
+    required this.userId,
+    required this.username,
+    required this.email,
+    required this.fullName,
+    required this.profilePic,
+  });
+
+  factory UserSummaryModel.fromJson(Map<String, dynamic> json) {
+    return UserSummaryModel(
+      userId: _parseOptionalInt(json['user_id'] ?? json['id']),
+      username: _firstNonEmptyString([json['username']]),
+      email: _firstNonEmptyString([json['email']]),
+      fullName: _firstNonEmptyString([
+        json['full_name'],
+        json['fullName'],
+        json['name'],
+      ]),
+      profilePic: _firstNonEmptyString([
+        json['profile_pic'],
+        json['profilePic'],
+        json['avatar_url'],
+        json['avatar'],
+      ]),
+    );
+  }
+
+  String get displayName {
+    final value = _firstNonEmptyString([fullName, username, email]);
+    return value ?? 'Unknown user';
+  }
+
+  String get initials {
+    final label = displayName.trim();
+
+    if (label.isEmpty || label == 'Unknown user') {
+      return '?';
+    }
+
+    final parts = label.split(RegExp(r'\s+'));
+
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+
+    return label[0].toUpperCase();
+  }
+
+  static int? _parseOptionalInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value.toString());
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+
+    return null;
+  }
+}
+
 class ProjectMemberModel {
   final int memberId;
   final int projectId;
   final int userId;
   final String role;
   final DateTime joinedAt;
+  final UserSummaryModel? user;
 
   const ProjectMemberModel({
     required this.memberId,
@@ -153,16 +232,38 @@ class ProjectMemberModel {
     required this.userId,
     required this.role,
     required this.joinedAt,
+    required this.user,
   });
 
   factory ProjectMemberModel.fromJson(Map<String, dynamic> json) {
+    final user = json['user'];
+
     return ProjectMemberModel(
       memberId: json['member_id'] as int,
       projectId: json['project_id'] as int,
       userId: json['user_id'] as int,
       role: json['role'] as String,
       joinedAt: DateTime.parse(json['joined_at'] as String),
+      user: user is Map<String, dynamic>
+          ? UserSummaryModel.fromJson(user)
+          : null,
     );
+  }
+
+  String get displayName {
+    return user?.displayName ?? 'Unknown user';
+  }
+
+  String? get email {
+    return user?.email;
+  }
+
+  String? get profilePic {
+    return user?.profilePic;
+  }
+
+  String get initials {
+    return user?.initials ?? '?';
   }
 
   String get roleLabel {

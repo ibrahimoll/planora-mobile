@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
@@ -62,7 +63,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         loadProjectMembers(loadedProject),
         loadProjectTasks(loadedProject),
       ]);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Project detail load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       setState(() {
@@ -106,7 +110,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         members = loadedMembers;
         isLoadingMembers = false;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Project members load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       setState(() {
@@ -137,7 +144,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         projectTasks = loadedTasks;
         isLoadingTasks = false;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Project tasks load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       setState(() {
@@ -164,6 +174,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       ),
       boxShadow: PlanoraTheme.cardShadowFor(context),
     );
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Color statusColor(BuildContext context) {
@@ -728,7 +746,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           content: Text('AI created ${response.tasksCreated} project tasks.'),
         ),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Project AI task generation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       if (sheetContext.mounted) {
@@ -924,14 +945,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         message: membersErrorMessage!,
       );
     } else if (members.isEmpty) {
-      child = buildInlineMessage(
-        context,
-        icon: Icons.group_off_rounded,
-        message: 'No project members returned by the API.',
+      child = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildInviteMemberButton(context),
+          const SizedBox(height: 12),
+          buildInlineMessage(
+            context,
+            icon: Icons.group_off_rounded,
+            message: 'No project members returned by the API.',
+          ),
+        ],
       );
     } else {
       child = Column(
         children: [
+          buildInviteMemberButton(context),
+          const SizedBox(height: 12),
           for (final member in members) ...[
             buildMemberRow(context, member),
             if (member != members.last) const SizedBox(height: 10),
@@ -946,6 +976,201 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       icon: Icons.groups_2_rounded,
       child: child,
     );
+  }
+
+  Widget buildInviteMemberButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: showInviteMemberSheet,
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text('Invite Member'),
+      ),
+    );
+  }
+
+  Future<void> showInviteMemberSheet() async {
+    final emailController = TextEditingController();
+    var selectedRole = 'member';
+    var isInviting = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final isDark = PlanoraTheme.isDark(sheetContext);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+                decoration: BoxDecoration(
+                  color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
+                  boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? PlanoraTheme.darkBorder
+                              : PlanoraTheme.border,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_add_alt_1_rounded,
+                          color: Theme.of(sheetContext).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Invite Project Member',
+                            style: Theme.of(sheetContext).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: isInviting
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: emailController,
+                      enabled: !isInviting,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Email or username',
+                        prefixIcon: Icon(Icons.alternate_email_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedRole,
+                      decoration: const InputDecoration(
+                        labelText: 'Role',
+                        prefixIcon: Icon(Icons.verified_user_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'member',
+                          child: Text('Member'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'manager',
+                          child: Text('Manager'),
+                        ),
+                      ],
+                      onChanged: isInviting
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setSheetState(() {
+                                selectedRole = value;
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: isInviting
+                            ? null
+                            : () async {
+                                final emailOrUsername = emailController.text
+                                    .trim();
+
+                                if (emailOrUsername.isEmpty) {
+                                  showMessage('Enter an email or username.');
+                                  return;
+                                }
+
+                                setSheetState(() {
+                                  isInviting = true;
+                                });
+
+                                try {
+                                  await _projectsApi.inviteProjectMember(
+                                    project: project,
+                                    emailOrUsername: emailOrUsername,
+                                    role: selectedRole,
+                                  );
+
+                                  if (!mounted || !sheetContext.mounted) {
+                                    return;
+                                  }
+
+                                  Navigator.of(sheetContext).pop();
+                                  await loadProjectMembers(project);
+
+                                  if (!mounted) return;
+
+                                  showMessage('Project member added.');
+                                } on ApiException catch (error) {
+                                  if (!mounted) return;
+                                  showMessage(error.message);
+                                } catch (error) {
+                                  debugPrint(
+                                    'Project member invite failed: $error',
+                                  );
+                                  if (!mounted) return;
+                                  showMessage(
+                                    'Could not invite project member.',
+                                  );
+                                } finally {
+                                  if (sheetContext.mounted) {
+                                    setSheetState(() {
+                                      isInviting = false;
+                                    });
+                                  }
+                                }
+                              },
+                        child: isInviting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Invite Member'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    emailController.dispose();
   }
 
   Widget buildSectionCard(
@@ -1034,6 +1259,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   Widget buildMemberRow(BuildContext context, ProjectMemberModel member) {
+    final profilePic = member.profilePic;
+    final hasProfilePic = profilePic != null && profilePic.trim().isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1044,13 +1272,23 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         children: [
           CircleAvatar(
             backgroundColor: Theme.of(context).colorScheme.primary,
-            child: Text(
-              member.userId.toString().substring(0, 1),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
+            onBackgroundImageError: hasProfilePic
+                ? (_, _) {
+                    debugPrint(
+                      'Could not load profile image for project member.',
+                    );
+                  }
+                : null,
+            child: hasProfilePic
+                ? null
+                : Text(
+                    member.initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1058,14 +1296,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'User #${member.userId}',
+                  member.displayName,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  member.roleLabel,
+                  member.email == null
+                      ? member.roleLabel
+                      : '${member.email} - ${member.roleLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: mutedColor(context),
                     fontWeight: FontWeight.w700,

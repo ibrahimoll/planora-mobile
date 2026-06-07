@@ -4,6 +4,7 @@ import '../../core/config/app_config.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
+import '../tasks/data/tasks_api.dart';
 import 'data/profile_api.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -26,10 +27,14 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileApi _profileApi = const ProfileApi();
+  final TasksApi _tasksApi = const TasksApi();
 
   late UserResponse user = widget.user;
   bool isLoading = false;
+  bool isLoadingStats = true;
   String? errorMessage;
+  int projectCount = 0;
+  int completedTaskCount = 0;
 
   String get displayName {
     final fullName = user.fullName.trim();
@@ -50,10 +55,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return source[0].toUpperCase();
   }
 
+  int get daysActive {
+    final created = user.createdAt.toLocal();
+    final startDay = DateTime(created.year, created.month, created.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final days = today.difference(startDay).inDays + 1;
+
+    return days < 1 ? 1 : days;
+  }
+
+  String get accountBadgeLabel {
+    if (!user.isEmailVerified) {
+      return 'Email pending';
+    }
+
+    final role = user.role.trim();
+
+    if (role.isEmpty) {
+      return 'Verified';
+    }
+
+    return '${role[0].toUpperCase()}${role.substring(1)}';
+  }
+
   @override
   void initState() {
     super.initState();
     loadProfile();
+    loadProfileStats();
   }
 
   Future<void> loadProfile() async {
@@ -73,7 +103,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
 
       widget.onUserUpdated?.call(loadedUser);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Profile refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       setState(() {
@@ -81,6 +114,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> loadProfileStats() async {
+    setState(() {
+      isLoadingStats = true;
+    });
+
+    try {
+      final board = await _tasksApi.getTasks();
+
+      if (!mounted) return;
+
+      setState(() {
+        projectCount = board.projects.length;
+        completedTaskCount = board.tasks
+            .where((item) => item.task.isCompleted)
+            .length;
+        isLoadingStats = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Profile stats load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        isLoadingStats = false;
+      });
+    }
+  }
+
+  Future<void> refreshProfile() async {
+    await Future.wait([loadProfile(), loadProfileStats()]);
   }
 
   Color mutedColor(BuildContext context) {
@@ -111,15 +177,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget buildHeader(BuildContext context) {
     return Row(
       children: [
-        InkWell(
+        buildCircleButton(
+          context,
+          icon: Icons.arrow_back_rounded,
+          tooltip: 'Back',
           onTap: () => Navigator.of(context).pop(),
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: cardDecoration(context),
-            child: const Icon(Icons.arrow_back_rounded),
-          ),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -130,74 +192,158 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
-        IconButton(
-          tooltip: 'Refresh profile',
-          onPressed: isLoading ? null : loadProfile,
-          icon: const Icon(Icons.refresh_rounded),
+        buildCircleButton(
+          context,
+          icon: Icons.settings_outlined,
+          tooltip: 'Settings',
+          onTap: showSettingsSheet,
         ),
       ],
     );
   }
 
-  Widget buildProfileCard(BuildContext context) {
-    final hasProfilePic =
-        user.profilePic != null && user.profilePic!.trim().isNotEmpty;
+  Widget buildCircleButton(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: cardDecoration(
+            context,
+          ).copyWith(borderRadius: BorderRadius.circular(999)),
+          child: Icon(icon, size: 21),
+        ),
+      ),
+    );
+  }
 
+  Widget buildProfileCard(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(14),
       decoration: cardDecoration(context),
-      child: Column(
+      child: Row(
         children: [
-          CircleAvatar(
-            radius: 42,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            backgroundImage: hasProfilePic
-                ? NetworkImage(user.profilePic!)
-                : null,
-            child: hasProfilePic
-                ? null
-                : Text(
-                    initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              buildProfileAvatar(context, radius: 36),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: PlanoraTheme.isDark(context)
+                          ? PlanoraTheme.darkSurface
+                          : Colors.white,
+                      width: 2,
                     ),
                   ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            displayName,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            user.email,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              buildPill(context, '@${user.username}'),
-              buildPill(
-                context,
-                user.isEmailVerified ? 'Verified' : 'Email pending',
+                  child: const Icon(
+                    Icons.photo_camera_outlined,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-              buildPill(context, user.role),
             ],
           ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  user.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    buildPill(context, '@${user.username}'),
+                    buildPill(context, accountBadgeLabel),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Edit profile',
+            onPressed: showEditProfileSheet,
+            icon: Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget buildProfileAvatar(BuildContext context, {required double radius}) {
+    final profilePic = user.profilePic?.trim();
+    final size = radius * 2;
+
+    if (profilePic != null && profilePic.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          profilePic,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('Profile avatar load failed: $error');
+            return buildFallbackAvatar(context, radius: radius);
+          },
+        ),
+      );
+    }
+
+    return buildFallbackAvatar(context, radius: radius);
+  }
+
+  Widget buildFallbackAvatar(BuildContext context, {required double radius}) {
+    return Container(
+      width: radius * 2,
+      height: radius * 2,
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: radius * 0.62,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -219,61 +365,260 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget buildMenuCard(BuildContext context) {
+  Widget buildStatsCard(BuildContext context) {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: cardDecoration(context),
-      child: Column(
-        children: [
-          buildMenuTile(
-            context,
-            icon: Icons.edit_outlined,
-            title: 'Edit Profile',
-            subtitle: 'Update your name and username',
-            onTap: showEditProfileSheet,
-          ),
-          buildDivider(context),
-          buildMenuTile(
-            context,
-            icon: Icons.lock_outline_rounded,
-            title: 'Change Password',
-            subtitle: 'Use a strong password with a symbol',
-            onTap: showChangePasswordSheet,
-          ),
-          buildDivider(context),
-          buildMenuTile(
-            context,
-            icon: Icons.settings_outlined,
-            title: 'Settings',
-            subtitle: 'Theme and API configuration',
-            onTap: showSettingsSheet,
-          ),
-        ],
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: buildStatItem(
+                context,
+                icon: Icons.folder_outlined,
+                value: projectCount,
+                label: 'Projects',
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            buildStatDivider(context),
+            Expanded(
+              child: buildStatItem(
+                context,
+                icon: Icons.check_box_outlined,
+                value: completedTaskCount,
+                label: 'Tasks Completed',
+                color: PlanoraTheme.info,
+              ),
+            ),
+            buildStatDivider(context),
+            Expanded(
+              child: buildStatItem(
+                context,
+                icon: Icons.calendar_today_outlined,
+                value: daysActive,
+                label: 'Days Active',
+                color: PlanoraTheme.success,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget buildStatDivider(BuildContext context) {
+    return VerticalDivider(
+      width: 1,
+      color: PlanoraTheme.isDark(context)
+          ? PlanoraTheme.darkBorder
+          : PlanoraTheme.border,
+    );
+  }
+
+  Widget buildStatItem(
+    BuildContext context, {
+    required IconData icon,
+    required int value,
+    required String label,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 17),
+        ),
+        const SizedBox(height: 9),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: isLoadingStats
+              ? const SizedBox(
+                  key: ValueKey('loading'),
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  '$value',
+                  key: ValueKey(value),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: mutedColor(context),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildProfileSection(
+    BuildContext context, {
+    required String title,
+    required List<_ProfileActionItem> items,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 8),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        Container(
+          decoration: cardDecoration(context),
+          child: Column(
+            children: [
+              for (var index = 0; index < items.length; index++) ...[
+                buildMenuTile(context, item: items[index]),
+                if (index != items.length - 1) buildDivider(context),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildAccountSection(BuildContext context) {
+    return buildProfileSection(
+      context,
+      title: 'Account',
+      items: [
+        _ProfileActionItem(
+          icon: Icons.person_outline_rounded,
+          title: 'Edit Profile',
+          subtitle: 'Update your personal information',
+          onTap: showEditProfileSheet,
+        ),
+        _ProfileActionItem(
+          icon: Icons.lock_outline_rounded,
+          title: 'Change Password',
+          subtitle: 'Update your account password',
+          onTap: showChangePasswordSheet,
+        ),
+        _ProfileActionItem(
+          icon: Icons.mail_outline_rounded,
+          title: 'Email Preferences',
+          subtitle: 'Manage your email notifications',
+          onTap: () => showMessage('Email preferences are not connected yet.'),
+        ),
+        _ProfileActionItem(
+          icon: Icons.notifications_none_rounded,
+          title: 'Notification Settings',
+          subtitle: 'Customize your notifications',
+          onTap: () =>
+              showMessage('Notification settings are not connected yet.'),
+        ),
+      ],
+    );
+  }
+
+  Widget buildWorkspaceSection(BuildContext context) {
+    return buildProfileSection(
+      context,
+      title: 'Workspace',
+      items: [
+        _ProfileActionItem(
+          icon: Icons.groups_2_outlined,
+          title: 'Team Members',
+          subtitle: 'Manage team projects and permissions',
+          onTap: () => showMessage('Open a team project to manage members.'),
+        ),
+        _ProfileActionItem(
+          icon: Icons.workspace_premium_outlined,
+          title: 'Subscription',
+          subtitle: 'Planora billing is not connected yet',
+          onTap: () => showMessage('Subscription is not connected yet.'),
+        ),
+        _ProfileActionItem(
+          icon: Icons.credit_card_outlined,
+          title: 'Billing & Invoices',
+          subtitle: 'Billing is not connected yet',
+          onTap: () => showMessage('Billing is not connected yet.'),
+        ),
+      ],
+    );
+  }
+
+  Widget buildMoreSection(BuildContext context) {
+    return buildProfileSection(
+      context,
+      title: 'More',
+      items: [
+        _ProfileActionItem(
+          icon: Icons.help_outline_rounded,
+          title: 'Help & Support',
+          subtitle: 'Get help and contact support',
+          onTap: () => showMessage('Help & Support is not connected yet.'),
+        ),
+        _ProfileActionItem(
+          icon: Icons.shield_outlined,
+          title: 'Privacy Policy',
+          subtitle: 'Read our privacy policy',
+          onTap: () => showMessage('Privacy Policy is not connected yet.'),
+        ),
+        _ProfileActionItem(
+          icon: Icons.description_outlined,
+          title: 'Terms of Service',
+          subtitle: 'Read our terms of service',
+          onTap: () => showMessage('Terms of Service is not connected yet.'),
+        ),
+      ],
     );
   }
 
   Widget buildMenuTile(
     BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
+    required _ProfileActionItem item,
   }) {
     return ListTile(
-      onTap: onTap,
-      minVerticalPadding: 14,
+      onTap: item.onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      minVerticalPadding: 8,
       leading: Container(
-        width: 42,
-        height: 42,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(14),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        child: Icon(
+          item.icon,
+          size: 19,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+      title: Text(
+        item.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w900),
+      ),
       subtitle: Text(
-        subtitle,
+        item.subtitle,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -409,7 +754,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               } on ApiException catch (error) {
                                 if (!mounted) return;
                                 showMessage(error.message);
-                              } catch (_) {
+                              } catch (error, stackTrace) {
+                                debugPrint('Profile update failed: $error');
+                                debugPrintStack(stackTrace: stackTrace);
+
                                 if (!mounted) return;
                                 showMessage('Could not update profile.');
                               } finally {
@@ -564,7 +912,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               } on ApiException catch (error) {
                                 if (!mounted) return;
                                 showMessage(error.message);
-                              } catch (_) {
+                              } catch (error, stackTrace) {
+                                debugPrint('Password change failed: $error');
+                                debugPrintStack(stackTrace: stackTrace);
+
                                 if (!mounted) return;
                                 showMessage('Could not change password.');
                               } finally {
@@ -782,6 +1133,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       height: 54,
       child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: PlanoraTheme.error,
+          backgroundColor: PlanoraTheme.error.withValues(alpha: 0.04),
+          side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.28)),
+        ),
         onPressed: () {
           widget.onLoggedOut();
           Navigator.of(context).popUntil((route) => route.isFirst);
@@ -804,7 +1160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 430),
               child: RefreshIndicator(
-                onRefresh: loadProfile,
+                onRefresh: refreshProfile,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -818,7 +1174,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                     buildProfileCard(context),
                     const SizedBox(height: 16),
-                    buildMenuCard(context),
+                    buildStatsCard(context),
+                    const SizedBox(height: 18),
+                    buildAccountSection(context),
+                    const SizedBox(height: 18),
+                    buildWorkspaceSection(context),
+                    const SizedBox(height: 18),
+                    buildMoreSection(context),
                     const SizedBox(height: 16),
                     buildLogoutButton(context),
                   ],
@@ -830,4 +1192,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+}
+
+class _ProfileActionItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ProfileActionItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 }

@@ -51,13 +51,13 @@ void main() {
 
   test('AI plan generation response parses backend task payloads', () {
     final response = AiPlanGenerateResponse.fromJson({
-      'project_id': 7,
-      'plan_id': 11,
+      'project_id': '7',
+      'plan_id': '11',
       'summary': 'Generated a structured plan.',
-      'tasks_created': 1,
+      'tasks_created': '1',
       'tasks': [
         {
-          'task_id': 21,
+          'task_id': '21',
           'title': 'Define scope and success criteria',
           'description': 'Clarify the project goals.',
           'priority': 'high',
@@ -148,6 +148,35 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('AI Chat shows typing indicator while awaiting reply', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AiChatScreen(
+            projectsApi: _SingleProjectApi(),
+            aiChatApi: _SlowAiChatApi(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.enterText(find.byType(TextField), 'What should I do next?');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pump();
+
+    expect(find.text('Planora AI is typing'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.text('Planora AI is typing'), findsNothing);
+    expect(find.text('Start with the highest-risk task.'), findsOneWidget);
+  });
 }
 
 class _EmptyProjectsApi extends ProjectsApi {
@@ -189,5 +218,29 @@ class _FailingAiChatApi extends AiChatApi {
     required TaskProjectSummary project,
   }) async {
     throw const ApiException(message: 'Server error', statusCode: 500);
+  }
+}
+
+class _SlowAiChatApi extends AiChatApi {
+  const _SlowAiChatApi();
+
+  @override
+  Future<List<AiChatMessageModel>> getHistory({
+    required TaskProjectSummary project,
+  }) async {
+    return [];
+  }
+
+  @override
+  Future<AiChatMessageModel> sendMessage({
+    required TaskProjectSummary project,
+    required String message,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+
+    return AiChatMessageModel.localAssistant(
+      projectId: project.projectId,
+      message: 'Start with the highest-risk task.',
+    );
   }
 }

@@ -7,6 +7,134 @@ Date: 2026-06-07
 Checked the Flutter mobile app against the local backend reference in `../backend`.
 The pass focused on setup, routing, auth/API contracts, core screen reachability, loading/error/empty states, and targeted stability fixes without redesigning the existing light purple Planora direction.
 
+## Follow-up: Member Identity, Invites, AI/Tasks, and Profile UX
+
+Date: 2026-06-07
+
+### Commands Run
+
+From `C:\Users\Ibrahim\Documents\Planora\mobile`:
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat pub get
+```
+
+Result: succeeded. Pub reported 7 newer package versions outside current constraints; no dependency files were changed.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\cache\dart-sdk\bin\dart.exe format .
+```
+
+Result: succeeded with `Formatted 43 files (0 changed)`.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat analyze
+```
+
+Result: succeeded with `No issues found!`.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat test
+```
+
+Result: succeeded with `All tests passed!` across 7 tests.
+
+From `C:\Users\Ibrahim\Documents\Planora\backend`:
+
+```powershell
+& C:\Users\Ibrahim\AppData\Local\Programs\Python\Python312\python.exe -m py_compile app\schemas\user_summary_schema.py app\schemas\project_schema.py app\schemas\team_schema.py app\schemas\task_schema.py app\schemas\comment_schema.py app\models\task.py app\services\task_service.py app\services\project_service.py app\services\team_service.py app\routers\team_project_routes.py
+```
+
+Result: succeeded.
+
+```powershell
+& C:\Users\Ibrahim\AppData\Local\Programs\Python\Python312\python.exe -m pytest
+```
+
+Result: failed before tests started because this Python install does not have `pytest` installed.
+
+```powershell
+& C:\Users\Ibrahim\AppData\Local\Programs\Python\Python312\python.exe -m ruff check .
+& C:\Users\Ibrahim\AppData\Local\Programs\Python\Python312\python.exe -m mypy app
+```
+
+Result: failed before checks started because this Python install does not have `ruff` or `mypy` installed.
+
+### Pages / Flows Checked
+
+- Project member and task/member display paths: project members, team members, task assignee, task details assignee fallback, and task comments.
+- Project Details member section and invite bottom sheet.
+- Create Project AI task generation toggle and Project Details AI task generation sheet.
+- Tasks list grouping and existing status/sort filters.
+- AI Chat empty-project state, history failure fallback, send-message flow, and typing indicator.
+- Profile / Settings screen in light/dark style, including profile edit, change password, theme toggle, API URL, and logout.
+
+### Issues Found
+
+- Backend member/task/comment responses exposed IDs without nested safe user summaries, forcing Flutter to invent labels such as `Member #1`.
+- Flutter project member and task assignee models still had ID-derived fallback labels.
+- Team project member invite was missing from the mobile flow and did not have a simple backend add-by-email-or-username route.
+- Project/create-project AI failure path swallowed the actual exception.
+- Task grouping only separated `Overdue`, `Today`, `Tomorrow`, and `Upcoming`; no `Next Week`, `Later`, or clean `Completed` grouping.
+- AI Chat had crash-protection behavior from the prior pass, but no visible assistant typing indicator.
+- Profile screen did not match the provided profile/settings direction and had no backend-backed project/task stats.
+
+### Issues Fixed
+
+- Added backend `UserSummaryResponse` and nested user summaries for project members, team members, task assignee/creator, and comments without exposing secrets.
+- Added eager loading for nested users to avoid N+1 behavior on member/task queries.
+- Removed mobile `User #id` / `Member #id` display fallbacks and now prefer full name, username, email, then `Unknown user`.
+- Added project member invite support for team projects through `POST /teams/{team_id}/projects/{project_id}/members/invite`, plus Flutter invite UI with loading/error/success handling.
+- Kept AI task generation data-backed: the Create Project checkbox calls the backend AI plan endpoint after project creation with `generateTasks: true`; errors are now logged with `debugPrintStack`.
+- Made AI plan response parsing tolerant of numeric string IDs and partial task payloads.
+- Added AI Chat assistant typing bubble animation and a widget test for it.
+- Expanded task list sections to `Overdue`, `Today`, `Tomorrow`, `Next Week`, `Upcoming`, `Later`, and `Completed`.
+- Rebuilt Profile / Settings to follow the provided reference direction with avatar, identity card, backend-backed project/completed-task/day-active stats, sectioned account/workspace/more cards, dark-mode-aware colors, and existing edit/password/settings/logout behavior.
+
+### Files Changed
+
+Mobile:
+
+- `lib/features/ai/ai_chat_screen.dart`
+- `lib/features/ai/data/ai_plan_api.dart`
+- `lib/features/auth/data/project_api.dart`
+- `lib/features/auth/models/project_models.dart`
+- `lib/features/profile/profile_screen.dart`
+- `lib/features/projects/project_detail_screen.dart`
+- `lib/features/projects/projects_screen.dart`
+- `lib/features/tasks/models/task_models.dart`
+- `lib/features/tasks/task_detail_screen.dart`
+- `lib/features/tasks/tasks_screen.dart`
+- `test/widget_test.dart`
+
+Backend:
+
+- `app/schemas/user_summary_schema.py`
+- `app/schemas/project_schema.py`
+- `app/schemas/team_schema.py`
+- `app/schemas/task_schema.py`
+- `app/schemas/comment_schema.py`
+- `app/models/task.py`
+- `app/services/project_service.py`
+- `app/services/team_service.py`
+- `app/services/task_service.py`
+- `app/routers/team_project_routes.py`
+
+### Issues Remaining
+
+- Backend pytest/ruff/mypy still need a Python environment with those packages installed before they can run locally.
+- The profile rows for email preferences, notification settings, subscription, billing, help, privacy, and terms currently show honest placeholder SnackBars because no mobile route/backend contract for those screens was wired in this pass.
+- A global dark-mode audit remains useful for older auth/notification/home screens that still contain older `catch (_)` and hardcoded-color patterns outside the project/profile/AI paths touched here.
+
+### Manual Test Checklist
+
+1. Login against `https://planora-api-dqmv.onrender.com` with `--dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com`.
+2. Open Projects, create a project with `Generate project tasks` enabled, then confirm new tasks appear in Projects, Project Details, and Tasks.
+3. Open a team project, use Project Details > Members > Invite, add an existing email/username, then verify the member list shows the real name/avatar or fallback initials.
+4. Open Tasks and verify sections appear correctly for overdue, today, tomorrow, next-week, later/no-due-date, and completed tasks.
+5. Open AI Chat with and without projects; confirm the empty state, project selector, welcome message, send flow, SnackBar errors, and typing bubble.
+6. Open Profile, verify real project/completed-task/days-active stats, edit profile, change password validation, dark mode toggle, and logout.
+
 ## Follow-up: Home, Projects, Tasks, and AI Planning
 
 Date: 2026-06-07

@@ -93,6 +93,23 @@ class ProjectsApi {
         .toList();
   }
 
+  Future<ProjectMemberModel> inviteProjectMember({
+    required ProjectModel project,
+    required String emailOrUsername,
+    String role = 'member',
+  }) async {
+    if (!project.isTeamProject || project.teamId == null) {
+      throw StateError('Project member invites require a team project.');
+    }
+
+    final response = await ApiClient.postJson(
+      '/teams/${project.teamId}/projects/${project.projectId}/members/invite',
+      data: {'email_or_username': emailOrUsername, 'role': role},
+    );
+
+    return ProjectMemberModel.fromJson(response as Map<String, dynamic>);
+  }
+
   Future<ProjectModel> createProject(ProjectCreateRequest request) async {
     final response = await ApiClient.postJson(
       '/projects',

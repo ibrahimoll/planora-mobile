@@ -11,6 +11,15 @@ Last updated: 2026-06-07
 
 ## Latest Mobile State - 2026-06-07
 
+- Latest follow-up fixed backend/mobile member identity display, project member invites, AI Chat typing feedback, task grouping, and Profile/Settings polish.
+- Mobile no longer creates visible `User #id` or `Member #id` labels in the project member/task assignee paths touched in this pass; it displays nested backend user summaries with full name, username, email, then `Unknown user`.
+- Project Details now has a team-project invite member sheet that posts email/username plus role to the backend invite endpoint and reloads members after success.
+- AI task generation remains data-backed: Create Project and Project Details call backend `/ai-plan/generate` with task creation enabled, and AI failures are logged instead of swallowed.
+- AI Chat now shows an animated `Planora AI is typing` bubble while awaiting a reply.
+- Tasks list grouping now includes `Overdue`, `Today`, `Tomorrow`, `Next Week`, `Upcoming`, `Later`, and `Completed`.
+- Profile/Settings now follows the provided card-based light/dark reference direction and shows real project count, completed task count, and days-active stats from backend-backed models.
+- Latest verification: `flutter pub get`, `dart format .`, `flutter analyze`, and `flutter test` passed. Backend touched files passed `py_compile`; backend pytest could not start because this Python install is missing `pytest`.
+
 - Home dashboard, Project Overview, My Projects, and Upcoming Tasks use real backend project/task data instead of static samples.
 - Projects list now loads task summaries per backend project and computes progress from completed task rows when available.
 - Project details now shows real project tasks and can generate AI tasks through the backend `/ai-plan/generate` endpoints.
@@ -25,8 +34,9 @@ Last updated: 2026-06-07
 - AI chat history/send failures are caught as real errors, logged with `debugPrint/debugPrintStack`, and surfaced through a user-friendly SnackBar.
 - A local Planora AI welcome message remains visible when chat history loading fails.
 - `AiChatMessageModel` parsing is defensive for numeric string IDs, missing `project_id`/`sender_id`, null message/body fields, and invalid/null dates.
+- AI Chat shows an animated assistant typing bubble while a reply is in-flight.
 - Added widget tests for the empty state, backend-style history failure, and partial chat JSON parsing.
-- Latest verification: `flutter analyze` passed with no issues and `flutter test` passed with 6 tests.
+- Latest verification: `flutter analyze` passed with no issues and `flutter test` passed with 7 tests.
 
 ## Current Mobile UI Direction
 
