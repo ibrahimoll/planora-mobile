@@ -194,81 +194,80 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               buildCircleButton(
                 context,
                 icon: Icons.arrow_back_rounded,
                 onTap: () => Navigator.of(context).pop(),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                        height: 1.18,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    buildMetadataWrap(context),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
+              const Spacer(),
               buildCircleButton(
                 context,
                 icon: Icons.info_outline_rounded,
                 onTap: showTaskInfoDialog,
               ),
+              const SizedBox(width: 6),
               buildCircleButton(
                 context,
                 icon: Icons.edit_rounded,
                 onTap: showEditTaskSheet,
               ),
-              PopupMenuButton<String>(
-                tooltip: 'More',
-                onSelected: (value) {
-                  switch (value) {
-                    case 'refresh':
-                      loadTaskDetails();
-                      break;
-                    case 'complete':
-                      if (!taskItem.task.isCompleted) {
-                        markTaskCompleted();
-                      }
-                      break;
-                  }
-                },
-                itemBuilder: (context) {
-                  return [
-                    const PopupMenuItem(
-                      value: 'refresh',
-                      child: Text('Refresh'),
-                    ),
-                    if (!taskItem.task.isCompleted)
+              const SizedBox(width: 6),
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: PopupMenuButton<String>(
+                  tooltip: 'More',
+                  padding: EdgeInsets.zero,
+                  iconSize: 20,
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'refresh':
+                        loadTaskDetails();
+                        break;
+                      case 'complete':
+                        if (!taskItem.task.isCompleted) {
+                          markTaskCompleted();
+                        }
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) {
+                    return [
                       const PopupMenuItem(
-                        value: 'complete',
-                        child: Text('Mark completed'),
+                        value: 'refresh',
+                        child: Text('Refresh'),
                       ),
-                  ];
-                },
-                icon: Icon(
-                  Icons.more_vert_rounded,
-                  color: mutedColor(context),
-                  size: 20,
+                      if (!taskItem.task.isCompleted)
+                        const PopupMenuItem(
+                          value: 'complete',
+                          child: Text('Mark completed'),
+                        ),
+                    ];
+                  },
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    color: mutedColor(context),
+                  ),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Text(
+            task.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+              height: 1.18,
+            ),
+          ),
+          const SizedBox(height: 10),
+          buildMetadataWrap(context),
           const SizedBox(height: 14),
           buildTabRow(context),
         ],
@@ -805,9 +804,42 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  TaskMemberPreview? detailAssigneePreview() {
+    final task = taskItem.task;
+    final assignee = task.assigneePreview;
+    final generatedLabel = task.assignedTo == null
+        ? null
+        : 'Member #${task.assignedTo}';
+
+    if (assignee != null && assignee.displayLabel != generatedLabel) {
+      return assignee;
+    }
+
+    if (!taskItem.project.isTeamProject && task.assignedTo != null) {
+      return TaskMemberPreview(
+        userId: task.assignedTo,
+        name: 'You',
+        email: null,
+        avatarUrl: null,
+      );
+    }
+
+    if (taskItem.project.isTeamProject && task.assignedTo != null) {
+      return TaskMemberPreview(
+        userId: task.assignedTo,
+        name: null,
+        email: null,
+        avatarUrl: null,
+        fallbackLabel: 'Assigned member',
+      );
+    }
+
+    return null;
+  }
+
   Widget buildAssigneeCard(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
-    final assignee = taskItem.task.assigneePreview;
+    final assignee = detailAssigneePreview();
     final title =
         assignee?.displayLabel ??
         (taskItem.project.isTeamProject ? 'Unassigned' : 'No assignee');
@@ -1318,7 +1350,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     return Row(
       children: [
-        buildMemberAvatar(context, taskItem.task.assigneePreview, size: 34),
+        buildMemberAvatar(context, detailAssigneePreview(), size: 34),
         const SizedBox(width: 10),
         Expanded(
           child: TextField(
