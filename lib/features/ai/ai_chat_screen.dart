@@ -742,35 +742,61 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
+  Widget buildRefreshableChat(BuildContext context) {
+    final showProjectControls = projects.isNotEmpty;
+    final showComposer = showProjectControls;
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        final project = selectedProject;
+        if (project == null) {
+          await loadProjects();
+        } else {
+          await loadMessages(project);
+        }
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.only(bottom: showComposer ? 106 : 12),
+        children: [
+          if (showProjectControls) ...[
+            buildProjectControls(context),
+            const SizedBox(height: 14),
+          ],
+          buildMessages(context),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        buildHeader(context),
-        const SizedBox(height: 16),
-        buildProjectControls(context),
-        const SizedBox(height: 14),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              final project = selectedProject;
-              if (project == null) {
-                await loadProjects();
-              } else {
-                await loadMessages(project);
-              }
-            },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 12),
-              children: [buildMessages(context)],
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Column(
+              children: [
+                buildHeader(context),
+                const SizedBox(height: 16),
+                Expanded(child: buildRefreshableChat(context)),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        buildComposer(context),
-        const SizedBox(height: 14),
-      ],
+          if (!isLoadingProjects && projects.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 14,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  boxShadow: PlanoraTheme.floatingShadowFor(context),
+                ),
+                child: buildComposer(context),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
