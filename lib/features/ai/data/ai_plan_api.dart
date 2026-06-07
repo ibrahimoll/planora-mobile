@@ -59,9 +59,7 @@ class AiPlanGenerateResponse {
       summary: json['summary'] as String? ?? '',
       tasksCreated: json['tasks_created'] as int? ?? 0,
       tasks: tasks
-          .map(
-            (item) => AiGeneratedTask.fromJson(item as Map<String, dynamic>),
-          )
+          .map((item) => AiGeneratedTask.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }

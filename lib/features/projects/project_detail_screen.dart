@@ -401,7 +401,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           const SizedBox(height: 10),
           buildDetailRow(context, 'Progress', '${(progress * 100).round()}%'),
           const SizedBox(height: 10),
-          buildDetailRow(context, 'Tasks', '$completedTaskCount done / ${projectTasks.length} total'),
+          buildDetailRow(
+            context,
+            'Tasks',
+            '$completedTaskCount done / ${projectTasks.length} total',
+          ),
         ],
       ),
     );
@@ -460,7 +464,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     )
                   : const Icon(Icons.bolt_rounded),
               label: Text(
-                isGeneratingAiPlan ? 'Generating Tasks...' : 'Generate AI Tasks',
+                isGeneratingAiPlan
+                    ? 'Generating Tasks...'
+                    : 'Generate AI Tasks',
               ),
             ),
           ),
@@ -846,7 +852,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
+                    color: task.isOverdue
+                        ? PlanoraTheme.error
+                        : mutedColor(context),
                     fontWeight: FontWeight.w700,
                   ),
                 ),

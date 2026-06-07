@@ -7,6 +7,92 @@ Date: 2026-06-07
 Checked the Flutter mobile app against the local backend reference in `../backend`.
 The pass focused on setup, routing, auth/API contracts, core screen reachability, loading/error/empty states, and targeted stability fixes without redesigning the existing light purple Planora direction.
 
+## Follow-up: Home, Projects, Tasks, and AI Planning
+
+Date: 2026-06-07
+
+### Additional Commands Run
+
+From `C:\Users\Ibrahim\Documents\Planora\mobile`:
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\cache\dart-sdk\bin\dart.exe format .
+```
+
+Result: succeeded. Final run reported `Formatted 43 files (0 changed)`.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat analyze
+```
+
+Result: succeeded with `No issues found!`.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat test
+```
+
+Result: succeeded with `All tests passed!`.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat pub get
+```
+
+Result: sandboxed run timed out after 120 seconds. Reran outside the sandbox and succeeded. Pub reported 7 newer package versions outside current constraints; no dependency files were changed.
+
+Backend reference checks from `C:\Users\Ibrahim\Documents\Planora\backend`:
+
+```powershell
+python -m pytest tests\test_11_ai_plans_api.py
+py -m pytest tests\test_11_ai_plans_api.py
+& C:\Users\Ibrahim\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\test_11_ai_plans_api.py
+```
+
+Result: backend pytest could not run in this local shell because `python` is not on PATH, the Windows `py` launcher has no installed Python, and the bundled Codex Python does not include `pytest`, `fastapi`, or `sqlalchemy`.
+
+```powershell
+& C:\Users\Ibrahim\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m py_compile app\schemas\ai_plan_schema.py app\services\ai_plan_service.py app\routers\ai_plan_routes.py tests\test_11_ai_plans_api.py
+```
+
+Result: succeeded.
+
+### Pages Rechecked
+
+- Home dashboard: confirmed it uses `ProjectsApi.getProjects()` plus `TasksApi.getProjectTasks()` per project for overview counts, task-derived progress, project rows, and upcoming tasks.
+- Projects list: updated progress bars and labels to use real task rows from the tasks API instead of status-only estimates.
+- Project details: updated schedule/progress/tasks sections to load real project tasks from the backend and refresh after AI task generation.
+- Create project: added an optional AI task toggle that calls the backend AI planning endpoint after the project row is created.
+- AI chat assistant: confirmed the selected project model is used for the real AI plan endpoint, including team vs personal route selection.
+- Tasks tab: existing regression test still confirms tapping Tasks opens tab index `3`, not Create Task.
+
+### Issues Found
+
+- Projects list progress was still inferred from project status and could look disconnected from actual DB tasks.
+- Project details did not show the project's real task list.
+- AI task generation was not exposed from project details/create project in a way that refreshed the DB-backed task surfaces.
+- `Switch.activeColor` had become deprecated on the current Flutter SDK.
+
+### Issues Fixed
+
+- Project list now loads task summaries for each backend project and calculates progress from completed/total tasks when tasks exist.
+- Project details now displays a `Project Tasks` section loaded from the real personal/team task endpoints.
+- Project details now has a Planora-styled AI task generation sheet that calls `/ai-plan/generate`, supports append/replace, and refreshes tasks after success.
+- Create Project now includes an opt-in AI task toggle. If enabled, the app creates the project first, then calls the backend planner to create real tasks for that project.
+- AI chat now includes a `Plan` action that calls the backend AI planner for the selected project without faking chat history.
+- Added parser coverage for `AiPlanGenerateResponse`.
+- Replaced deprecated `Switch.activeColor` with `activeThumbColor`.
+
+### Additional Files Changed
+
+- `lib/features/ai/data/ai_plan_api.dart`
+- `lib/features/projects/project_detail_screen.dart`
+- `lib/features/projects/projects_screen.dart`
+
+### Remaining From This Follow-up
+
+- Backend pytest needs a local Python environment with the backend requirements installed and `TEST_DATABASE_URL` configured.
+- Mobile visual QA was still code/test based; no emulator screenshot sweep was run.
+- Team creation/invite flows remain outside this pass, so team AI planning can be used only for team projects returned by the backend.
+
 ## Commands Run
 
 From `C:\Users\Ibrahim\Documents\Planora\mobile`:
@@ -175,8 +261,9 @@ Manual flow:
 5. Login and confirm Home opens.
 6. Tap Tasks tab and confirm it opens the task list, not create task.
 7. Tap the add task action and confirm Create Task opens.
-8. Open Projects, create a personal project, then tap it to view project details.
-9. If the account has teams, confirm team projects appear and project members load in details.
-10. Open AI tab, select a project, send a message.
-11. Tap notifications bell, read notifications, and mark all read.
-12. Tap avatar, edit profile, change password, open settings, then logout.
+8. Open Projects, create a personal project, optionally enable AI Tasks, then confirm the project appears.
+9. Tap the project to view details, generate AI tasks, and confirm the Project Tasks section refreshes from the backend.
+10. If the account has teams, confirm team projects appear and project members load in details.
+11. Open AI tab, select a project, send a message, then tap Plan and confirm generated tasks appear in Project Details or Tasks.
+12. Tap notifications bell, read notifications, and mark all read.
+13. Tap avatar, edit profile, change password, open settings, then logout.

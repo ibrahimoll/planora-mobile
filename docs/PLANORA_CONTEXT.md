@@ -9,6 +9,15 @@ Last updated: 2026-06-07
 - Main entry file: `lib/main.dart`
 - Current start screen: `OnboardingScreen`
 
+## Latest Mobile State - 2026-06-07
+
+- Home dashboard, Project Overview, My Projects, and Upcoming Tasks use real backend project/task data instead of static samples.
+- Projects list now loads task summaries per backend project and computes progress from completed task rows when available.
+- Project details now shows real project tasks and can generate AI tasks through the backend `/ai-plan/generate` endpoints.
+- Create Project has an opt-in AI Tasks toggle: the project is created first, then generated tasks are persisted by the backend planner.
+- Planora AI chat has a `Plan` action that calls the same backend planner for the selected personal/team project.
+- `flutter analyze` and `flutter test` pass after the latest home/project/task AI-planning follow-up.
+
 ## Current Mobile UI Direction
 
 Planora mobile should use a clean, modern, friendly, professional light/dark identity with purple branding.

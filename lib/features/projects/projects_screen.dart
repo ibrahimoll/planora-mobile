@@ -130,9 +130,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   int completedTasksForProject(ProjectModel project) {
-    return tasksForProject(project)
-        .where((item) => item.task.isCompleted)
-        .length;
+    return tasksForProject(
+      project,
+    ).where((item) => item.task.isCompleted).length;
   }
 
   Color getStatusColor(BuildContext context, ProjectModel project) {
@@ -1369,7 +1369,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
           Switch.adaptive(
             value: generateTasksWithAi,
-            activeColor: const Color(0xFF7C3AED),
+            activeThumbColor: const Color(0xFF7C3AED),
             onChanged: isCreatingProject
                 ? null
                 : (value) {
