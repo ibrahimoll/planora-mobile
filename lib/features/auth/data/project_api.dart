@@ -5,7 +5,39 @@ class ProjectsApi {
   const ProjectsApi();
 
   Future<List<ProjectModel>> getProjects() async {
-    final response = await ApiClient.get('/projects');
+    final personalProjects = await _parseProjectListResponse(
+      ApiClient.get('/projects'),
+    );
+    final teams = await getTeams();
+    final teamProjectGroups = await Future.wait(
+      teams.map((team) => getTeamProjects(team.teamId)),
+    );
+    final teamProjects = teamProjectGroups.expand((group) => group).toList();
+
+    return [...personalProjects, ...teamProjects]
+      ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
+  }
+
+  Future<List<TeamModel>> getTeams() async {
+    final response = await ApiClient.get('/teams');
+
+    if (response is! List) {
+      return [];
+    }
+
+    return response
+        .map((item) => TeamModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<ProjectModel>> getTeamProjects(int teamId) async {
+    return _parseProjectListResponse(ApiClient.get('/teams/$teamId/projects'));
+  }
+
+  Future<List<ProjectModel>> _parseProjectListResponse(
+    Future<dynamic> request,
+  ) async {
+    final response = await request;
 
     if (response is List) {
       return response
@@ -24,10 +56,41 @@ class ProjectsApi {
     return [];
   }
 
+  Future<ProjectModel> getProject(ProjectModel project) async {
+    final path = project.isTeamProject && project.teamId != null
+        ? '/teams/${project.teamId}/projects/${project.projectId}'
+        : '/projects/${project.projectId}';
+    final response = await ApiClient.get(path);
+
+    return ProjectModel.fromJson(response as Map<String, dynamic>);
+  }
+
   Future<ProjectModel> getProjectById(int projectId) async {
     final response = await ApiClient.get('/projects/$projectId');
 
     return ProjectModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<List<ProjectMemberModel>> getProjectMembers(
+    ProjectModel project,
+  ) async {
+    if (!project.isTeamProject || project.teamId == null) {
+      return [];
+    }
+
+    final response = await ApiClient.get(
+      '/teams/${project.teamId}/projects/${project.projectId}/members',
+    );
+
+    if (response is! List) {
+      return [];
+    }
+
+    return response
+        .map(
+          (item) => ProjectMemberModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
   }
 
   Future<ProjectModel> createProject(ProjectCreateRequest request) async {

@@ -81,6 +81,12 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  void _updateCurrentUser(UserResponse user) {
+    setState(() {
+      currentUser = user;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -97,6 +103,7 @@ class _AuthGateState extends State<AuthGate> {
       user: user,
       onThemeToggle: widget.onThemeToggle,
       onLoggedOut: _logout,
+      onUserUpdated: _updateCurrentUser,
     );
   }
 }

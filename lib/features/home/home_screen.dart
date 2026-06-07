@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/features/ai/ai_chat_screen.dart';
+import 'package:mobile/features/notifications/data/notifications_api.dart';
+import 'package:mobile/features/notifications/notifications_screen.dart';
+import 'package:mobile/features/profile/profile_screen.dart';
 import 'package:mobile/features/projects/projects_screen.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
@@ -13,12 +17,14 @@ class HomeScreen extends StatefulWidget {
   final UserResponse user;
   final VoidCallback onThemeToggle;
   final VoidCallback? onLoggedOut;
+  final ValueChanged<UserResponse>? onUserUpdated;
 
   const HomeScreen({
     super.key,
     required this.user,
     required this.onThemeToggle,
     this.onLoggedOut,
+    this.onUserUpdated,
   });
 
   @override
@@ -27,6 +33,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TasksApi _tasksApi = const TasksApi();
+  final NotificationsApi _notificationsApi = const NotificationsApi();
 
   int selectedIndex = 0;
   int taskCreateRequestId = 0;
@@ -43,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     loadUpcomingTasks();
+    loadUnreadNotificationCount();
   }
 
   String get displayName {
@@ -109,6 +117,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> loadUnreadNotificationCount() async {
+    try {
+      final unreadCount = await _notificationsApi.getUnreadCount();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        hasUnreadNotifications = unreadCount > 0;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        hasUnreadNotifications = false;
+      });
+    }
+  }
+
   void openNewTaskFlow() {
     setState(() {
       selectedIndex = 3;
@@ -137,6 +167,40 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => TaskDetailScreen(
           initialTask: item,
           onTaskChanged: loadUpcomingTasks,
+        ),
+      ),
+    );
+  }
+
+  Future<void> openNotifications() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const NotificationsScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    loadUnreadNotificationCount();
+  }
+
+  Future<void> openProfile() async {
+    final onLoggedOut = widget.onLoggedOut;
+
+    if (onLoggedOut == null) {
+      openProfileActions(context);
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => ProfileScreen(
+          user: widget.user,
+          onThemeToggle: widget.onThemeToggle,
+          onLoggedOut: onLoggedOut,
+          onUserUpdated: widget.onUserUpdated,
         ),
       ),
     );
@@ -207,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Row(
       children: [
         GestureDetector(
-          onTap: () => openProfileActions(context),
+          onTap: openProfile,
           child: Container(
             width: 46,
             height: 46,
@@ -265,24 +329,27 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(width: 10),
         buildHeaderButton(context, Icons.search_rounded),
         const SizedBox(width: 10),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            buildHeaderButton(context, Icons.notifications_none_rounded),
-            if (hasUnreadNotifications)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: BoxShape.circle,
+        GestureDetector(
+          onTap: openNotifications,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              buildHeaderButton(context, Icons.notifications_none_rounded),
+              if (hasUnreadNotifications)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -1028,12 +1095,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
       case 2:
-        return buildComingSoonPage(
-          context,
-          icon: Icons.auto_awesome_rounded,
-          title: 'Planora AI',
-          message: 'Your AI project assistant screen will be connected next.',
-        );
+        return const AiChatScreen();
 
       case 3:
         return TasksScreen(

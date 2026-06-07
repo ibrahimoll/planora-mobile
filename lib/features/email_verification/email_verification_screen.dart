@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/auth_api.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
+import '../login/login_screen.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -38,6 +41,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   Timer? timer;
   int secondsRemaining = initialSeconds;
+  bool isVerifying = false;
+  bool isResending = false;
 
   String get emailLabel =>
       widget.email.trim().isEmpty ? 'your email address' : widget.email.trim();
@@ -132,17 +137,68 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     setState(() {});
   }
 
-  void _verifyEmail() {
+  Future<void> _verifyEmail() async {
     if (!canVerify) return;
 
-    _showMessage('Verify email API connection coming next');
+    setState(() {
+      isVerifying = true;
+    });
+
+    try {
+      await AuthApi.verifyEmail(email: widget.email, code: code);
+
+      if (!mounted) return;
+
+      _showMessage('Email verified. Please sign in.');
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
+        ),
+        (_) => false,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Could not verify email. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isVerifying = false;
+        });
+      }
+    }
   }
 
-  void _resendCode() {
-    if (!canResend) return;
+  Future<void> _resendCode() async {
+    if (!canResend || isResending) return;
 
-    _showMessage('Resend verification code API connection coming next');
-    _startTimer();
+    setState(() {
+      isResending = true;
+    });
+
+    try {
+      await AuthApi.resendVerificationCode(email: widget.email);
+
+      if (!mounted) return;
+
+      _showMessage('Verification code sent.');
+      _startTimer();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Could not resend code. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResending = false;
+        });
+      }
+    }
   }
 
   String _timerText() {
@@ -269,14 +325,17 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         SizedBox(height: metrics.sectionGap),
                         _ResendCodeRow(
                           canResend: canResend,
+                          isLoading: isResending,
                           timerText: _timerText(),
                           onResend: _resendCode,
                         ),
                         SizedBox(height: metrics.sectionGap + 10),
                         PlanoraGradientButton(
                           height: metrics.buttonHeight,
-                          label: 'Verify Email',
-                          onPressed: canVerify ? _verifyEmail : null,
+                          label: isVerifying ? 'Verifying...' : 'Verify Email',
+                          onPressed: canVerify && !isVerifying
+                              ? _verifyEmail
+                              : null,
                         ),
                         SizedBox(height: metrics.socialGap),
                         SizedBox(
@@ -381,11 +440,13 @@ class _OtpBox extends StatelessWidget {
 
 class _ResendCodeRow extends StatelessWidget {
   final bool canResend;
+  final bool isLoading;
   final String timerText;
   final VoidCallback onResend;
 
   const _ResendCodeRow({
     required this.canResend,
+    required this.isLoading,
     required this.timerText,
     required this.onResend,
   });
@@ -413,7 +474,13 @@ class _ResendCodeRow extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             disabledForegroundColor: authMutedColor(context),
           ),
-          child: Text(canResend ? 'Resend' : 'Resend in $timerText'),
+          child: Text(
+            isLoading
+                ? 'Sending...'
+                : canResend
+                ? 'Resend'
+                : 'Resend in $timerText',
+          ),
         ),
       ],
     );

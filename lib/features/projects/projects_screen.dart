@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import 'project_detail_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -557,8 +558,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     return InkWell(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${project.title} details screen is next.')),
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProjectDetailScreen(project: project),
+          ),
         );
       },
       borderRadius: BorderRadius.circular(24),

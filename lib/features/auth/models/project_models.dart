@@ -117,6 +117,68 @@ class ProjectModel {
   }
 }
 
+class TeamModel {
+  final int teamId;
+  final String name;
+  final int createdBy;
+  final DateTime createdAt;
+
+  const TeamModel({
+    required this.teamId,
+    required this.name,
+    required this.createdBy,
+    required this.createdAt,
+  });
+
+  factory TeamModel.fromJson(Map<String, dynamic> json) {
+    return TeamModel(
+      teamId: json['team_id'] as int,
+      name: json['name'] as String,
+      createdBy: json['created_by'] as int,
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}
+
+class ProjectMemberModel {
+  final int memberId;
+  final int projectId;
+  final int userId;
+  final String role;
+  final DateTime joinedAt;
+
+  const ProjectMemberModel({
+    required this.memberId,
+    required this.projectId,
+    required this.userId,
+    required this.role,
+    required this.joinedAt,
+  });
+
+  factory ProjectMemberModel.fromJson(Map<String, dynamic> json) {
+    return ProjectMemberModel(
+      memberId: json['member_id'] as int,
+      projectId: json['project_id'] as int,
+      userId: json['user_id'] as int,
+      role: json['role'] as String,
+      joinedAt: DateTime.parse(json['joined_at'] as String),
+    );
+  }
+
+  String get roleLabel {
+    switch (role) {
+      case 'owner':
+        return 'Owner';
+      case 'manager':
+        return 'Manager';
+      case 'member':
+        return 'Member';
+      default:
+        return role;
+    }
+  }
+}
+
 class ProjectCreateRequest {
   final String title;
   final String? description;

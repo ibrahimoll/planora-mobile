@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/core/storage/token_storage.dart';
+import 'package:mobile/features/auth/auth_gate.dart';
 import 'package:mobile/features/auth/data/auth_api.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
 import '../forgot_password/forgot_password_screen.dart';
 import '../register/register_screen.dart';
-import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -80,17 +80,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       await TokenStorage.saveAccessToken(tokenResponse.accessToken);
 
-      final user = await AuthApi.getCurrentUser();
-
       if (!mounted) return;
 
-      _showMessage('Welcome back, ${user.fullName}');
+      _showMessage('Signed in successfully.');
 
-      Navigator.of(context).push(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) =>
-              HomeScreen(user: user, onThemeToggle: widget.onThemeToggle),
+          builder: (_) => AuthGate(onThemeToggle: widget.onThemeToggle),
         ),
+        (_) => false,
       );
     } on ApiException catch (error) {
       if (!mounted) return;

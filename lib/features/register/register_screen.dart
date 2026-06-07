@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/auth_api.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
 import '../email_verification/email_verification_screen.dart';
@@ -16,6 +18,7 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController fullNameController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
@@ -27,6 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
   bool acceptTerms = false;
+  bool isLoading = false;
 
   bool get hasStartedTyping => passwordController.text.isNotEmpty;
   bool get hasMinLength => passwordController.text.length >= 8;
@@ -60,6 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     fullNameController.dispose();
+    usernameController.dispose();
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
@@ -78,18 +83,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value);
   }
 
+  bool _isValidUsername(String value) {
+    return RegExp(r'^[A-Za-z0-9_]{3,50}$').hasMatch(value);
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _createAccount() {
+  Future<void> _createAccount() async {
     final fullName = fullNameController.text.trim();
+    final username = usernameController.text.trim();
     final email = emailController.text.trim();
 
     if (fullName.isEmpty) {
       _showMessage('Enter your full name');
+      return;
+    }
+
+    if (username.isEmpty) {
+      _showMessage('Choose a username');
+      return;
+    }
+
+    if (!_isValidUsername(username)) {
+      _showMessage('Username must be 3-50 letters, numbers, or underscores');
       return;
     }
 
@@ -120,14 +140,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => EmailVerificationScreen(
-          onThemeToggle: widget.onThemeToggle,
-          email: email,
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      await AuthApi.register(
+        username: username,
+        email: email,
+        password: passwordController.text,
+        fullName: fullName,
+      );
+
+      if (!mounted) return;
+
+      _showMessage('Account created. Check your email for the code.');
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EmailVerificationScreen(
+            onThemeToggle: widget.onThemeToggle,
+            email: email,
+          ),
         ),
-      ),
-    );
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Could not create account. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -203,6 +252,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           controller: fullNameController,
                           hintText: 'Enter your full name',
                           prefixIcon: Icons.person_outline_rounded,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        SizedBox(height: metrics.fieldGap),
+                        const PlanoraFieldLabel(label: 'Username'),
+                        SizedBox(height: metrics.labelToFieldGap),
+                        PlanoraAuthTextField(
+                          controller: usernameController,
+                          hintText: 'Choose a username',
+                          prefixIcon: Icons.alternate_email_rounded,
                           textInputAction: TextInputAction.next,
                         ),
                         SizedBox(height: metrics.fieldGap),
@@ -331,8 +389,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         SizedBox(height: metrics.sectionGap),
                         PlanoraGradientButton(
                           height: metrics.buttonHeight,
-                          label: 'Create Account',
-                          onPressed: _createAccount,
+                          label: isLoading ? 'Creating...' : 'Create Account',
+                          onPressed: isLoading ? null : _createAccount,
                         ),
                         SizedBox(height: metrics.sectionGap),
                         const PlanoraAuthDivider(),

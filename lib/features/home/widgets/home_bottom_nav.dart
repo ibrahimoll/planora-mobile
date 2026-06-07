@@ -138,7 +138,9 @@ class HomeBottomNav extends StatelessWidget {
                       shape: BoxShape.circle,
                       gradient: PlanoraTheme.primaryGradientFor(context),
                       border: Border.all(
-                        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+                        color: isDark
+                            ? PlanoraTheme.darkSurface
+                            : PlanoraTheme.surface,
                         width: 6,
                       ),
                       boxShadow: [
@@ -193,9 +195,9 @@ class HomeBottomNav extends StatelessWidget {
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeOutCubic,
               style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                    color: color,
-                  ),
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                color: color,
+              ),
               child: Text(
                 item.label,
                 maxLines: 1,
