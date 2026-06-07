@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
+import '../auth/models/project_models.dart';
 import '../tasks/models/task_models.dart';
 import 'data/ai_chat_api.dart';
+import 'data/ai_plan_api.dart';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -15,13 +17,16 @@ class AiChatScreen extends StatefulWidget {
 class _AiChatScreenState extends State<AiChatScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
   final AiChatApi _aiChatApi = const AiChatApi();
+  final AiPlanApi _aiPlanApi = const AiPlanApi();
   final TextEditingController messageController = TextEditingController();
 
   bool isLoadingProjects = true;
   bool isLoadingMessages = false;
   bool isSending = false;
+  bool isGeneratingPlan = false;
   String? errorMessage;
   TaskProjectSummary? selectedProject;
+  List<ProjectModel> projectModels = [];
   List<TaskProjectSummary> projects = [];
   List<AiChatMessageModel> messages = [];
 
@@ -52,6 +57,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
 
       setState(() {
+        projectModels = loadedProjects;
         projects = summaries;
         selectedProject = summaries.isEmpty ? null : summaries.first;
         isLoadingProjects = false;
@@ -64,6 +70,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
 
       setState(() {
+        projectModels = [];
+        projects = [];
+        selectedProject = null;
         errorMessage = 'Could not load projects for AI chat.';
         isLoadingProjects = false;
       });
@@ -105,6 +114,87 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
 
     await loadMessages(project);
+  }
+
+  ProjectModel? get selectedProjectModel {
+    final selected = selectedProject;
+
+    if (selected == null) {
+      return null;
+    }
+
+    for (final project in projectModels) {
+      final sameProject = project.projectId == selected.projectId;
+      final sameTeam = project.teamId == selected.teamId;
+
+      if (sameProject && sameTeam) {
+        return project;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> generatePlanForSelectedProject() async {
+    final project = selectedProjectModel;
+
+    if (project == null || isGeneratingPlan) {
+      return;
+    }
+
+    final typedPrompt = messageController.text.trim();
+    final prompt = typedPrompt.isEmpty
+        ? defaultPlanPrompt(project)
+        : 'Create a project task plan for ${project.title}. Context: $typedPrompt';
+
+    setState(() {
+      isGeneratingPlan = true;
+      errorMessage = null;
+    });
+
+    try {
+      final response = await _aiPlanApi.generatePlan(
+        project: project,
+        prompt: prompt,
+        generateTasks: true,
+        overwriteExistingTasks: false,
+        preferredTaskCount: 8,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        isGeneratingPlan = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI created ${response.tasksCreated} project tasks.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        isGeneratingPlan = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not generate AI tasks. Please try again.'),
+        ),
+      );
+    }
+  }
+
+  String defaultPlanPrompt(ProjectModel project) {
+    final description = project.description?.trim();
+
+    if (description != null && description.isNotEmpty) {
+      return 'Create a practical task plan for ${project.title}. Context: $description';
+    }
+
+    return 'Create a practical task plan for ${project.title}.';
   }
 
   Future<void> sendMessage() async {
@@ -240,6 +330,45 @@ class _AiChatScreenState extends State<AiChatScreen> {
           }).toList(),
         ),
       ),
+    );
+  }
+
+  Widget buildProjectControls(BuildContext context) {
+    if (projects.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Row(
+      children: [
+        Expanded(child: buildProjectPicker(context)),
+        const SizedBox(width: 10),
+        SizedBox(
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed:
+                isLoadingMessages || isGeneratingPlan || selectedProject == null
+                ? null
+                : generatePlanForSelectedProject,
+            icon: isGeneratingPlan
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.auto_awesome_rounded, size: 18),
+            label: const Text('Plan'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -466,7 +595,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       children: [
         buildHeader(context),
         const SizedBox(height: 16),
-        buildProjectPicker(context),
+        buildProjectControls(context),
         const SizedBox(height: 14),
         Expanded(
           child: RefreshIndicator(

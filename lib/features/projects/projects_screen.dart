@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../tasks/data/tasks_api.dart';
+import '../tasks/models/task_models.dart';
 import 'project_detail_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
@@ -15,17 +18,22 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
+  final TasksApi _tasksApi = const TasksApi();
+  final AiPlanApi _aiPlanApi = const AiPlanApi();
 
   int selectedFilterIndex = 0;
   int selectedProjectColorIndex = 0;
 
   bool isLoading = true;
   bool isCreatingProject = false;
+  bool generateTasksWithAi = false;
 
   String? errorMessage;
+  String? taskSummaryWarning;
   DateTime? selectedDeadline;
 
   List<ProjectModel> projects = [];
+  List<TaskListItem> projectTasks = [];
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -47,15 +55,34 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     setState(() {
       isLoading = true;
       errorMessage = null;
+      taskSummaryWarning = null;
     });
 
     try {
       final loadedProjects = await _projectsApi.getProjects();
+      var hadTaskLoadError = false;
+      final taskGroups = await Future.wait(
+        loadedProjects.map((project) async {
+          try {
+            return await _tasksApi.getProjectTasks(
+              project: TaskProjectSummary.fromProject(project),
+            );
+          } catch (_) {
+            hadTaskLoadError = true;
+            return <TaskListItem>[];
+          }
+        }),
+      );
+      final loadedTasks = taskGroups.expand((group) => group).toList();
 
       if (!mounted) return;
 
       setState(() {
         projects = loadedProjects;
+        projectTasks = loadedTasks;
+        taskSummaryWarning = hadTaskLoadError
+            ? 'Some project task summaries could not be loaded.'
+            : null;
         isLoading = false;
       });
     } catch (error) {
@@ -63,6 +90,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
       setState(() {
         errorMessage = 'Could not load projects. Please try again.';
+        taskSummaryWarning = null;
+        projectTasks = [];
         isLoading = false;
       });
     }
@@ -90,6 +119,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   int get completedProjectsCount {
     return projects.where((project) => project.isCompleted).length;
+  }
+
+  List<TaskListItem> tasksForProject(ProjectModel project) {
+    return projectTasks.where((item) {
+      final sameProject = item.project.projectId == project.projectId;
+      final sameTeam = item.project.teamId == project.teamId;
+      return sameProject && sameTeam;
+    }).toList();
+  }
+
+  int completedTasksForProject(ProjectModel project) {
+    return tasksForProject(project)
+        .where((item) => item.task.isCompleted)
+        .length;
   }
 
   Color getStatusColor(BuildContext context, ProjectModel project) {
@@ -127,6 +170,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   double getProjectProgress(ProjectModel project) {
+    final tasks = tasksForProject(project);
+
+    if (tasks.isNotEmpty) {
+      final completed = tasks.where((item) => item.task.isCompleted).length;
+      return completed / tasks.length;
+    }
+
     if (project.isCompleted) {
       return 1;
     }
@@ -149,6 +199,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   String getProjectProgressLabel(ProjectModel project) {
     final progress = getProjectProgress(project);
     return '${(progress * 100).round()}%';
+  }
+
+  String getProjectTaskLabel(ProjectModel project) {
+    final tasks = tasksForProject(project);
+
+    if (tasks.isEmpty) {
+      return 'No tasks yet';
+    }
+
+    final completed = completedTasksForProject(project);
+    return '$completed/${tasks.length} tasks done';
   }
 
   Widget buildProjectsHeader(BuildContext context) {
@@ -493,11 +554,50 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     return Column(
       children: [
+        if (taskSummaryWarning != null) ...[
+          buildTaskSummaryWarning(context),
+          const SizedBox(height: 14),
+        ],
         for (final project in visibleProjects) ...[
           buildProjectCard(context, project),
           const SizedBox(height: 14),
         ],
       ],
+    );
+  }
+
+  Widget buildTaskSummaryWarning(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.14 : 0.10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            color: Color(0xFFF59E0B),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              taskSummaryWarning!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isDark ? Colors.white70 : const Color(0xFF92400E),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -557,12 +657,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final progress = getProjectProgress(project);
 
     return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
             builder: (_) => ProjectDetailScreen(project: project),
           ),
         );
+
+        if (!mounted) {
+          return;
+        }
+
+        loadProjects();
       },
       borderRadius: BorderRadius.circular(24),
       child: Container(
@@ -619,7 +725,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        project.projectTypeLabel,
+                        getProjectTaskLabel(project),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelMedium
@@ -779,6 +885,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     setState(() {
       selectedDeadline = null;
       selectedProjectColorIndex = 0;
+      generateTasksWithAi = false;
       isCreatingProject = false;
     });
 
@@ -953,6 +1060,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       buildCreateFieldLabel(context, 'Project Color'),
                       const SizedBox(height: 12),
                       buildProjectColorSelector(
+                        context,
+                        setSheetState: setSheetState,
+                      ),
+                      const SizedBox(height: 20),
+                      buildCreateFieldLabel(context, 'AI Tasks'),
+                      const SizedBox(height: 8),
+                      buildAiTaskToggleCard(
                         context,
                         setSheetState: setSheetState,
                       ),
@@ -1197,6 +1311,81 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  Widget buildAiTaskToggleCard(
+    BuildContext context, {
+    required StateSetter setSheetState,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              size: 18,
+              color: Color(0xFF7C3AED),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Generate project tasks',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Adds an initial task plan after creation',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: generateTasksWithAi,
+            activeColor: const Color(0xFF7C3AED),
+            onChanged: isCreatingProject
+                ? null
+                : (value) {
+                    setSheetState(() {
+                      generateTasksWithAi = value;
+                    });
+                    setState(() {
+                      generateTasksWithAi = value;
+                    });
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget buildPrivacyCard(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1310,25 +1499,49 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     });
 
     try {
-      await _projectsApi.createProject(
+      final shouldGenerateTasks = generateTasksWithAi;
+      final createdProject = await _projectsApi.createProject(
         ProjectCreateRequest(
           title: title,
           description: description.isEmpty ? null : description,
           deadline: selectedDeadline!,
         ),
       );
+      var generatedTaskCount = 0;
+      var aiGenerationFailed = false;
 
-      if (!mounted || !sheetContext.mounted) {
+      if (shouldGenerateTasks) {
+        try {
+          final aiPlan = await _aiPlanApi.generatePlan(
+            project: createdProject,
+            prompt: description.isEmpty
+                ? 'Create a practical task plan for $title.'
+                : 'Create a practical task plan for $title. Context: $description',
+            generateTasks: true,
+            overwriteExistingTasks: false,
+            preferredTaskCount: 8,
+          );
+
+          generatedTaskCount = aiPlan.tasksCreated;
+        } catch (_) {
+          aiGenerationFailed = true;
+        }
+      }
+
+      if (!mounted) {
         return;
       }
 
-      Navigator.of(sheetContext).pop();
+      if (sheetContext.mounted) {
+        Navigator.of(sheetContext).pop();
+      }
 
       titleController.clear();
       descriptionController.clear();
 
       setState(() {
         selectedDeadline = null;
+        generateTasksWithAi = false;
         isCreatingProject = false;
       });
 
@@ -1338,17 +1551,25 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project created successfully.')),
-      );
+      final snackBarMessage = aiGenerationFailed
+          ? 'Project created, but AI tasks could not be generated.'
+          : shouldGenerateTasks
+          ? 'Project created with $generatedTaskCount AI tasks.'
+          : 'Project created successfully.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      setSheetState(() {
-        isCreatingProject = false;
-      });
+      if (sheetContext.mounted) {
+        setSheetState(() {
+          isCreatingProject = false;
+        });
+      }
 
       setState(() {
         isCreatingProject = false;
