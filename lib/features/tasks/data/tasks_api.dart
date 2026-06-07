@@ -7,6 +7,14 @@ class TasksApi {
 
   const TasksApi([this._projectsApi = const ProjectsApi()]);
 
+  String _tasksPath(TaskProjectSummary project) {
+    if (project.isTeamProject && project.teamId != null) {
+      return '/teams/${project.teamId}/projects/${project.projectId}/tasks';
+    }
+
+    return '/projects/${project.projectId}/tasks';
+  }
+
   Future<TaskBoardData> getTasks({TaskStatus? status}) async {
     final projects = await _projectsApi.getProjects();
     final projectSummaries = projects
@@ -30,7 +38,7 @@ class TasksApi {
     TaskStatus? status,
   }) async {
     final response = await ApiClient.get(
-      '/projects/${project.projectId}/tasks',
+      _tasksPath(project),
       queryParameters: {if (status != null) 'status': status.value},
     );
 
@@ -52,9 +60,7 @@ class TasksApi {
     required TaskProjectSummary project,
     required int taskId,
   }) async {
-    final response = await ApiClient.get(
-      '/projects/${project.projectId}/tasks/$taskId',
-    );
+    final response = await ApiClient.get('${_tasksPath(project)}/$taskId');
 
     return TaskListItem(
       task: TaskModel.fromJson(response as Map<String, dynamic>),
@@ -67,7 +73,7 @@ class TasksApi {
     required TaskProjectSummary project,
   }) async {
     final response = await ApiClient.postJson(
-      '/projects/${request.projectId}/tasks',
+      _tasksPath(project),
       data: request.toJson(),
     );
 
@@ -83,7 +89,7 @@ class TasksApi {
     required TaskUpdateRequest request,
   }) async {
     final response = await ApiClient.patchJson(
-      '/projects/${project.projectId}/tasks/$taskId',
+      '${_tasksPath(project)}/$taskId',
       data: request.toJson(),
     );
 
@@ -102,5 +108,61 @@ class TasksApi {
       taskId: taskId,
       request: const TaskUpdateRequest(status: TaskStatus.completed),
     );
+  }
+
+  Future<void> deleteTask({
+    required TaskProjectSummary project,
+    required int taskId,
+  }) async {
+    await ApiClient.delete('${_tasksPath(project)}/$taskId');
+  }
+
+  Future<List<TaskAttachmentModel>> getTaskAttachments({
+    required TaskProjectSummary project,
+    required int taskId,
+  }) async {
+    final response = await ApiClient.get(
+      '${_tasksPath(project)}/$taskId/attachments',
+    );
+
+    if (response is! List) {
+      return [];
+    }
+
+    return response
+        .map(
+          (item) => TaskAttachmentModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  Future<List<TaskCommentModel>> getTaskComments({
+    required TaskProjectSummary project,
+    required int taskId,
+  }) async {
+    final response = await ApiClient.get(
+      '${_tasksPath(project)}/$taskId/comments',
+    );
+
+    if (response is! List) {
+      return [];
+    }
+
+    return response
+        .map((item) => TaskCommentModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<TaskCommentModel> createTaskComment({
+    required TaskProjectSummary project,
+    required int taskId,
+    required String commentText,
+  }) async {
+    final response = await ApiClient.postJson(
+      '${_tasksPath(project)}/$taskId/comments',
+      data: {'comment_text': commentText},
+    );
+
+    return TaskCommentModel.fromJson(response as Map<String, dynamic>);
   }
 }

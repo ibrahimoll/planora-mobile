@@ -23,16 +23,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+  final TextEditingController commentController = TextEditingController();
 
   late TaskListItem taskItem;
   late TaskPriority editPriority;
   late TaskStatus editStatus;
 
+  int selectedTabIndex = 0;
+
+  List<TaskAttachmentModel> attachments = [];
+  List<TaskCommentModel> comments = [];
+
   bool isRefreshing = false;
   bool isSaving = false;
   bool isCompleting = false;
+  bool isDeleting = false;
+  bool isSendingComment = false;
 
   String? errorMessage;
+  String? attachmentMessage;
+  String? activityMessage;
   DateTime? editDueDate;
 
   @override
@@ -47,6 +57,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   void dispose() {
     titleController.dispose();
     descriptionController.dispose();
+    commentController.dispose();
     super.dispose();
   }
 
@@ -54,34 +65,70 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     setState(() {
       isRefreshing = true;
       errorMessage = null;
+      attachmentMessage = null;
+      activityMessage = null;
     });
 
+    TaskListItem? loadedTask;
+    List<TaskAttachmentModel>? loadedAttachments;
+    List<TaskCommentModel>? loadedComments;
+    String? taskError;
+    String? attachmentsError;
+    String? commentsError;
+
     try {
-      final loadedTask = await _tasksApi.getTask(
+      loadedTask = await _tasksApi.getTask(
         project: taskItem.project,
         taskId: taskItem.task.taskId,
       );
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        taskItem = loadedTask;
-        isRefreshing = false;
-      });
-
-      prepareEditForm();
     } catch (error) {
-      if (!mounted) {
-        return;
+      taskError = 'Could not refresh this task.';
+    }
+
+    final taskForRelatedData = loadedTask ?? taskItem;
+
+    try {
+      loadedAttachments = await _tasksApi.getTaskAttachments(
+        project: taskForRelatedData.project,
+        taskId: taskForRelatedData.task.taskId,
+      );
+    } catch (error) {
+      attachmentsError = 'Attachments will be connected next.';
+    }
+
+    try {
+      loadedComments = await _tasksApi.getTaskComments(
+        project: taskForRelatedData.project,
+        taskId: taskForRelatedData.task.taskId,
+      );
+    } catch (error) {
+      commentsError = 'Activity will be connected next.';
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (loadedTask != null) {
+        taskItem = loadedTask;
       }
 
-      setState(() {
-        errorMessage = 'Could not refresh this task.';
-        isRefreshing = false;
-      });
-    }
+      if (loadedAttachments != null) {
+        attachments = loadedAttachments;
+      }
+
+      if (loadedComments != null) {
+        comments = loadedComments;
+      }
+
+      errorMessage = taskError;
+      attachmentMessage = attachmentsError;
+      activityMessage = commentsError;
+      isRefreshing = false;
+    });
+
+    prepareEditForm();
   }
 
   void prepareEditForm() {
@@ -114,13 +161,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Color statusColor(TaskStatus status) {
     switch (status) {
       case TaskStatus.todo:
-        return PlanoraTheme.info;
+        return PlanoraTheme.textMuted;
       case TaskStatus.inProgress:
         return PlanoraTheme.secondaryPurple;
       case TaskStatus.completed:
         return PlanoraTheme.success;
       case TaskStatus.blocked:
-        return PlanoraTheme.textMuted;
+        return PlanoraTheme.error;
     }
   }
 
@@ -129,43 +176,182 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       case TaskPriority.low:
         return PlanoraTheme.success;
       case TaskPriority.medium:
-        return PlanoraTheme.info;
+        return PlanoraTheme.warning;
       case TaskPriority.high:
-        return PlanoraTheme.secondaryPurple;
+        return PlanoraTheme.error;
     }
   }
 
   Widget buildHeader(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
+    final task = taskItem.task;
 
-    return Row(
-      children: [
-        buildCircleButton(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      decoration: cardDecoration(context, radius: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildCircleButton(
+                context,
+                icon: Icons.arrow_back_rounded,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: isDark
+                            ? PlanoraTheme.darkTextPrimary
+                            : PlanoraTheme.textPrimary,
+                        height: 1.18,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    buildMetadataWrap(context),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              buildCircleButton(
+                context,
+                icon: Icons.info_outline_rounded,
+                onTap: showTaskInfoDialog,
+              ),
+              buildCircleButton(
+                context,
+                icon: Icons.edit_rounded,
+                onTap: showEditTaskSheet,
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'More',
+                onSelected: (value) {
+                  switch (value) {
+                    case 'refresh':
+                      loadTaskDetails();
+                      break;
+                    case 'complete':
+                      if (!taskItem.task.isCompleted) {
+                        markTaskCompleted();
+                      }
+                      break;
+                  }
+                },
+                itemBuilder: (context) {
+                  return [
+                    const PopupMenuItem(
+                      value: 'refresh',
+                      child: Text('Refresh'),
+                    ),
+                    if (!taskItem.task.isCompleted)
+                      const PopupMenuItem(
+                        value: 'complete',
+                        child: Text('Mark completed'),
+                      ),
+                  ];
+                },
+                icon: Icon(
+                  Icons.more_vert_rounded,
+                  color: mutedColor(context),
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          buildTabRow(context),
+        ],
+      ),
+    );
+  }
+
+  Widget buildMetadataWrap(BuildContext context) {
+    final task = taskItem.task;
+    final chips = <Widget>[
+      buildMetadataChip(
+        context,
+        icon: Icons.radio_button_checked_rounded,
+        label: task.status.label,
+        color: statusColor(task.status),
+      ),
+      buildMetadataChip(
+        context,
+        icon: Icons.flag_rounded,
+        label: '${task.priority.label} Priority',
+        color: priorityColor(task.priority),
+      ),
+      buildMetadataChip(
+        context,
+        icon: Icons.calendar_today_rounded,
+        label: task.dueDate == null
+            ? 'No due date'
+            : formatShortDate(task.dueDate!),
+        color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
+      ),
+      buildMetadataChip(
+        context,
+        icon: taskItem.project.isTeamProject
+            ? Icons.groups_2_rounded
+            : Icons.folder_rounded,
+        label: taskItem.project.title,
+        color: mutedColor(context),
+      ),
+    ];
+
+    final sectionName = task.sectionName;
+
+    if (sectionName != null && sectionName.trim().isNotEmpty) {
+      chips.add(
+        buildMetadataChip(
           context,
-          icon: Icons.arrow_back_rounded,
-          onTap: () => Navigator.of(context).pop(),
+          icon: Icons.view_column_outlined,
+          label: sectionName,
+          color: mutedColor(context),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Task Details',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : PlanoraTheme.textPrimary,
+      );
+    }
+
+    return Wrap(spacing: 8, runSpacing: 8, children: chips);
+  }
+
+  Widget buildMetadataChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w800,
+                fontSize: 10.5,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        buildCircleButton(
-          context,
-          icon: Icons.edit_rounded,
-          onTap: showEditTaskSheet,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -178,10 +364,125 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        width: 42,
-        height: 42,
-        decoration: cardDecoration(context, radius: 999),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkSurfaceVariant
+              : PlanoraTheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: PlanoraTheme.isDark(context)
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.border,
+          ),
+        ),
         child: Icon(icon, size: 20, color: mutedColor(context)),
+      ),
+    );
+  }
+
+  Widget buildTabRow(BuildContext context) {
+    final labels = ['Overview', 'Subtasks', 'Attachments', 'Activity'];
+
+    return Row(
+      children: [
+        for (var index = 0; index < labels.length; index++)
+          Expanded(
+            child: buildTabButton(
+              context,
+              label: labels[index],
+              index: index,
+              count: tabCountFor(index),
+            ),
+          ),
+      ],
+    );
+  }
+
+  int tabCountFor(int index) {
+    switch (index) {
+      case 1:
+        return taskItem.task.subtasks.length;
+      case 2:
+        return attachments.length;
+      case 3:
+        return comments.length;
+      default:
+        return 0;
+    }
+  }
+
+  Widget buildTabButton(
+    BuildContext context, {
+    required String label,
+    required int index,
+    required int count,
+  }) {
+    final isSelected = selectedTabIndex == index;
+    final selectedColor = PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkPrimary
+        : PlanoraTheme.primaryPurple;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          selectedTabIndex = index;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? selectedColor : Colors.transparent,
+              width: 2.4,
+            ),
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isSelected ? selectedColor : mutedColor(context),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selectedColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    count.toString(),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: selectedColor,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 9,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -218,111 +519,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
-  Widget buildHeroCard(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final task = taskItem.task;
-    final taskStatusColor = statusColor(task.status);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: cardDecoration(context, radius: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: task.isCompleted
-                      ? null
-                      : PlanoraTheme.primaryGradientFor(context),
-                  color: task.isCompleted ? PlanoraTheme.success : null,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(
-                  task.isCompleted
-                      ? Icons.check_rounded
-                      : Icons.check_box_outline_blank_rounded,
-                  color: Colors.white,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          taskItem.project.isTeamProject
-                              ? Icons.groups_2_rounded
-                              : Icons.folder_rounded,
-                          size: 15,
-                          color: mutedColor(context),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            taskItem.project.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: mutedColor(context),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              buildBadge(
-                context,
-                label: task.status.label,
-                color: taskStatusColor,
-              ),
-              buildBadge(
-                context,
-                label: task.priority.label,
-                color: priorityColor(task.priority),
-              ),
-              if (task.isOverdue)
-                buildBadge(
-                  context,
-                  label: 'Overdue',
-                  color: PlanoraTheme.error,
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget buildBadge(
     BuildContext context, {
     required String label,
@@ -346,59 +542,131 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  Widget buildOverviewTab(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        buildDescriptionCard(context),
+        const SizedBox(height: 14),
+        buildInfoGrid(context),
+        const SizedBox(height: 14),
+        buildAssigneeCard(context),
+        buildTagsSection(context),
+        buildFollowersSection(context),
+      ],
+    );
+  }
+
   Widget buildInfoGrid(BuildContext context) {
     final task = taskItem.task;
+    final rows = <Widget>[];
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: buildInfoCard(
-                context,
-                icon: Icons.calendar_today_outlined,
-                label: 'Due Date',
-                value: task.dueDateLabel,
-                color: task.isOverdue ? PlanoraTheme.error : PlanoraTheme.info,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: buildInfoCard(
-                context,
-                icon: Icons.flag_rounded,
-                label: 'Priority',
-                value: task.priority.label,
-                color: priorityColor(task.priority),
-              ),
-            ),
-          ],
+    void addRow({
+      required IconData icon,
+      required String label,
+      required String value,
+      required Color color,
+    }) {
+      if (rows.isNotEmpty) {
+        rows.add(
+          Divider(
+            height: 1,
+            color: PlanoraTheme.isDark(context)
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.border,
+          ),
+        );
+      }
+
+      rows.add(
+        buildInfoCard(
+          context,
+          icon: icon,
+          label: label,
+          value: value,
+          color: color,
         ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: buildInfoCard(
-                context,
-                icon: Icons.track_changes_rounded,
-                label: 'Status',
-                value: task.status.label,
-                color: statusColor(task.status),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: buildInfoCard(
-                context,
-                icon: Icons.task_alt_rounded,
-                label: 'Completed',
-                value: task.completedDateLabel,
-                color: PlanoraTheme.success,
-              ),
-            ),
-          ],
-        ),
-      ],
+      );
+    }
+
+    addRow(
+      icon: Icons.radio_button_checked_rounded,
+      label: 'Status',
+      value: task.status.label,
+      color: statusColor(task.status),
+    );
+    addRow(
+      icon: Icons.flag_rounded,
+      label: 'Priority',
+      value: task.priority.label,
+      color: priorityColor(task.priority),
+    );
+    addRow(
+      icon: Icons.folder_rounded,
+      label: 'Project',
+      value: taskItem.project.title,
+      color: PlanoraTheme.secondaryPurple,
+    );
+
+    final sectionName = task.sectionName;
+
+    if (sectionName != null && sectionName.trim().isNotEmpty) {
+      addRow(
+        icon: Icons.view_column_outlined,
+        label: 'Section',
+        value: sectionName,
+        color: PlanoraTheme.info,
+      );
+    }
+
+    addRow(
+      icon: Icons.calendar_today_rounded,
+      label: 'Due Date',
+      value: task.dueDate == null
+          ? 'No due date'
+          : formatShortDate(task.dueDate!),
+      color: task.isOverdue ? PlanoraTheme.error : PlanoraTheme.info,
+    );
+
+    if (task.startDate != null) {
+      addRow(
+        icon: Icons.event_available_rounded,
+        label: 'Start Date',
+        value: formatShortDate(task.startDate!),
+        color: PlanoraTheme.success,
+      );
+    }
+
+    if (task.estimatedHours != null) {
+      addRow(
+        icon: Icons.schedule_rounded,
+        label: 'Time Estimate',
+        value: formatHoursLabel(task.estimatedHours!),
+        color: PlanoraTheme.warning,
+      );
+    }
+
+    if (task.actualHours != null) {
+      addRow(
+        icon: Icons.timer_outlined,
+        label: 'Time Tracked',
+        value: formatHoursLabel(task.actualHours!),
+        color: PlanoraTheme.secondaryPurple,
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(context, radius: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildSectionTitle(context, 'Details'),
+          const SizedBox(height: 8),
+          ...rows,
+        ],
+      ),
     );
   }
 
@@ -411,51 +679,90 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }) {
     final isDark = PlanoraTheme.isDark(context);
 
-    return Container(
-      height: 94,
-      padding: const EdgeInsets.all(12),
-      decoration: cardDecoration(context, radius: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackValue = constraints.maxWidth < 320;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            crossAxisAlignment: stackValue
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
             children: [
               Container(
-                width: 30,
-                height: 30,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: isDark ? 0.20 : 0.12),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: color, size: 17),
+                child: Icon(icon, color: color, size: 18),
               ),
-              const Spacer(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: stackValue
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: mutedColor(context),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            value,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: isDark
+                                      ? PlanoraTheme.darkTextPrimary
+                                      : PlanoraTheme.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: mutedColor(context),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: isDark
+                                        ? PlanoraTheme.darkTextPrimary
+                                        : PlanoraTheme.textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ],
           ),
-          const Spacer(),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : PlanoraTheme.textPrimary,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -482,7 +789,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            hasDescription ? description : 'No description added.',
+            hasDescription ? description : 'No description yet.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: hasDescription
                   ? isDark
@@ -491,6 +798,696 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   : mutedColor(context),
               fontWeight: FontWeight.w600,
               height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildAssigneeCard(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final assignee = taskItem.task.assigneePreview;
+    final title =
+        assignee?.displayLabel ??
+        (taskItem.project.isTeamProject ? 'Unassigned' : 'No assignee');
+    final email = assignee?.email;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(context, radius: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildSectionTitle(context, 'Assignee'),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              buildMemberAvatar(context, assignee, size: 42),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: isDark
+                            ? PlanoraTheme.darkTextPrimary
+                            : PlanoraTheme.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (email != null && email.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildTagsSection(BuildContext context) {
+    final tags = taskItem.task.tags;
+
+    if (tags.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: cardDecoration(context, radius: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildSectionTitle(context, 'Tags'),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in tags)
+                  buildBadge(
+                    context,
+                    label: tag,
+                    color: PlanoraTheme.secondaryPurple,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildFollowersSection(BuildContext context) {
+    final followers = taskItem.task.followers;
+
+    if (followers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final visibleFollowers = followers.take(5).toList();
+    final overflowCount = followers.length - visibleFollowers.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: cardDecoration(context, radius: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildSectionTitle(context, 'Followers'),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 34,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (var index = 0; index < visibleFollowers.length; index++)
+                    Positioned(
+                      left: index * 24,
+                      child: buildMemberAvatar(
+                        context,
+                        visibleFollowers[index],
+                        size: 34,
+                      ),
+                    ),
+                  if (overflowCount > 0)
+                    Positioned(
+                      left: visibleFollowers.length * 24,
+                      child: buildCountAvatar(context, overflowCount),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildMemberAvatar(
+    BuildContext context,
+    TaskMemberPreview? member, {
+    required double size,
+  }) {
+    final avatarUrl = member?.avatarUrl;
+    final hasAvatar = avatarUrl != null && avatarUrl.trim().isNotEmpty;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkBorder
+              : PlanoraTheme.surface,
+          width: 2,
+        ),
+      ),
+      child: CircleAvatar(
+        radius: size / 2,
+        backgroundColor: PlanoraTheme.secondaryPurple.withValues(alpha: 0.14),
+        backgroundImage: hasAvatar ? NetworkImage(avatarUrl) : null,
+        child: hasAvatar
+            ? null
+            : Text(
+                member?.initials ?? '?',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: PlanoraTheme.secondaryPurple,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget buildCountAvatar(BuildContext context, int count) {
+    return Container(
+      width: 34,
+      height: 34,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: PlanoraTheme.secondaryPurple.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkBorder
+              : PlanoraTheme.surface,
+          width: 2,
+        ),
+      ),
+      child: Text(
+        '+$count',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: PlanoraTheme.secondaryPurple,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget buildSectionTitle(BuildContext context, String title) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w900,
+        color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+      ),
+    );
+  }
+
+  String formatHoursLabel(double hours) {
+    final totalMinutes = (hours * 60).round();
+    final wholeHours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+
+    if (wholeHours == 0 && minutes == 0) {
+      return '0m';
+    }
+
+    if (minutes == 0) {
+      return '${wholeHours}h';
+    }
+
+    if (wholeHours == 0) {
+      return '${minutes}m';
+    }
+
+    return '${wholeHours}h ${minutes}m';
+  }
+
+  Widget buildSubtasksTab(BuildContext context) {
+    final subtasks = taskItem.task.subtasks;
+
+    if (subtasks.isEmpty) {
+      return buildEmptyStateCard(
+        context,
+        icon: Icons.checklist_rounded,
+        message: 'Subtasks will be connected next.',
+        trailing: buildDisabledAddRow(
+          context,
+          icon: Icons.add_rounded,
+          label: 'Add subtask',
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: cardDecoration(context, radius: 20),
+      child: Column(
+        children: [
+          for (var index = 0; index < subtasks.length; index++) ...[
+            buildSubtaskRow(context, subtasks[index]),
+            if (index != subtasks.length - 1)
+              Divider(
+                height: 1,
+                color: PlanoraTheme.isDark(context)
+                    ? PlanoraTheme.darkBorder
+                    : PlanoraTheme.border,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget buildSubtaskRow(BuildContext context, TaskSubtaskPreview subtask) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: subtask.isCompleted
+                  ? PlanoraTheme.success
+                  : Colors.transparent,
+              border: Border.all(
+                color: subtask.isCompleted
+                    ? PlanoraTheme.success
+                    : PlanoraTheme.secondaryPurple,
+                width: 1.6,
+              ),
+            ),
+            child: subtask.isCompleted
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 15)
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              subtask.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          buildBadge(
+            context,
+            label: subtask.status.label,
+            color: statusColor(subtask.status),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildAttachmentsTab(BuildContext context) {
+    if (attachmentMessage != null) {
+      return buildEmptyStateCard(
+        context,
+        icon: Icons.attach_file_rounded,
+        message: attachmentMessage!,
+        trailing: buildUploadCard(context, enabled: false),
+      );
+    }
+
+    if (attachments.isEmpty) {
+      return buildEmptyStateCard(
+        context,
+        icon: Icons.attach_file_rounded,
+        message: 'No attachments yet.',
+        trailing: buildUploadCard(context, enabled: false),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 10) / 2;
+
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final attachment in attachments)
+              SizedBox(
+                width: itemWidth,
+                child: buildAttachmentCard(context, attachment),
+              ),
+            SizedBox(width: itemWidth, child: buildUploadCard(context)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget buildAttachmentCard(
+    BuildContext context,
+    TaskAttachmentModel attachment,
+  ) {
+    final isDark = PlanoraTheme.isDark(context);
+    final subtitle = attachment.sizeLabel ?? attachment.fileType ?? 'File';
+
+    return Container(
+      height: 148,
+      padding: const EdgeInsets.all(12),
+      decoration: cardDecoration(context, radius: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 64,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: attachment.isImage
+                  ? PlanoraTheme.secondaryPurple.withValues(alpha: 0.12)
+                  : PlanoraTheme.warning.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              attachment.isImage
+                  ? Icons.image_outlined
+                  : Icons.insert_drive_file_outlined,
+              color: attachment.isImage
+                  ? PlanoraTheme.secondaryPurple
+                  : PlanoraTheme.warning,
+              size: 28,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            attachment.fileName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildUploadCard(BuildContext context, {bool enabled = false}) {
+    final isDark = PlanoraTheme.isDark(context);
+    final color = enabled ? PlanoraTheme.secondaryPurple : mutedColor(context);
+
+    return InkWell(
+      onTap: null,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 148,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: enabled
+                ? PlanoraTheme.secondaryPurple.withValues(alpha: 0.36)
+                : isDark
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.border,
+            style: BorderStyle.solid,
+          ),
+          boxShadow: PlanoraTheme.cardShadowFor(context),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_upload_outlined, color: color, size: 30),
+            const SizedBox(height: 10),
+            Text(
+              enabled ? 'Upload File' : 'Upload will be connected next.',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildActivityTab(BuildContext context) {
+    final children = <Widget>[];
+
+    if (activityMessage != null) {
+      children.add(
+        buildEmptyStateContent(
+          context,
+          icon: Icons.forum_outlined,
+          message: activityMessage!,
+        ),
+      );
+    } else if (comments.isEmpty) {
+      children.add(
+        buildEmptyStateContent(
+          context,
+          icon: Icons.forum_outlined,
+          message: 'No activity yet.',
+        ),
+      );
+    } else {
+      for (final comment in comments) {
+        children.add(buildCommentRow(context, comment));
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(context, radius: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildCommentInput(context),
+          const SizedBox(height: 16),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget buildCommentInput(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final isConnected = activityMessage == null;
+
+    return Row(
+      children: [
+        buildMemberAvatar(context, taskItem.task.assigneePreview, size: 34),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextField(
+            controller: commentController,
+            enabled: isConnected && !isSendingComment,
+            minLines: 1,
+            maxLines: 3,
+            textInputAction: TextInputAction.send,
+            onSubmitted: (_) => sendComment(),
+            style: TextStyle(
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Add a comment...',
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              suffixIcon: IconButton(
+                onPressed: isConnected && !isSendingComment
+                    ? sendComment
+                    : null,
+                icon: isSendingComment
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildCommentRow(BuildContext context, TaskCommentModel comment) {
+    final isDark = PlanoraTheme.isDark(context);
+    final author = comment.authorPreview;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildMemberAvatar(context, author, size: 34),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        author.displayLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? PlanoraTheme.darkTextPrimary
+                              : PlanoraTheme.textPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      formatShortDate(comment.createdAt),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  comment.commentText,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? PlanoraTheme.darkTextSecondary
+                        : PlanoraTheme.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildEmptyStateCard(
+    BuildContext context, {
+    required IconData icon,
+    required String message,
+    Widget? trailing,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(context, radius: 20),
+      child: Column(
+        children: [
+          buildEmptyStateContent(context, icon: icon, message: message),
+          if (trailing != null) ...[const SizedBox(height: 14), trailing],
+        ],
+      ),
+    );
+  }
+
+  Widget buildEmptyStateContent(
+    BuildContext context, {
+    required IconData icon,
+    required String message,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: PlanoraTheme.secondaryPurple.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(icon, color: PlanoraTheme.secondaryPurple),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: mutedColor(context),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildDisabledAddRow(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.secondaryPurple.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: PlanoraTheme.secondaryPurple, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: PlanoraTheme.secondaryPurple,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
@@ -528,9 +1525,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           width: double.infinity,
           height: 56,
           child: OutlinedButton.icon(
-            onPressed: showEditTaskSheet,
+            onPressed: isDeleting ? null : showEditTaskSheet,
             icon: const Icon(Icons.edit_rounded),
             label: const Text('Edit Task'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: OutlinedButton.icon(
+            onPressed: isDeleting ? null : confirmDeleteTask,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: PlanoraTheme.error,
+              side: BorderSide(
+                color: PlanoraTheme.error.withValues(alpha: 0.45),
+                width: 1.2,
+              ),
+            ),
+            icon: isDeleting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_outline_rounded),
+            label: const Text('Delete Task'),
           ),
         ),
       ],
@@ -576,6 +1596,163 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         const SnackBar(content: Text('Could not complete task. Try again.')),
       );
     }
+  }
+
+  Future<void> sendComment() async {
+    final commentText = commentController.text.trim();
+
+    if (commentText.isEmpty || activityMessage != null) {
+      return;
+    }
+
+    setState(() {
+      isSendingComment = true;
+    });
+
+    try {
+      final createdComment = await _tasksApi.createTaskComment(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        commentText: commentText,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        comments = [...comments, createdComment];
+        isSendingComment = false;
+      });
+
+      commentController.clear();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isSendingComment = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not add comment. Try again.')),
+      );
+    }
+  }
+
+  Future<void> confirmDeleteTask() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete task?'),
+          content: const Text(
+            'This task will be permanently deleted. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: PlanoraTheme.error),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await deleteTask();
+    }
+  }
+
+  Future<void> deleteTask() async {
+    setState(() {
+      isDeleting = true;
+    });
+
+    try {
+      await _tasksApi.deleteTask(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      widget.onTaskChanged?.call();
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Task deleted successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isDeleting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete task. Try again.')),
+      );
+    }
+  }
+
+  Future<void> showTaskInfoDialog() async {
+    final task = taskItem.task;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Task Info'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildDialogInfoRow('Created', formatShortDate(task.createdAt)),
+              buildDialogInfoRow('Completed', task.completedDateLabel),
+              buildDialogInfoRow('Project', taskItem.project.title),
+              if (task.sectionName != null)
+                buildDialogInfoRow('Section', task.sectionName!),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget buildDialogInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 86,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 
   Future<void> showEditTaskSheet() async {
@@ -1111,18 +2288,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               const LinearProgressIndicator(minHeight: 3)
             else
               const SizedBox(height: 3),
-            const SizedBox(height: 16),
-            buildHeroCard(context),
             const SizedBox(height: 14),
-            buildInfoGrid(context),
-            const SizedBox(height: 14),
-            buildDescriptionCard(context),
+            buildSelectedTabContent(context),
             const SizedBox(height: 18),
             buildActions(context),
           ],
         ),
       ),
     );
+  }
+
+  Widget buildSelectedTabContent(BuildContext context) {
+    switch (selectedTabIndex) {
+      case 1:
+        return buildSubtasksTab(context);
+      case 2:
+        return buildAttachmentsTab(context);
+      case 3:
+        return buildActivityTab(context);
+      default:
+        return buildOverviewTab(context);
+    }
   }
 
   @override
