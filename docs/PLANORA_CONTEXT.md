@@ -1,6 +1,6 @@
 # Planora Mobile Context
 
-Last updated: 2026-06-01
+Last updated: 2026-06-07
 
 ## Repository
 
@@ -198,6 +198,28 @@ If dark images do not show, check:
 4. The emulator/app was fully restarted if hot reload does not pick up assets.
 
 ## Recent Mobile Work Completed
+
+Completed in the latest full mobile QA pass:
+
+- Added `docs/MOBILE_QA_REPORT.md` with setup, routing, API, UI/state, testing, and remaining-gap notes.
+- Registration now calls the real backend `/auth/register` endpoint and collects the required `username`.
+- Email verification now calls `/auth/verify-email`, and resend calls `/auth/resend-verification-code`.
+- Login now saves the token and returns through `AuthGate`, so current-user loading and logout are owned by the auth state.
+- `ProjectsApi` now loads personal projects plus team projects from `/teams` and `/teams/{team_id}/projects`.
+- Project cards now open a real project detail screen with overview, schedule, progress, and team project members.
+- Added reachable AI chat, notifications, profile, edit profile, change password, and settings surfaces while keeping the light purple Planora style.
+- Home avatar opens profile/settings, the notification bell opens notifications, and the center AI tab opens project-scoped AI chat.
+- Added `test/widget_test.dart` for app startup and Tasks tab behavior.
+- Verification completed:
+  - `flutter pub get`
+  - `dart format .`
+  - `flutter analyze`
+  - `flutter test`
+- Remaining known gaps:
+  - Team creation/invite flows are not implemented on mobile yet.
+  - Project-member API responses expose IDs/roles but not names/emails, so mobile displays `User #id`.
+  - Search, calendar, reports, social login, profile-picture upload, attachment upload, and persistent theme preference still need future passes.
+  - Reset-password deep links still need platform-level app-link verification on device.
 
 Completed in the latest auth UI/UX review pass:
 
