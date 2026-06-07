@@ -201,6 +201,8 @@ If dark images do not show, check:
 
 Completed in the latest full mobile QA pass:
 
+- Home dashboard was corrected after the QA pass so Project Overview, My Projects, and Upcoming Tasks are all derived from backend project/task data instead of sample UI data.
+- Home project progress uses real task completion for that project when tasks exist, with project status as a fallback.
 - Added `docs/MOBILE_QA_REPORT.md` with setup, routing, API, UI/state, testing, and remaining-gap notes.
 - Registration now calls the real backend `/auth/register` endpoint and collects the required `username`.
 - Email verification now calls `/auth/verify-email`, and resend calls `/auth/resend-verification-code`.

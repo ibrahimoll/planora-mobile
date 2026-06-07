@@ -3,6 +3,7 @@ import 'package:mobile/features/ai/ai_chat_screen.dart';
 import 'package:mobile/features/notifications/data/notifications_api.dart';
 import 'package:mobile/features/notifications/notifications_screen.dart';
 import 'package:mobile/features/profile/profile_screen.dart';
+import 'package:mobile/features/projects/project_detail_screen.dart';
 import 'package:mobile/features/projects/projects_screen.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
@@ -10,7 +11,9 @@ import 'package:mobile/features/tasks/task_detail_screen.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
 
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/project_api.dart';
 import '../auth/models/auth_models.dart';
+import '../auth/models/project_models.dart';
 import 'widgets/home_bottom_nav.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -32,6 +35,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final ProjectsApi _projectsApi = const ProjectsApi();
   final TasksApi _tasksApi = const TasksApi();
   final NotificationsApi _notificationsApi = const NotificationsApi();
 
@@ -39,17 +43,19 @@ class _HomeScreenState extends State<HomeScreen> {
   int taskCreateRequestId = 0;
 
   bool hasUnreadNotifications = false;
-  bool isLoadingUpcomingTasks = true;
+  bool isLoadingDashboard = true;
   bool shouldOpenTaskCreateOnStart = false;
 
-  String? upcomingTasksError;
+  String? dashboardError;
 
+  List<ProjectModel> dashboardProjects = [];
+  List<TaskListItem> dashboardTasks = [];
   List<TaskListItem> upcomingTasks = [];
 
   @override
   void initState() {
     super.initState();
-    loadUpcomingTasks();
+    loadDashboardData();
     loadUnreadNotificationCount();
   }
 
@@ -85,16 +91,26 @@ class _HomeScreenState extends State<HomeScreen> {
     return source[0].toUpperCase();
   }
 
-  Future<void> loadUpcomingTasks() async {
+  Future<void> loadDashboardData() async {
     setState(() {
-      isLoadingUpcomingTasks = true;
-      upcomingTasksError = null;
+      isLoadingDashboard = true;
+      dashboardError = null;
     });
 
     try {
-      final data = await _tasksApi.getTasks();
+      final loadedProjects = await _projectsApi.getProjects();
+      final projectSummaries = loadedProjects
+          .map(TaskProjectSummary.fromProject)
+          .toList();
+      final taskGroups = await Future.wait(
+        projectSummaries.map(
+          (project) => _tasksApi.getProjectTasks(project: project),
+        ),
+      );
+      final loadedTasks = taskGroups.expand((group) => group).toList()
+        ..sort(compareTaskItemsByDueDate);
       final nextTasks =
-          data.tasks.where((item) => !item.task.isCompleted).toList()
+          loadedTasks.where((item) => !item.task.isCompleted).toList()
             ..sort(compareUpcomingTaskItems);
 
       if (!mounted) {
@@ -102,8 +118,10 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       setState(() {
+        dashboardProjects = loadedProjects;
+        dashboardTasks = loadedTasks;
         upcomingTasks = nextTasks.take(3).toList();
-        isLoadingUpcomingTasks = false;
+        isLoadingDashboard = false;
       });
     } catch (error) {
       if (!mounted) {
@@ -111,8 +129,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       setState(() {
-        upcomingTasksError = 'Could not load upcoming tasks.';
-        isLoadingUpcomingTasks = false;
+        dashboardError = 'Could not load dashboard data. Please try again.';
+        isLoadingDashboard = false;
       });
     }
   }
@@ -166,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute<void>(
         builder: (context) => TaskDetailScreen(
           initialTask: item,
-          onTaskChanged: loadUpcomingTasks,
+          onTaskChanged: loadDashboardData,
         ),
       ),
     );
@@ -370,8 +388,81 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  int get activeProjectCount {
+    return dashboardProjects.where((project) => project.isActive).length;
+  }
+
+  int get completedProjectCount {
+    return dashboardProjects.where((project) => project.isCompleted).length;
+  }
+
+  int get overdueProjectCount {
+    return dashboardProjects
+        .where((project) => !project.isCompleted && project.daysLeft < 0)
+        .length;
+  }
+
+  int get completedTaskCount {
+    return dashboardTasks.where((item) => item.task.isCompleted).length;
+  }
+
+  int get overdueTaskCount {
+    return dashboardTasks.where((item) => item.task.isOverdue).length;
+  }
+
+  int get blockedTaskCount {
+    return dashboardTasks.where((item) => item.task.isBlocked).length;
+  }
+
+  int get atRiskCount {
+    return overdueProjectCount + overdueTaskCount + blockedTaskCount;
+  }
+
+  double get dashboardProgress {
+    if (dashboardTasks.isNotEmpty) {
+      return completedTaskCount / dashboardTasks.length;
+    }
+
+    if (dashboardProjects.isNotEmpty) {
+      return completedProjectCount / dashboardProjects.length;
+    }
+
+    return 0;
+  }
+
+  String get dashboardProgressLabel {
+    if (dashboardTasks.isNotEmpty) {
+      return 'Tasks Done';
+    }
+
+    if (dashboardProjects.isNotEmpty) {
+      return 'Projects Done';
+    }
+
+    return 'No Data';
+  }
+
   Widget buildProjectOverview(BuildContext context) {
-    final progress = 0.72;
+    if (isLoadingDashboard) {
+      return buildUpcomingStateCard(
+        context,
+        icon: Icons.sync_rounded,
+        title: 'Loading dashboard from backend...',
+        showSpinner: true,
+      );
+    }
+
+    if (dashboardError != null) {
+      return buildUpcomingStateCard(
+        context,
+        icon: Icons.wifi_off_rounded,
+        title: dashboardError!,
+        actionText: 'Try Again',
+        onAction: loadDashboardData,
+      );
+    }
+
+    final progress = dashboardProgress;
     final isDark = PlanoraTheme.isDark(context);
 
     return Container(
@@ -455,7 +546,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         Text(
-                          'On Track',
+                          dashboardProgressLabel,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
@@ -473,23 +564,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     buildLegendRow(
                       context,
-                      'On Track',
-                      '12',
+                      'Projects',
+                      dashboardProjects.length.toString(),
                       Theme.of(context).colorScheme.primary,
                     ),
                     buildLegendRow(
                       context,
-                      'In Progress',
-                      '6',
+                      'Active',
+                      activeProjectCount.toString(),
                       Colors.blueAccent,
                     ),
                     buildLegendRow(
                       context,
                       'At Risk',
-                      '3',
-                      Colors.orangeAccent,
+                      atRiskCount.toString(),
+                      atRiskCount > 0
+                          ? PlanoraTheme.error
+                          : PlanoraTheme.warning,
                     ),
-                    buildLegendRow(context, 'Completed', '24', Colors.green),
+                    buildLegendRow(
+                      context,
+                      'Completed Tasks',
+                      completedTaskCount.toString(),
+                      PlanoraTheme.success,
+                    ),
                   ],
                 ),
               ),
@@ -697,6 +795,41 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget buildProjects(BuildContext context) {
+    if (isLoadingDashboard) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildSectionTitle(context, 'My Projects'),
+          const SizedBox(height: 10),
+          buildUpcomingStateCard(
+            context,
+            icon: Icons.sync_rounded,
+            title: 'Loading projects...',
+            showSpinner: true,
+          ),
+        ],
+      );
+    }
+
+    if (dashboardError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildSectionTitle(context, 'My Projects'),
+          const SizedBox(height: 10),
+          buildUpcomingStateCard(
+            context,
+            icon: Icons.wifi_off_rounded,
+            title: 'Could not load projects.',
+            actionText: 'Try Again',
+            onAction: loadDashboardData,
+          ),
+        ],
+      );
+    }
+
+    final visibleProjects = dashboardProjects.take(3).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -707,100 +840,197 @@ class _HomeScreenState extends State<HomeScreen> {
           onAction: openProjectsTab,
         ),
         const SizedBox(height: 10),
-        buildProjectTile(
-          context,
-          Icons.public_rounded,
-          'Website Redesign',
-          0.75,
-          '75%',
-          Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(height: 10),
-        buildProjectTile(
-          context,
-          Icons.phone_iphone_rounded,
-          'Mobile App Development',
-          0.60,
-          '60%',
-          Colors.blueAccent,
-        ),
-        const SizedBox(height: 10),
-        buildProjectTile(
-          context,
-          Icons.rocket_launch_rounded,
-          'Marketing Campaign',
-          0.30,
-          '30%',
-          Colors.green,
-        ),
+        if (visibleProjects.isEmpty)
+          buildUpcomingStateCard(
+            context,
+            icon: Icons.folder_open_rounded,
+            title: 'No projects yet',
+            actionText: 'New Project',
+            onAction: openProjectsTab,
+          )
+        else
+          for (final project in visibleProjects) ...[
+            buildProjectTile(context, project),
+            if (project != visibleProjects.last) const SizedBox(height: 10),
+          ],
       ],
     );
   }
 
-  Widget buildProjectTile(
-    BuildContext context,
-    IconData icon,
-    String title,
-    double progress,
-    String percentage,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: cardDecoration(context),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [color, color.withValues(alpha: 0.68)],
-              ),
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.24),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
+  Future<void> openProjectDetail(ProjectModel project) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => ProjectDetailScreen(project: project),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    loadDashboardData();
+  }
+
+  List<TaskListItem> tasksForProject(ProjectModel project) {
+    return dashboardTasks.where((item) {
+      final sameProject = item.project.projectId == project.projectId;
+      final sameTeam = item.project.teamId == project.teamId;
+      return sameProject && sameTeam;
+    }).toList();
+  }
+
+  double projectProgress(ProjectModel project) {
+    final projectTasks = tasksForProject(project);
+
+    if (projectTasks.isNotEmpty) {
+      final completed = projectTasks
+          .where((item) => item.task.isCompleted)
+          .length;
+      return completed / projectTasks.length;
+    }
+
+    if (project.isCompleted) return 1;
+    if (project.status == 'in_progress') return 0.55;
+    if (project.status == 'on_hold') return 0.35;
+    if (project.status == 'cancelled') return 0;
+    return 0.12;
+  }
+
+  Color projectAccentColor(ProjectModel project) {
+    if (!project.isCompleted && project.daysLeft < 0) {
+      return PlanoraTheme.error;
+    }
+
+    switch (project.status) {
+      case 'completed':
+        return PlanoraTheme.primaryPurple;
+      case 'in_progress':
+        return PlanoraTheme.success;
+      case 'on_hold':
+        return PlanoraTheme.warning;
+      case 'cancelled':
+        return PlanoraTheme.error;
+      case 'not_started':
+        return PlanoraTheme.info;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
+  }
+
+  Widget buildProjectTile(BuildContext context, ProjectModel project) {
+    final color = projectAccentColor(project);
+    final progress = projectProgress(project);
+    final projectTasks = tasksForProject(project);
+
+    return InkWell(
+      onTap: () => openProjectDetail(project),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: cardDecoration(context),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [color, color.withValues(alpha: 0.68)],
                 ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(99),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 5,
-                    color: color,
-                    backgroundColor: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.24),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
                   ),
-                ),
-              ],
+                ],
+              ),
+              child: Icon(
+                project.isTeamProject
+                    ? Icons.groups_2_rounded
+                    : Icons.folder_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Text(percentage, style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(width: 6),
-          Icon(Icons.more_horiz_rounded, color: mutedColor(context)),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 12,
+                        color: project.daysLeft < 0 && !project.isCompleted
+                            ? PlanoraTheme.error
+                            : mutedColor(context),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          project.deadlineLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color:
+                                    project.daysLeft < 0 && !project.isCompleted
+                                    ? PlanoraTheme.error
+                                    : mutedColor(context),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        projectTasks.isEmpty
+                            ? project.statusLabel
+                            : '${projectTasks.length} tasks',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 5,
+                      color: color,
+                      backgroundColor: color.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '${(progress * 100).round()}%',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
+          ],
+        ),
       ),
     );
   }
@@ -816,20 +1046,20 @@ class _HomeScreenState extends State<HomeScreen> {
           onAction: openTasksTab,
         ),
         const SizedBox(height: 10),
-        if (isLoadingUpcomingTasks)
+        if (isLoadingDashboard)
           buildUpcomingStateCard(
             context,
             icon: Icons.sync_rounded,
             title: 'Loading upcoming tasks...',
             showSpinner: true,
           )
-        else if (upcomingTasksError != null)
+        else if (dashboardError != null)
           buildUpcomingStateCard(
             context,
             icon: Icons.wifi_off_rounded,
-            title: upcomingTasksError!,
+            title: 'Could not load upcoming tasks.',
             actionText: 'Try Again',
-            onAction: loadUpcomingTasks,
+            onAction: loadDashboardData,
           )
         else if (upcomingTasks.isEmpty)
           buildUpcomingStateCard(
@@ -1091,6 +1321,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {
               selectedIndex = 0;
             });
+            loadDashboardData();
           },
         );
 
@@ -1113,13 +1344,14 @@ class _HomeScreenState extends State<HomeScreen> {
               shouldOpenTaskCreateOnStart = false;
             });
           },
-          onTasksChanged: loadUpcomingTasks,
+          onTasksChanged: loadDashboardData,
           onBack: () {
             setState(() {
               selectedIndex = 0;
               taskCreateRequestId = 0;
               shouldOpenTaskCreateOnStart = false;
             });
+            loadDashboardData();
           },
         );
 
@@ -1150,6 +1382,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
             selectedIndex = index;
           });
+
+          if (index == 0) {
+            loadDashboardData();
+          }
         },
       ),
       body: DecoratedBox(

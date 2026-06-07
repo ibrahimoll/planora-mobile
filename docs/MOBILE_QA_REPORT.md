@@ -98,6 +98,10 @@ Use `--dart-define=PLANORA_API_URL=...` for local backend or Render safely. No s
 
 ## Issues Fixed
 
+- Replaced Home dashboard sample project/overview data with backend-derived projects and tasks.
+- Home Project Overview now uses live project/task counts, completion percentage, and at-risk counts.
+- Home My Projects now displays real project rows with backend title/status/deadline/type and task-derived progress.
+- Home Upcoming Tasks now shares the same backend dashboard load and refresh path.
 - Added real register API call and username field.
 - Added real email verification and resend verification API calls.
 - Changed login success navigation to return through `AuthGate`.
