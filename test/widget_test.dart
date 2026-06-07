@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/features/ai/ai_chat_screen.dart';
+import 'package:mobile/features/ai/data/ai_chat_api.dart';
 import 'package:mobile/features/ai/data/ai_plan_api.dart';
+import 'package:mobile/features/auth/data/project_api.dart';
+import 'package:mobile/features/auth/models/project_models.dart';
 import 'package:mobile/features/home/widgets/home_bottom_nav.dart';
 import 'package:mobile/main.dart';
+import 'package:mobile/features/tasks/models/task_models.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -69,4 +75,119 @@ void main() {
     expect(response.tasks.single.priority, 'high');
     expect(response.tasks.single.dueDate, isNotNull);
   });
+
+  test('AI chat message parser tolerates partial backend payloads', () {
+    final message = AiChatMessageModel.fromJson({
+      'message_id': '42',
+      'sender_id': null,
+      'project_id': '7',
+      'body': null,
+      'sender_type': 'assistant',
+      'created_at': 'not-a-date',
+    });
+
+    expect(message.messageId, 42);
+    expect(message.senderId, isNull);
+    expect(message.projectId, 7);
+    expect(message.message, '');
+    expect(message.isAssistant, isTrue);
+    expect(message.createdAt, isA<DateTime>());
+  });
+
+  testWidgets('AI Chat shows a friendly project empty state', (tester) async {
+    var openedProjects = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AiChatScreen(
+            projectsApi: const _EmptyProjectsApi(),
+            onOpenProjects: () {
+              openedProjects = true;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(
+      find.text('Choose a project to start chatting with Planora AI.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Open Projects'));
+
+    expect(openedProjects, isTrue);
+  });
+
+  testWidgets('AI Chat keeps welcome message when history fails', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AiChatScreen(
+            projectsApi: _SingleProjectApi(),
+            aiChatApi: _FailingAiChatApi(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.textContaining('Hi, I am Planora AI.'), findsOneWidget);
+    expect(
+      find.text(
+        'Planora AI is temporarily unavailable. Please try again later.',
+      ),
+      findsOneWidget,
+    );
+  });
+}
+
+class _EmptyProjectsApi extends ProjectsApi {
+  const _EmptyProjectsApi();
+
+  @override
+  Future<List<ProjectModel>> getProjects() async {
+    return [];
+  }
+}
+
+class _SingleProjectApi extends ProjectsApi {
+  const _SingleProjectApi();
+
+  @override
+  Future<List<ProjectModel>> getProjects() async {
+    return [
+      ProjectModel(
+        projectId: 7,
+        createdBy: 1,
+        teamId: null,
+        title: 'Crash Safe Project',
+        description: 'Used by AI chat tests',
+        deadline: DateTime(2026, 7, 1),
+        status: 'in_progress',
+        projectType: 'personal',
+        createdAt: DateTime(2026, 6, 1),
+        updatedAt: null,
+      ),
+    ];
+  }
+}
+
+class _FailingAiChatApi extends AiChatApi {
+  const _FailingAiChatApi();
+
+  @override
+  Future<List<AiChatMessageModel>> getHistory({
+    required TaskProjectSummary project,
+  }) async {
+    throw const ApiException(message: 'Server error', statusCode: 500);
+  }
 }

@@ -93,6 +93,66 @@ Result: succeeded.
 - Mobile visual QA was still code/test based; no emulator screenshot sweep was run.
 - Team creation/invite flows remain outside this pass, so team AI planning can be used only for team projects returned by the backend.
 
+## Follow-up: AI Chat Crash Fix
+
+Date: 2026-06-07
+
+### Scope
+
+Fixed the AI Chat crash path only. Registration/auth fixes are intentionally deferred.
+
+### Reproduction / Verification Notes
+
+- `flutter devices` timed out inside the sandbox, then succeeded outside the sandbox and found Android emulator, Windows, Chrome, and Edge targets.
+- Full authenticated manual reproduction against `https://planora-api-dqmv.onrender.com` was blocked by not having a valid test login in this thread.
+- Added widget coverage that opens `AiChatScreen` with fake project/chat APIs and reproduces the risky failure path: chat history returns a backend-style `ApiException(500)`.
+- The fixed screen now logs the real error with `debugPrint/debugPrintStack`, keeps a local Planora AI welcome message, and shows a friendly SnackBar instead of crashing.
+
+### Commands Run
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat devices
+```
+
+Result: sandboxed run timed out after 120 seconds. Reran outside the sandbox and succeeded.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\cache\dart-sdk\bin\dart.exe format lib\features\ai\ai_chat_screen.dart lib\features\ai\data\ai_chat_api.dart lib\features\home\home_screen.dart test\widget_test.dart
+```
+
+Result: sandboxed run hit Dart CLI AppData analytics permission error. Reran outside the sandbox and succeeded.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat analyze
+```
+
+Result: `No issues found!`
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat test
+```
+
+Result: `All tests passed!`
+
+### Issues Fixed
+
+- AI chat message parsing now supports numeric string IDs, missing IDs, missing `project_id`, missing `sender_id`, null/missing `message`/`body`, and invalid/null `created_at`.
+- AI chat history parsing skips malformed list entries instead of casting blindly.
+- AI chat send parsing tolerates incomplete server responses.
+- AI Chat catches `ApiException` and other real errors, logs the actual error/stack trace, and shows a user-friendly SnackBar.
+- If history loading fails, the screen keeps a local Planora AI welcome message.
+- If no project is selected or available, the screen shows: `Choose a project to start chatting with Planora AI.`
+- Home bottom navigation now passes an `Open Projects` callback into AI Chat so users can route to Projects from the empty state.
+
+### Files Changed In This Fix
+
+- `lib/features/ai/ai_chat_screen.dart`
+- `lib/features/ai/data/ai_chat_api.dart`
+- `lib/features/home/home_screen.dart`
+- `test/widget_test.dart`
+- `docs/MOBILE_QA_REPORT.md`
+- `docs/PLANORA_CONTEXT.md`
+
 ## Commands Run
 
 From `C:\Users\Ibrahim\Documents\Planora\mobile`:

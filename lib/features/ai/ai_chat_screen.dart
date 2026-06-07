@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
@@ -8,16 +9,27 @@ import 'data/ai_chat_api.dart';
 import 'data/ai_plan_api.dart';
 
 class AiChatScreen extends StatefulWidget {
-  const AiChatScreen({super.key});
+  final VoidCallback? onOpenProjects;
+  final ProjectsApi projectsApi;
+  final AiChatApi aiChatApi;
+  final AiPlanApi aiPlanApi;
+
+  const AiChatScreen({
+    super.key,
+    this.onOpenProjects,
+    this.projectsApi = const ProjectsApi(),
+    this.aiChatApi = const AiChatApi(),
+    this.aiPlanApi = const AiPlanApi(),
+  });
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
 }
 
 class _AiChatScreenState extends State<AiChatScreen> {
-  final ProjectsApi _projectsApi = const ProjectsApi();
-  final AiChatApi _aiChatApi = const AiChatApi();
-  final AiPlanApi _aiPlanApi = const AiPlanApi();
+  late final ProjectsApi _projectsApi = widget.projectsApi;
+  late final AiChatApi _aiChatApi = widget.aiChatApi;
+  late final AiPlanApi _aiPlanApi = widget.aiPlanApi;
   final TextEditingController messageController = TextEditingController();
 
   bool isLoadingProjects = true;
@@ -43,6 +55,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Future<void> loadProjects() async {
+    if (!mounted) return;
+
     setState(() {
       isLoadingProjects = true;
       errorMessage = null;
@@ -60,29 +74,45 @@ class _AiChatScreenState extends State<AiChatScreen> {
         projectModels = loadedProjects;
         projects = summaries;
         selectedProject = summaries.isEmpty ? null : summaries.first;
+        messages = summaries.isEmpty
+            ? []
+            : [buildLocalWelcomeMessage(summaries.first)];
         isLoadingProjects = false;
       });
 
       if (summaries.isNotEmpty) {
         await loadMessages(summaries.first);
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
+      logAiChatError('load projects', error, stackTrace);
+
       if (!mounted) return;
 
       setState(() {
         projectModels = [];
         projects = [];
         selectedProject = null;
-        errorMessage = 'Could not load projects for AI chat.';
+        messages = [];
+        errorMessage = friendlyAiChatError(
+          error,
+          fallback: 'Could not load projects for AI chat.',
+        );
         isLoadingProjects = false;
       });
+
+      showFriendlySnackBar(errorMessage!);
     }
   }
 
   Future<void> loadMessages(TaskProjectSummary project) async {
+    if (!mounted) return;
+
     setState(() {
       isLoadingMessages = true;
       errorMessage = null;
+      messages = messages.isEmpty
+          ? [buildLocalWelcomeMessage(project)]
+          : messages;
     });
 
     try {
@@ -91,26 +121,36 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
 
       setState(() {
-        messages = loadedMessages;
+        messages = loadedMessages.isEmpty
+            ? [buildLocalWelcomeMessage(project)]
+            : loadedMessages;
         isLoadingMessages = false;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      logAiChatError('load chat history', error, stackTrace);
+
       if (!mounted) return;
 
       setState(() {
-        messages = [];
-        errorMessage = 'Could not load AI chat history.';
+        messages = [buildLocalWelcomeMessage(project)];
+        errorMessage = null;
         isLoadingMessages = false;
       });
+
+      showFriendlySnackBar(
+        friendlyAiChatError(error, fallback: 'Could not load AI chat history.'),
+      );
     }
   }
 
   Future<void> changeProject(TaskProjectSummary? project) async {
     if (project == null) return;
 
+    if (!mounted) return;
+
     setState(() {
       selectedProject = project;
-      messages = [];
+      messages = [buildLocalWelcomeMessage(project)];
     });
 
     await loadMessages(project);
@@ -147,6 +187,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
         ? defaultPlanPrompt(project)
         : 'Create a project task plan for ${project.title}. Context: $typedPrompt';
 
+    if (!mounted) return;
+
     setState(() {
       isGeneratingPlan = true;
       errorMessage = null;
@@ -172,16 +214,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
           content: Text('AI created ${response.tasksCreated} project tasks.'),
         ),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      logAiChatError('generate plan', error, stackTrace);
+
       if (!mounted) return;
 
       setState(() {
         isGeneratingPlan = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not generate AI tasks. Please try again.'),
+      showFriendlySnackBar(
+        friendlyAiChatError(
+          error,
+          fallback: 'Could not generate AI tasks. Please try again.',
         ),
       );
     }
@@ -201,7 +246,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final project = selectedProject;
     final message = messageController.text.trim();
 
-    if (project == null || message.isEmpty || isSending) {
+    if (project == null) {
+      showFriendlySnackBar('Choose a project before sending a message.');
+      return;
+    }
+
+    if (message.isEmpty || isSending) {
       return;
     }
 
@@ -213,6 +263,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       senderType: 'user',
       createdAt: DateTime.now(),
     );
+
+    if (!mounted) return;
 
     setState(() {
       isSending = true;
@@ -234,14 +286,62 @@ class _AiChatScreenState extends State<AiChatScreen> {
         messages = [...messages, aiMessage];
         isSending = false;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      logAiChatError('send message', error, stackTrace);
+
       if (!mounted) return;
 
       setState(() {
         isSending = false;
-        errorMessage = 'Could not send your message. Please try again.';
+        errorMessage = friendlyAiChatError(
+          error,
+          fallback: 'Could not send your message. Please try again.',
+        );
       });
+
+      showFriendlySnackBar(errorMessage!);
     }
+  }
+
+  AiChatMessageModel buildLocalWelcomeMessage(TaskProjectSummary? project) {
+    return AiChatMessageModel.localAssistant(
+      projectId: project?.projectId,
+      message:
+          'Hi, I am Planora AI. Choose a project and ask me about planning, risks, priorities, or next steps.',
+    );
+  }
+
+  void logAiChatError(String action, Object error, StackTrace stackTrace) {
+    debugPrint('AI Chat $action failed: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+
+  String friendlyAiChatError(Object error, {required String fallback}) {
+    if (error is ApiException) {
+      final statusCode = error.statusCode;
+
+      if (statusCode == 404) {
+        return 'Planora AI chat is not available for this project yet.';
+      }
+
+      if (statusCode != null && statusCode >= 500) {
+        return 'Planora AI is temporarily unavailable. Please try again later.';
+      }
+
+      if (error.message.trim().isNotEmpty) {
+        return error.message;
+      }
+    }
+
+    return fallback;
+  }
+
+  void showFriendlySnackBar(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Color mutedColor(BuildContext context) {
@@ -386,9 +486,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return buildStateCard(
         context,
         icon: Icons.folder_open_rounded,
-        title: 'Create a project first',
-        message:
-            'Planora AI chats are scoped to a project so advice stays useful.',
+        title: 'Choose a project to start chatting with Planora AI.',
+        message: 'Create or open a project so Planora AI has context.',
+        buttonText: widget.onOpenProjects == null ? null : 'Open Projects',
+        onPressed: widget.onOpenProjects,
+      );
+    }
+
+    if (selectedProject == null) {
+      return buildStateCard(
+        context,
+        icon: Icons.folder_open_rounded,
+        title: 'Choose a project to start chatting with Planora AI.',
+        message: 'Select a project above before sending a message.',
       );
     }
 

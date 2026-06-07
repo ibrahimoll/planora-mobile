@@ -1326,7 +1326,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
       case 2:
-        return const AiChatScreen();
+        return AiChatScreen(onOpenProjects: openProjectsTab);
 
       case 3:
         return TasksScreen(

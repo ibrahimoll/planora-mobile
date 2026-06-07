@@ -23,11 +23,11 @@ class AiChatApi {
     if (response is Map<String, dynamic> && response['messages'] is List) {
       final messages = response['messages'] as List;
 
-      return messages
-          .map(
-            (item) => AiChatMessageModel.fromJson(item as Map<String, dynamic>),
-          )
-          .toList();
+      return _parseMessages(messages);
+    }
+
+    if (response is List) {
+      return _parseMessages(response);
     }
 
     return [];
@@ -42,18 +42,35 @@ class AiChatApi {
       data: {'message': message},
     );
 
-    final data = response as Map<String, dynamic>;
+    if (response is! Map<String, dynamic>) {
+      return AiChatMessageModel.localAssistant(
+        projectId: project.projectId,
+        message:
+            'Planora AI received your message, but the server response was incomplete.',
+      );
+    }
 
-    return AiChatMessageModel.fromJson(
-      data['ai_message'] as Map<String, dynamic>,
-    );
+    final aiMessage = response['ai_message'] ?? response['message'];
+
+    if (aiMessage is Map<String, dynamic>) {
+      return AiChatMessageModel.fromJson(aiMessage);
+    }
+
+    return AiChatMessageModel.fromJson(response);
+  }
+
+  List<AiChatMessageModel> _parseMessages(List<dynamic> messages) {
+    return messages
+        .whereType<Map<String, dynamic>>()
+        .map(AiChatMessageModel.fromJson)
+        .toList();
   }
 }
 
 class AiChatMessageModel {
   final int messageId;
   final int? senderId;
-  final int projectId;
+  final int? projectId;
   final String message;
   final String senderType;
   final DateTime createdAt;
@@ -69,16 +86,83 @@ class AiChatMessageModel {
 
   factory AiChatMessageModel.fromJson(Map<String, dynamic> json) {
     return AiChatMessageModel(
-      messageId: json['message_id'] as int,
-      senderId: json['sender_id'] as int?,
-      projectId: json['project_id'] as int,
-      message: json['message'] as String,
-      senderType: json['sender_type'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      messageId: _parseInt(json['message_id'] ?? json['id']) ?? 0,
+      senderId: _parseInt(json['sender_id'] ?? json['user_id']),
+      projectId: _parseInt(json['project_id']),
+      message:
+          _firstNonEmptyString([
+            json['message'],
+            json['body'],
+            json['content'],
+            json['text'],
+          ]) ??
+          '',
+      senderType:
+          _firstNonEmptyString([
+            json['sender_type'],
+            json['role'],
+            json['type'],
+          ]) ??
+          'assistant',
+      createdAt:
+          _parseDateTime(json['created_at'] ?? json['timestamp']) ??
+          DateTime.now(),
+    );
+  }
+
+  factory AiChatMessageModel.localAssistant({
+    int? projectId,
+    required String message,
+  }) {
+    return AiChatMessageModel(
+      messageId: -1,
+      senderId: null,
+      projectId: projectId,
+      message: message,
+      senderType: 'assistant',
+      createdAt: DateTime.now(),
     );
   }
 
   bool get isAssistant {
     return senderType == 'assistant' || senderType == 'ai';
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    if (value is String) {
+      return int.tryParse(value.trim());
+    }
+
+    return null;
+  }
+
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value is String && value.trim().isNotEmpty) {
+      return DateTime.tryParse(value)?.toLocal();
+    }
+
+    return null;
+  }
+
+  static String? _firstNonEmptyString(List<dynamic> values) {
+    for (final value in values) {
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+
+    return null;
   }
 }

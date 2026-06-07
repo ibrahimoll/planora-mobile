@@ -18,6 +18,16 @@ Last updated: 2026-06-07
 - Planora AI chat has a `Plan` action that calls the same backend planner for the selected personal/team project.
 - `flutter analyze` and `flutter test` pass after the latest home/project/task AI-planning follow-up.
 
+## Latest AI Chat Crash Fix - 2026-06-07
+
+- AI Chat now handles missing/no selected project with the friendly empty state: `Choose a project to start chatting with Planora AI.`
+- AI Chat routes users to Projects from the empty state when opened from Home.
+- AI chat history/send failures are caught as real errors, logged with `debugPrint/debugPrintStack`, and surfaced through a user-friendly SnackBar.
+- A local Planora AI welcome message remains visible when chat history loading fails.
+- `AiChatMessageModel` parsing is defensive for numeric string IDs, missing `project_id`/`sender_id`, null message/body fields, and invalid/null dates.
+- Added widget tests for the empty state, backend-style history failure, and partial chat JSON parsing.
+- Latest verification: `flutter analyze` passed with no issues and `flutter test` passed with 6 tests.
+
 ## Current Mobile UI Direction
 
 Planora mobile should use a clean, modern, friendly, professional light/dark identity with purple branding.
