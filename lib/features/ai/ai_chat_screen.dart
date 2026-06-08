@@ -27,17 +27,23 @@ class AiChatScreen extends StatefulWidget {
 }
 
 class _AiChatScreenState extends State<AiChatScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   late final ProjectsApi _projectsApi = widget.projectsApi;
   late final AiChatApi _aiChatApi = widget.aiChatApi;
   late final AiPlanApi _aiPlanApi = widget.aiPlanApi;
+
   final TextEditingController messageController = TextEditingController();
+  final ScrollController messagesScrollController = ScrollController();
 
   bool isLoadingProjects = true;
   bool isLoadingMessages = false;
   bool isSending = false;
   bool isGeneratingPlan = false;
+
   String? errorMessage;
   TaskProjectSummary? selectedProject;
+
   List<ProjectModel> projectModels = [];
   List<TaskProjectSummary> projects = [];
   List<AiChatMessageModel> messages = [];
@@ -51,6 +57,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   @override
   void dispose() {
     messageController.dispose();
+    messagesScrollController.dispose();
     super.dispose();
   }
 
@@ -126,6 +133,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
             : loadedMessages;
         isLoadingMessages = false;
       });
+
+      scrollMessagesToBottom();
     } catch (error, stackTrace) {
       logAiChatError('load chat history', error, stackTrace);
 
@@ -153,6 +162,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       messages = [buildLocalWelcomeMessage(project)];
     });
 
+    scrollMessagesToBottom();
     await loadMessages(project);
   }
 
@@ -272,6 +282,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       messages = [...messages, optimisticMessage];
     });
 
+    scrollMessagesToBottom();
+
     messageController.clear();
 
     try {
@@ -286,6 +298,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
         messages = [...messages, aiMessage];
         isSending = false;
       });
+
+      scrollMessagesToBottom();
     } catch (error, stackTrace) {
       logAiChatError('send message', error, stackTrace);
 
@@ -344,6 +358,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void scrollMessagesToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !messagesScrollController.hasClients) {
+        return;
+      }
+
+      messagesScrollController.jumpTo(
+        messagesScrollController.position.maxScrollExtent,
+      );
+    });
+  }
+
   Color mutedColor(BuildContext context) {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
@@ -364,17 +390,29 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Widget buildHeader(BuildContext context) {
+    final project = selectedProject;
+    final hasProjects = projects.isNotEmpty;
+
     return Row(
       children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradientFor(context),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
+        InkWell(
+          onTap: hasProjects
+              ? () => _scaffoldKey.currentState?.openDrawer()
+              : null,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: PlanoraTheme.primaryGradientFor(context),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: PlanoraTheme.floatingShadowFor(context),
+            ),
+            child: Icon(
+              hasProjects ? Icons.menu_rounded : Icons.auto_awesome_rounded,
+              color: Colors.white,
+            ),
           ),
-          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -382,14 +420,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Planora AI',
+                project?.title ?? 'Planora AI',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 3),
               Text(
-                'Ask about project planning, risks, and next steps.',
+                project == null
+                    ? 'Ask about project planning, risks, and next steps.'
+                    : 'Project chat • Ask about tasks, risks, and next steps.',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -400,75 +442,208 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ],
           ),
         ),
+        if (hasProjects) ...[
+          const SizedBox(width: 10),
+          InkWell(
+            onTap:
+                isLoadingMessages || isGeneratingPlan || selectedProject == null
+                ? null
+                : generatePlanForSelectedProject,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: cardDecoration(context),
+              child: isGeneratingPlan
+                  ? const Padding(
+                      padding: EdgeInsets.all(13),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget buildProjectPicker(BuildContext context) {
-    if (projects.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  Widget buildProjectDrawer(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: cardDecoration(context),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<TaskProjectSummary>(
-          value: selectedProject,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          onChanged: isLoadingMessages ? null : changeProject,
-          items: projects.map((project) {
-            return DropdownMenuItem<TaskProjectSummary>(
-              value: project,
-              child: Text(
-                project.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    return Drawer(
+      backgroundColor: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: PlanoraTheme.primaryGradientFor(context),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Project Chats',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            );
-          }).toList(),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Choose a project. Each project keeps its own AI chat history.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Divider(
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
+            Expanded(
+              child: projects.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No projects yet.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: mutedColor(context),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+                      itemCount: projects.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final project = projects[index];
+                        final isSelected =
+                            selectedProject?.projectId == project.projectId &&
+                            selectedProject?.teamId == project.teamId;
+
+                        return buildProjectDrawerTile(
+                          context,
+                          project: project,
+                          isSelected: isSelected,
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget buildProjectControls(BuildContext context) {
-    if (projects.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  Widget buildProjectDrawerTile(
+    BuildContext context, {
+    required TaskProjectSummary project,
+    required bool isSelected,
+  }) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final isDark = PlanoraTheme.isDark(context);
 
-    return Row(
-      children: [
-        Expanded(child: buildProjectPicker(context)),
-        const SizedBox(width: 10),
-        SizedBox(
-          height: 50,
-          child: ElevatedButton.icon(
-            onPressed:
-                isLoadingMessages || isGeneratingPlan || selectedProject == null
-                ? null
-                : generatePlanForSelectedProject,
-            icon: isGeneratingPlan
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.auto_awesome_rounded, size: 18),
-            label: const Text('Plan'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
+    return InkWell(
+      onTap: isLoadingMessages
+          ? null
+          : () async {
+              Navigator.of(context).pop();
+              await changeProject(project);
+            },
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? primary.withValues(alpha: isDark ? 0.22 : 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? primary.withValues(alpha: 0.45)
+                : Colors.transparent,
           ),
         ),
-      ],
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? primary
+                    : primary.withValues(alpha: isDark ? 0.18 : 0.1),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                project.isTeamProject
+                    ? Icons.groups_2_rounded
+                    : Icons.folder_rounded,
+                color: isSelected ? Colors.white : primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    project.isTeamProject
+                        ? 'Team project chat'
+                        : 'Personal project chat',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: mutedColor(context),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle_rounded, color: primary, size: 22),
+          ],
+        ),
+      ),
     );
   }
 
@@ -498,7 +673,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         context,
         icon: Icons.folder_open_rounded,
         title: 'Choose a project to start chatting with Planora AI.',
-        message: 'Select a project above before sending a message.',
+        message: 'Tap the menu button and choose a project before sending.',
       );
     }
 
@@ -531,10 +706,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
       children: [
         for (final message in messages) ...[
           buildMessageBubble(context, message),
-          const SizedBox(height: 10),
-        ],
-        if (isSending) ...[
-          buildTypingIndicator(context),
           const SizedBox(height: 10),
         ],
         if (errorMessage != null) buildInlineError(context, errorMessage!),
@@ -655,7 +826,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             children: [
               Flexible(
                 child: Text(
-                  'Typing',
+                  'Planora AI is typing',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -743,8 +914,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Widget buildRefreshableChat(BuildContext context) {
-    final showProjectControls = projects.isNotEmpty;
-    final showComposer = showProjectControls;
+    final showComposer = projects.isNotEmpty;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -756,46 +926,53 @@ class _AiChatScreenState extends State<AiChatScreen> {
         }
       },
       child: ListView(
+        controller: messagesScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(bottom: showComposer ? 106 : 12),
-        children: [
-          if (showProjectControls) ...[
-            buildProjectControls(context),
-            const SizedBox(height: 14),
-          ],
-          buildMessages(context),
-        ],
+        children: [buildMessages(context)],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Column(
-              children: [
-                buildHeader(context),
-                const SizedBox(height: 16),
-                Expanded(child: buildRefreshableChat(context)),
-              ],
-            ),
-          ),
-          if (!isLoadingProjects && projects.isNotEmpty)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 14,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  boxShadow: PlanoraTheme.floatingShadowFor(context),
-                ),
-                child: buildComposer(context),
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Colors.transparent,
+      drawer: buildProjectDrawer(context),
+      body: SizedBox.expand(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Column(
+                children: [
+                  buildHeader(context),
+                  const SizedBox(height: 16),
+                  Expanded(child: buildRefreshableChat(context)),
+                ],
               ),
             ),
-        ],
+            if (!isLoadingProjects && projects.isNotEmpty && isSending)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 92,
+                child: buildTypingIndicator(context),
+              ),
+            if (!isLoadingProjects && projects.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 14,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    boxShadow: PlanoraTheme.floatingShadowFor(context),
+                  ),
+                  child: buildComposer(context),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

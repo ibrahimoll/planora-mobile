@@ -10,6 +10,7 @@ import 'package:mobile/features/tasks/models/task_models.dart';
 import 'package:mobile/features/tasks/task_detail_screen.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
@@ -41,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final NotificationsApi _notificationsApi = const NotificationsApi();
 
   int selectedIndex = 0;
+  int projectCreateRequestId = 0;
   int taskCreateRequestId = 0;
 
   bool hasUnreadNotifications = false;
@@ -48,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool shouldOpenTaskCreateOnStart = false;
 
   String? dashboardError;
+  bool shouldOpenProjectCreateOnStart = false;
 
   List<ProjectModel> dashboardProjects = [];
   List<TaskListItem> dashboardTasks = [];
@@ -92,6 +95,28 @@ class _HomeScreenState extends State<HomeScreen> {
     return source[0].toUpperCase();
   }
 
+  String? get profilePicUrl {
+    return normalizeProfilePicUrl(widget.user.profilePic);
+  }
+
+  String? normalizeProfilePicUrl(String? value) {
+    final trimmed = value?.trim();
+
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/')) {
+      return '${AppConfig.apiBaseUrl}$trimmed';
+    }
+
+    return '${AppConfig.apiBaseUrl}/$trimmed';
+  }
+
   Future<void> loadDashboardData() async {
     setState(() {
       isLoadingDashboard = true;
@@ -103,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final projectSummaries = loadedProjects
           .map(TaskProjectSummary.fromProject)
           .toList();
+
       final taskGroups = await Future.wait(
         projectSummaries.map((project) async {
           try {
@@ -116,8 +142,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }),
       );
+
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);
+
       final nextTasks =
           loadedTasks.where((item) => !item.task.isCompleted).toList()
             ..sort(compareUpcomingTaskItems);
@@ -162,7 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         hasUnreadNotifications = unreadCount > 0;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Unread notification count load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
@@ -181,6 +212,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void openNewProjectFlow() {
+    setState(() {
+      selectedIndex = 1;
+      projectCreateRequestId += 1;
+      shouldOpenProjectCreateOnStart = true;
+    });
+  }
+
   void openTasksTab() {
     setState(() {
       selectedIndex = 3;
@@ -192,6 +231,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void openProjectsTab() {
     setState(() {
       selectedIndex = 1;
+      projectCreateRequestId = 0;
+      shouldOpenProjectCreateOnStart = false;
     });
   }
 
@@ -297,40 +338,61 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget buildAvatarFallback(BuildContext context) {
+    return Container(
+      width: 46,
+      height: 46,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget buildHomeAvatar(BuildContext context) {
+    final imageUrl = profilePicUrl;
+
+    return GestureDetector(
+      onTap: openProfile,
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: PlanoraTheme.cardShadowFor(context),
+        ),
+        child: ClipOval(
+          child: imageUrl == null
+              ? buildAvatarFallback(context)
+              : Image.network(
+                  imageUrl,
+                  width: 46,
+                  height: 46,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    debugPrint('Home avatar load failed: $error');
+                    return buildAvatarFallback(context);
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
   Widget buildHeader(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
-    final profilePic = widget.user.profilePic;
-    final hasProfilePic = profilePic != null && profilePic.trim().isNotEmpty;
 
     return Row(
       children: [
-        GestureDetector(
-          onTap: openProfile,
-          child: Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: hasProfilePic
-                  ? null
-                  : PlanoraTheme.primaryGradientFor(context),
-              boxShadow: PlanoraTheme.cardShadowFor(context),
-            ),
-            child: CircleAvatar(
-              backgroundColor: Colors.transparent,
-              backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
-              child: hasProfilePic
-                  ? null
-                  : Text(
-                      initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-            ),
-          ),
-        ),
+        buildHomeAvatar(context),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -684,7 +746,7 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.add_rounded,
         label: 'New Project',
         isFilled: true,
-        onTap: openProjectsTab,
+        onTap: openNewProjectFlow,
       ),
       _HomeQuickAction(
         icon: Icons.check_box_outlined,
@@ -862,7 +924,7 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icons.folder_open_rounded,
             title: 'No projects yet',
             actionText: 'New Project',
-            onAction: openProjectsTab,
+            onAction: openNewProjectFlow,
           )
         else
           for (final project in visibleProjects) ...[
@@ -1259,7 +1321,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildHomeDashboard(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.only(bottom: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1333,9 +1395,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
       case 1:
         return ProjectsScreen(
+          createRequestId: projectCreateRequestId,
+          openCreateOnStart: shouldOpenProjectCreateOnStart,
+          onCreateRequestConsumed: () {
+            if (!mounted) {
+              return;
+            }
+
+            setState(() {
+              projectCreateRequestId = 0;
+              shouldOpenProjectCreateOnStart = false;
+            });
+          },
           onBack: () {
             setState(() {
               selectedIndex = 0;
+              projectCreateRequestId = 0;
+              shouldOpenProjectCreateOnStart = false;
             });
             loadDashboardData();
           },
@@ -1346,7 +1422,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       case 3:
         return TasksScreen(
-          profilePic: widget.user.profilePic,
+          profilePic: profilePicUrl,
           userInitials: initials,
           createRequestId: taskCreateRequestId,
           openCreateOnStart: shouldOpenTaskCreateOnStart,
@@ -1391,6 +1467,11 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: selectedIndex,
         onTap: (index) {
           setState(() {
+            if (index == 1) {
+              projectCreateRequestId = 0;
+              shouldOpenProjectCreateOnStart = false;
+            }
+
             if (index == 3) {
               taskCreateRequestId = 0;
               shouldOpenTaskCreateOnStart = false;

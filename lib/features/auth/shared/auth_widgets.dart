@@ -383,21 +383,6 @@ class PlanoraGoogleLogo extends StatelessWidget {
   }
 }
 
-class PlanoraAppleLogo extends StatelessWidget {
-  const PlanoraAppleLogo({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(
-      Icons.apple_rounded,
-      size: 22,
-      color: PlanoraTheme.isDark(context)
-          ? PlanoraTheme.darkTextPrimary
-          : Colors.black,
-    );
-  }
-}
-
 class PlanoraAuthThemeToggle extends StatelessWidget {
   final bool isDark;
   final VoidCallback onPressed;

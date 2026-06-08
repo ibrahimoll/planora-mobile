@@ -10,8 +10,17 @@ import 'project_detail_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   final VoidCallback onBack;
+  final int createRequestId;
+  final bool openCreateOnStart;
+  final VoidCallback? onCreateRequestConsumed;
 
-  const ProjectsScreen({super.key, required this.onBack});
+  const ProjectsScreen({
+    super.key,
+    required this.onBack,
+    this.createRequestId = 0,
+    this.openCreateOnStart = false,
+    this.onCreateRequestConsumed,
+  });
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -35,6 +44,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   List<ProjectModel> projects = [];
   List<TaskListItem> projectTasks = [];
+  int handledCreateRequestId = 0;
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -43,6 +53,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   void initState() {
     super.initState();
     loadProjects();
+    scheduleCreateProjectSheet();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProjectsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    scheduleCreateProjectSheet();
   }
 
   @override
@@ -105,6 +122,27 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         isLoading = false;
       });
     }
+  }
+
+  void scheduleCreateProjectSheet() {
+    if (!widget.openCreateOnStart || widget.createRequestId == 0) {
+      return;
+    }
+
+    if (handledCreateRequestId == widget.createRequestId) {
+      return;
+    }
+
+    handledCreateRequestId = widget.createRequestId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      widget.onCreateRequestConsumed?.call();
+      showCreateProjectSheet();
+    });
   }
 
   List<ProjectModel> get filteredProjects {
@@ -222,6 +260,67 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return '$completed/${tasks.length} tasks done';
   }
 
+  void setProjectFilter(int index) {
+    setState(() {
+      selectedFilterIndex = index;
+    });
+  }
+
+  Future<void> showProjectFilterSheet() async {
+    final tabs = ['All', 'Active', 'Completed'];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Filter projects',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                for (int index = 0; index < tabs.length; index++) ...[
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      selectedFilterIndex == index
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: selectedFilterIndex == index
+                          ? Theme.of(context).colorScheme.primary
+                          : isDark
+                          ? Colors.white70
+                          : const Color(0xFF64748B),
+                    ),
+                    title: Text(
+                      tabs[index],
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      setProjectFilter(index);
+                    },
+                  ),
+                  if (index != tabs.length - 1) const Divider(height: 1),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget buildProjectsHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -261,11 +360,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         buildCircleIconButton(
           context,
           icon: Icons.tune_rounded,
-          onTap: () {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Filters are next.')));
-          },
+          onTap: showProjectFilterSheet,
         ),
       ],
     );
@@ -345,9 +440,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           return Expanded(
             child: InkWell(
               onTap: () {
-                setState(() {
-                  selectedFilterIndex = index;
-                });
+                setProjectFilter(index);
               },
               borderRadius: BorderRadius.circular(12),
               child: AnimatedContainer(

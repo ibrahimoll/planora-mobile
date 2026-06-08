@@ -69,7 +69,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Forgot password request failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
       _showMessage('Could not send reset link. Please try again.');
     } finally {

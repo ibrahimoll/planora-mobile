@@ -164,10 +164,11 @@ void main() {
     );
 
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'What should I do next?');
     await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pump();
     await tester.pump();
 
     expect(find.text('Planora AI is typing'), findsOneWidget);

@@ -39,7 +39,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         notifications = loadedNotifications;
         isLoading = false;
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Notifications load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       setState(() {
@@ -61,7 +64,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       await _notificationsApi.markAllAsRead();
       await loadNotifications();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Mark all notifications read failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,7 +103,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             )
             .toList();
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Mark notification read failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(

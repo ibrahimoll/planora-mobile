@@ -160,7 +160,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Email verification failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
       _showMessage('Could not verify email. Please try again.');
     } finally {
@@ -189,7 +192,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Resend verification failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
       _showMessage('Could not resend code. Please try again.');
     } finally {

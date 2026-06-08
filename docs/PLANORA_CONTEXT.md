@@ -1,6 +1,6 @@
 # Planora Mobile Context
 
-Last updated: 2026-06-07
+Last updated: 2026-06-08
 
 ## Repository
 
@@ -9,7 +9,20 @@ Last updated: 2026-06-07
 - Main entry file: `lib/main.dart`
 - Current start screen: `OnboardingScreen`
 
-## Latest Mobile State - 2026-06-07
+## Latest Mobile State - 2026-06-08
+
+- AI Chat no longer crashes when opened from the center bottom nav on the Pixel 9 emulator against the Render backend.
+- Home tab pages now receive full `AnimatedSwitcher` stack constraints, which protects AI Chat and other tab pages from loose animated layout constraints.
+- AI Chat uses a burger-menu `Project Chats` drawer instead of a dropdown. The drawer lists personal projects from `/projects`, and each selection loads project-scoped chat history.
+- AI Chat header shows the selected project title, keeps the local welcome bubble, anchors the composer above bottom nav, and shows `Planora AI is typing` while awaiting replies.
+- Home `New Project` now opens the real Create Project bottom sheet instead of only navigating to the Projects tab.
+- Projects tune icon now opens a real All/Active/Completed filter sheet.
+- `AuthGate` preserves the saved token if `/auth/me` fails, logs the real error, and enters Home with a minimal fallback session user so token-authenticated screens can still load.
+- Unexpected auth/reset/notification failures are now logged with `debugPrint`/`debugPrintStack` while users still get friendly messages.
+- Apple login/register buttons were removed from visible auth UI while Apple auth is paused; Google remains a clear coming-soon action.
+- Latest verification: `dart format lib test`, `flutter analyze`, `flutter test`, and emulator launch with `--dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com` passed. Home `New Project`, AI Chat, and AI project drawer were manually checked on the emulator.
+
+## Previous Mobile State - 2026-06-07
 
 - Latest follow-up fixed backend/mobile member identity display, project member invites, AI Chat typing feedback, task grouping, and Profile/Settings polish.
 - Mobile no longer creates visible `User #id` or `Member #id` labels in the project member/task assignee paths touched in this pass; it displays nested backend user summaries with full name, username, email, then `Unknown user`.

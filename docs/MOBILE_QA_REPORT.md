@@ -7,6 +7,119 @@ Date: 2026-06-07
 Checked the Flutter mobile app against the local backend reference in `../backend`.
 The pass focused on setup, routing, auth/API contracts, core screen reachability, loading/error/empty states, and targeted stability fixes without redesigning the existing light purple Planora direction.
 
+## Follow-up: AI Chat Crash, Project Drawer, and Navigation Polish
+
+Date: 2026-06-08
+
+### Commands Run
+
+From `C:\Users\Ibrahim\Documents\Planora\mobile`:
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\cache\dart-sdk\bin\dart.exe format lib test
+```
+
+Result: succeeded.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat analyze
+```
+
+Result: succeeded with `No issues found!`.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat test
+```
+
+Result: succeeded with `All tests passed!` across 7 tests.
+
+```powershell
+& C:\Users\Ibrahim\Downloads\flutter_windows_3.44.0-stable\flutter\bin\flutter.bat run -d emulator-5554 --dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com --no-resident
+```
+
+Result: succeeded. The app installed and launched on the Pixel 9 emulator against the Render backend.
+
+### Pages / Flows Checked
+
+- Home dashboard with real Render-backed project/task data.
+- Home quick action: `New Project`.
+- AI Chat bottom navigation entry.
+- AI Chat selected project state, project drawer, Generate Plan action visibility, welcome message, and composer.
+- Auth session startup behavior through `AuthGate`.
+- Login/register social auth button state.
+- Projects list filter button behavior.
+- Notifications loading/update error handling.
+- Task details attachment upload placeholder action.
+
+### Issues Found
+
+- Opening AI Chat through the animated Home tab surface could render with unstable constraints and previously crashed or showed a partial AI page.
+- AI Chat used a project dropdown instead of the requested burger-menu project chat drawer.
+- AI Chat composer/typing state could be hidden by nested page constraints.
+- Home `New Project` quick action only opened the Projects tab instead of the create-project flow.
+- `AuthGate` still cleared the saved token when `/auth/me` failed, which could log users out on transient current-user failures.
+- Several auth/session/notification paths used `catch (_)`, hiding real errors from debug logs.
+- Login/register still showed Apple auth even though Apple sign-in is paused.
+- The Projects tune button displayed `Filters are next.` even though project filters already existed.
+- The task attachment upload tile had a null tap handler.
+
+### Issues Fixed
+
+- Forced Home tab children to fill the `AnimatedSwitcher` stack so AI Chat receives stable constraints.
+- Reworked AI Chat into a project-scoped drawer flow: the header menu opens `Project Chats`, lists backend `/projects` items, and selecting a project loads that project history.
+- AI Chat now shows the selected project title in the header, keeps the local welcome message, anchors the composer above bottom nav, and shows `Planora AI is typing` above the composer while sending.
+- Added a chat scroll controller so new messages/replies move the chat to the latest content.
+- Preserved token state in `AuthGate` when current-user loading fails, logs the real error/stack, and enters Home with a minimal session fallback user.
+- Replaced hidden `catch (_)` blocks in auth, reset, home notification count, and notifications with logged `debugPrint`/`debugPrintStack` handling.
+- Removed visible Apple login/register buttons; Google remains as a clear coming-soon action.
+- Wired Home `New Project` quick action to open the existing Create Project sheet.
+- Wired the Projects tune icon to a real All/Active/Completed filter sheet.
+- Changed the task attachment upload tile to show a coming-soon SnackBar instead of being untappable.
+- Updated the AI typing widget test for the pinned-composer layout.
+
+### Emulator Verification
+
+- Home loaded real backend data from `https://planora-api-dqmv.onrender.com`.
+- Home `New Project` opened the existing `New Project` bottom sheet.
+- AI Chat opened from the center bottom tab without Flutter exceptions, AndroidRuntime fatals, RenderFlex overflows, or assertion logs.
+- AI Chat displayed the selected backend project (`Roblox Game Dev`), burger menu, Generate Plan action, local welcome bubble, and composer.
+- AI Chat drawer opened and listed the personal backend project as a separate project chat.
+
+### Remaining Issues / Assumptions
+
+- Search, reports, calendar, Google social auth, profile-picture upload, and attachment upload remain placeholders or coming-soon actions.
+- Apple auth is intentionally removed from visible login/register UI while paused.
+- AuthGate fallback user is minimal because no cached user profile store exists yet; backend-backed screens still use the saved bearer token.
+- Team-project separation is preserved at the mobile project-list level by using `/projects` for personal projects.
+
+### Files Changed
+
+- `lib/features/ai/ai_chat_screen.dart`
+- `lib/features/auth/auth_gate.dart`
+- `lib/features/auth/data/project_api.dart`
+- `lib/features/auth/models/auth_models.dart`
+- `lib/features/auth/shared/auth_widgets.dart`
+- `lib/features/email_verification/email_verification_screen.dart`
+- `lib/features/forgot_password/forgot_password_screen.dart`
+- `lib/features/home/home_screen.dart`
+- `lib/features/login/login_screen.dart`
+- `lib/features/notifications/notifications_screen.dart`
+- `lib/features/projects/projects_screen.dart`
+- `lib/features/register/register_screen.dart`
+- `lib/features/reset_password/reset_password_screen.dart`
+- `lib/features/tasks/task_detail_screen.dart`
+- `test/widget_test.dart`
+
+### Manual Test Steps
+
+1. Run the app with `--dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com`.
+2. Log in and confirm Home loads backend project/task counts.
+3. Tap `New Project` on Home and confirm the create sheet opens.
+4. Close the sheet, tap the center AI tab, and confirm AI Chat opens without crashing.
+5. Tap the AI menu button and confirm `Project Chats` lists personal projects.
+6. Type an AI message and confirm the typing indicator appears; if the backend chat route fails, the app should show a friendly SnackBar instead of crashing.
+7. Open Projects and use the tune icon to switch All/Active/Completed filters.
+
 ## Follow-up: Member Identity, Invites, AI/Tasks, and Profile UX
 
 Date: 2026-06-07

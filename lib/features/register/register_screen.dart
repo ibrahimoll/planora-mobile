@@ -167,7 +167,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Registration failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
       _showMessage('Could not create account. Please try again.');
     } finally {
@@ -402,14 +405,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           onTap: () => _showMessage(
                             'Google register connection coming next',
                           ),
-                        ),
-                        SizedBox(height: metrics.socialGap),
-                        PlanoraSocialButton(
-                          height: metrics.socialButtonHeight,
-                          label: 'Apple',
-                          logo: const PlanoraAppleLogo(),
-                          onTap: () =>
-                              _showMessage('Apple registration coming later'),
                         ),
                         SizedBox(height: metrics.sectionGap + 4),
                         _SignInPrompt(onTap: () => Navigator.of(context).pop()),

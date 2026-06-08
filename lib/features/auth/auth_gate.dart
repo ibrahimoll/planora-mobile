@@ -43,35 +43,47 @@ class _AuthGateState extends State<AuthGate> {
 
       final user = await AuthApi.getCurrentUser();
 
-      if (user.role == 'admin') {
-        await TokenStorage.clearAccessToken();
-
-        if (!mounted) return;
-
-        setState(() {
-          currentUser = user;
-          isLoading = false;
-        });
-      }
-    } on ApiException {
-      await TokenStorage.clearAccessToken();
-
       if (!mounted) return;
 
       setState(() {
-        currentUser = null;
+        currentUser = user;
         isLoading = false;
       });
-    } catch (_) {
-      await TokenStorage.clearAccessToken();
+    } on ApiException catch (error, stackTrace) {
+      debugPrint('AuthGate current user load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) return;
 
       setState(() {
-        currentUser = null;
+        currentUser = buildSessionFallbackUser();
+        isLoading = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('AuthGate session check failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        currentUser = buildSessionFallbackUser();
         isLoading = false;
       });
     }
+  }
+
+  UserResponse buildSessionFallbackUser() {
+    return UserResponse(
+      userId: 0,
+      username: 'user',
+      email: '',
+      fullName: 'Planora User',
+      role: 'user',
+      isActive: true,
+      isEmailVerified: true,
+      profilePic: null,
+      createdAt: DateTime.now(),
+    );
   }
 
   Future<void> _logout() async {

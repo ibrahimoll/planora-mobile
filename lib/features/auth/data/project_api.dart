@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import '../../../core/network/api_client.dart';
 import '../models/project_models.dart';
 
@@ -11,36 +9,8 @@ class ProjectsApi {
       ApiClient.get('/projects'),
     );
 
-    final teams = await _safeGetTeams();
-
-    final teamProjectGroups = await Future.wait(
-      teams.map((team) async {
-        try {
-          return await getTeamProjects(team.teamId);
-        } catch (error, stackTrace) {
-          debugPrint(
-            'Team projects load failed for team ${team.teamId}: $error',
-          );
-          debugPrintStack(stackTrace: stackTrace);
-          return <ProjectModel>[];
-        }
-      }),
-    );
-
-    final teamProjects = teamProjectGroups.expand((group) => group).toList();
-
-    return [...personalProjects, ...teamProjects]
+    return personalProjects
       ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
-  }
-
-  Future<List<TeamModel>> _safeGetTeams() async {
-    try {
-      return await getTeams();
-    } catch (error, stackTrace) {
-      debugPrint('Teams load failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      return <TeamModel>[];
-    }
   }
 
   Future<List<TeamModel>> getTeams() async {
@@ -85,6 +55,7 @@ class ProjectsApi {
     final path = project.isTeamProject && project.teamId != null
         ? '/teams/${project.teamId}/projects/${project.projectId}'
         : '/projects/${project.projectId}';
+
     final response = await ApiClient.get(path);
 
     return ProjectModel.fromJson(response as Map<String, dynamic>);

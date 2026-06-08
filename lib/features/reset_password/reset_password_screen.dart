@@ -127,7 +127,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Reset password failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
       _showMessage('Could not reset password. Please try again.');
     } finally {

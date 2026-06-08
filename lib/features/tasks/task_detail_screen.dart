@@ -1326,7 +1326,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     final color = enabled ? PlanoraTheme.secondaryPurple : mutedColor(context);
 
     return InkWell(
-      onTap: null,
+      onTap: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Attachment upload is coming soon.')),
+        );
+      },
       borderRadius: BorderRadius.circular(18),
       child: Container(
         height: 148,

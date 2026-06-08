@@ -93,7 +93,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Login failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
       _showMessage('Login failed. Please try again.');
     } finally {
@@ -247,13 +250,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           onTap: () => _showMessage(
                             'Google login connection coming next',
                           ),
-                        ),
-                        SizedBox(height: metrics.socialGap),
-                        PlanoraSocialButton(
-                          height: metrics.socialButtonHeight,
-                          label: 'Apple',
-                          logo: const PlanoraAppleLogo(),
-                          onTap: () => _showMessage('Apple login coming later'),
                         ),
                         SizedBox(height: metrics.sectionGap + 4),
                         _SignUpPrompt(

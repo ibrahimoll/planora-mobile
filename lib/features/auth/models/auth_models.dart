@@ -1,3 +1,5 @@
+import '../../../core/config/app_config.dart';
+
 class TokenResponse {
   final String accessToken;
   final String tokenType;
@@ -44,9 +46,31 @@ class UserResponse {
       role: json['role'] as String,
       isActive: json['is_active'] as bool,
       isEmailVerified: json['is_email_verified'] as bool,
-      profilePic: json['profile_pic'] as String?,
+      profilePic: _normalizeProfilePic(json['profile_pic']),
       createdAt: DateTime.parse(json['created_at'] as String),
     );
+  }
+
+  static String? _normalizeProfilePic(dynamic value) {
+    if (value is! String) {
+      return null;
+    }
+
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/')) {
+      return '${AppConfig.apiBaseUrl}$trimmed';
+    }
+
+    return '${AppConfig.apiBaseUrl}/$trimmed';
   }
 }
 
