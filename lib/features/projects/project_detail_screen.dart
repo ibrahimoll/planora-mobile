@@ -447,7 +447,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'AI Project Plan',
+                  'Planora AI',
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
@@ -458,8 +458,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           const SizedBox(height: 12),
           Text(
             projectTasks.isEmpty
-                ? 'Generate a structured plan and create tasks for this project.'
-                : 'Generate more tasks or replace the current task list.',
+                ? 'Create a structured plan from this project context.'
+                : 'Improve this plan with more focused tasks or a rebuilt schedule.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: mutedColor(context),
               height: 1.45,
@@ -483,8 +483,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   : const Icon(Icons.bolt_rounded),
               label: Text(
                 isGeneratingAiPlan
-                    ? 'Generating Tasks...'
-                    : 'Generate AI Tasks',
+                    ? 'Generating Plan...'
+                    : 'Improve Plan with AI',
               ),
             ),
           ),
@@ -559,7 +559,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Generate AI Tasks',
+                              'Improve Plan with AI',
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w900),
                             ),

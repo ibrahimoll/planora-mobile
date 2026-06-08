@@ -3,6 +3,7 @@ import 'package:mobile/features/home/home_screen.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/network/api_client.dart';
 import '../../core/storage/token_storage.dart';
 import 'data/auth_api.dart';
 import 'models/auth_models.dart';
@@ -23,7 +24,14 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
+    ApiClient.onUnauthorized = _handleUnauthorizedSession;
     _checkSession();
+  }
+
+  @override
+  void dispose() {
+    ApiClient.onUnauthorized = null;
+    super.dispose();
   }
 
   Future<void> _checkSession() async {
@@ -52,38 +60,37 @@ class _AuthGateState extends State<AuthGate> {
     } on ApiException catch (error, stackTrace) {
       debugPrint('AuthGate current user load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
+      await TokenStorage.clearAccessToken();
 
       if (!mounted) return;
 
       setState(() {
-        currentUser = buildSessionFallbackUser();
+        currentUser = null;
         isLoading = false;
       });
     } catch (error, stackTrace) {
       debugPrint('AuthGate session check failed: $error');
       debugPrintStack(stackTrace: stackTrace);
+      await TokenStorage.clearAccessToken();
 
       if (!mounted) return;
 
       setState(() {
-        currentUser = buildSessionFallbackUser();
+        currentUser = null;
         isLoading = false;
       });
     }
   }
 
-  UserResponse buildSessionFallbackUser() {
-    return UserResponse(
-      userId: 0,
-      username: 'user',
-      email: '',
-      fullName: 'Planora User',
-      role: 'user',
-      isActive: true,
-      isEmailVerified: true,
-      profilePic: null,
-      createdAt: DateTime.now(),
-    );
+  Future<void> _handleUnauthorizedSession() async {
+    await TokenStorage.clearAccessToken();
+
+    if (!mounted) return;
+
+    setState(() {
+      currentUser = null;
+      isLoading = false;
+    });
   }
 
   Future<void> _logout() async {

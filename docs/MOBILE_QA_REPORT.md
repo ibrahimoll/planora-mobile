@@ -7,6 +7,43 @@ Date: 2026-06-07
 Checked the Flutter mobile app against the local backend reference in `../backend`.
 The pass focused on setup, routing, auth/API contracts, core screen reachability, loading/error/empty states, and targeted stability fixes without redesigning the existing light purple Planora direction.
 
+## Follow-up: AI-First Planning Flow Refactor
+
+Date: 2026-06-08
+
+### Commands Run
+
+From `C:\Users\Ibrahim\Documents\Planora\mobile`:
+
+```powershell
+flutter pub get
+dart format lib test
+flutter analyze
+flutter test
+git diff --check
+```
+
+Result: all succeeded. `git diff --check` printed Windows CRLF warnings for touched files only.
+
+### Current Create Flow Results
+
+- New Plan opens a mode choice: Create Manually or Generate with AI.
+- Manual creation posts only backend-supported project fields: `title`, `description`, and `deadline`, using `/projects` for personal plans and `/teams/{team_id}/projects` for team plans.
+- The manual create flow no longer has the old task-generation toggle, color picker, privacy card, or fake member invite row.
+- AI creation now collects idea, deadline, personal/team, team selection, available hours per week, preferred task count, and requirements/constraints before any project is created.
+- Because the backend only supports post-project AI generation today, AI creation is staged: after the user reviews context and taps Generate Plan, mobile creates the project, calls `/ai-plan/generate` with the full context prompt, and displays generated tasks.
+- Future backend TODOs are tracked in code: `POST /ai-plans/preview-from-idea` and `POST /ai-plans/accept-preview`.
+
+### Session Security Results
+
+- `AuthGate` no longer creates a fallback session user.
+- If `/auth/me` fails at startup, the secure token is cleared and the app returns to onboarding/login.
+- Protected API 401 responses clear secure storage through `ApiClient.onUnauthorized`; auth-state 403 responses for deactivated/unverified accounts do the same.
+
+### Manual Verification Still Needed
+
+No Android/iOS emulator or test account was available in this pass. Live verification still needs a logged-in account for login, personal plan creation, team plan creation, AI generation, and invalid-token navigation.
+
 ## Follow-up: Create Project Backend Compatibility Fix
 
 Date: 2026-06-08
@@ -50,12 +87,12 @@ Result: succeeded. Git printed Windows CRLF warnings for touched files only.
 
 - Create Project now validates `title.trim().length >= 2`, matching backend `min_length=2`.
 - Picked deadlines are normalized to noon local time, or end-of-day if noon has already passed, to avoid midnight/timezone edge cases.
-- Create Project logs the selected project type, selected team id, payload, and deadline ISO string before calling the API. Tokens are not logged.
+- Create Project does not log create payloads or deadline values before calling the API.
 - Create Project catch block now shows `ApiException.message` instead of hiding backend details behind `Could not create project. Try again.`
 - Team project 403 errors now show clear owner/admin guidance while preserving the backend message.
 - The create sheet stays open on failure and restores `isCreatingProject=false`.
 - The sheet closes only after project creation succeeds.
-- AI task generation still runs only after project creation succeeds. If AI task generation fails, the project remains created and the user sees `Project created, but AI tasks could not be generated.`
+- Superseded by the AI-first flow above: manual creation no longer has an AI generation option. AI generation happens only in the dedicated AI wizard or inside an existing project.
 
 ### Exact Create Flow Results
 
@@ -79,8 +116,7 @@ Result: succeeded. Git printed Windows CRLF warnings for touched files only.
    - Title: `Test Project`
    - Description: empty
    - Deadline: tomorrow
-   - AI Tasks: off
-   - Expected: request posts to `/projects`, sheet closes, and project appears in Projects list.
+  - Expected: request posts to `/projects`, sheet closes, and project appears in Projects list.
 4. Create Team project:
    - Create/select a team owned/admin-managed by the account.
    - Project Type: Team
@@ -89,9 +125,9 @@ Result: succeeded. Git printed Windows CRLF warnings for touched files only.
 5. Team permission failure:
    - Select a team where the user cannot manage projects.
    - Expected: sheet stays open, button stops loading, and backend/403 reason is visible.
-6. AI tasks after create:
-   - Enable AI Tasks for a valid project create.
-   - Expected: if project create succeeds but AI fails, project remains visible and the SnackBar says `Project created, but AI tasks could not be generated.`
+6. AI planning flow:
+   - Open New Plan > Generate with AI, enter idea/context, review, then generate.
+   - Expected: project is created only after the review step, `/ai-plan/generate` receives the full context prompt, and generated tasks appear in the result.
 
 ## Follow-up: Home, Projects, Tasks, Reports, Teams, Calendar Wiring
 
@@ -293,7 +329,7 @@ Result: succeeded. The app installed and launched on the Pixel 9 emulator agains
 - Reworked AI Chat into a project-scoped drawer flow: the header menu opens `Project Chats`, lists backend `/projects` items, and selecting a project loads that project history.
 - AI Chat now shows the selected project title in the header, keeps the local welcome message, anchors the composer above bottom nav, and shows `Planora AI is typing` above the composer while sending.
 - Added a chat scroll controller so new messages/replies move the chat to the latest content.
-- Preserved token state in `AuthGate` when current-user loading fails, logs the real error/stack, and enters Home with a minimal session fallback user.
+- Superseded on 2026-06-08: `AuthGate` now clears invalid current-user sessions and returns to onboarding/login instead of using a fallback session.
 - Replaced hidden `catch (_)` blocks in auth, reset, home notification count, and notifications with logged `debugPrint`/`debugPrintStack` handling.
 - Removed visible Apple login/register buttons; Google remains as a clear coming-soon action.
 - Wired Home `New Project` quick action to open the existing Create Project sheet.
@@ -313,7 +349,7 @@ Result: succeeded. The app installed and launched on the Pixel 9 emulator agains
 
 - Search, reports, calendar, Google social auth, profile-picture upload, and attachment upload remain placeholders or coming-soon actions.
 - Apple auth is intentionally removed from visible login/register UI while paused.
-- AuthGate fallback user is minimal because no cached user profile store exists yet; backend-backed screens still use the saved bearer token.
+- Superseded on 2026-06-08: there is no fallback session user; a valid token and `/auth/me` response are required for Home.
 - Team-project separation is preserved at the mobile project-list level by using `/projects` for personal projects.
 
 ### Files Changed
@@ -466,7 +502,7 @@ Backend:
 ### Manual Test Checklist
 
 1. Login against `https://planora-api-dqmv.onrender.com` with `--dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com`.
-2. Open Projects, create a project with `Generate project tasks` enabled, then confirm new tasks appear in Projects, Project Details, and Tasks.
+2. Open Plans > New Plan > Generate with AI, enter an idea/context, then confirm generated tasks appear in Plans, Project Details, and Tasks.
 3. Open a team project, use Project Details > Members > Invite, add an existing email/username, then verify the member list shows the real name/avatar or fallback initials.
 4. Open Tasks and verify sections appear correctly for overdue, today, tomorrow, next-week, later/no-due-date, and completed tasks.
 5. Open AI Chat with and without projects; confirm the empty state, project selector, welcome message, send flow, SnackBar errors, and typing bubble.
@@ -786,8 +822,8 @@ Manual flow:
 5. Login and confirm Home opens.
 6. Tap Tasks tab and confirm it opens the task list, not create task.
 7. Tap the add task action and confirm Create Task opens.
-8. Open Projects, create a personal project, optionally enable AI Tasks, then confirm the project appears.
-9. Tap the project to view details, generate AI tasks, and confirm the Project Tasks section refreshes from the backend.
+8. Open Plans, create a personal plan manually, then confirm the plan appears.
+9. Open Plans > New Plan > Generate with AI, review context, generate, and confirm the Project Tasks section refreshes from the backend.
 10. If the account has teams, confirm team projects appear and project members load in details.
 11. Open AI tab, select a project, send a message, then tap Plan and confirm generated tasks appear in Project Details or Tasks.
 12. Tap notifications bell, read notifications, and mark all read.

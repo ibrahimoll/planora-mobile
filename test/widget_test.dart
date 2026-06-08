@@ -114,17 +114,10 @@ void main() {
   });
 
   testWidgets('AI Chat shows a friendly project empty state', (tester) async {
-    var openedProjects = false;
-
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: AiChatScreen(
-            projectsApi: const _EmptyProjectsApi(),
-            onOpenProjects: () {
-              openedProjects = true;
-            },
-          ),
+          body: AiChatScreen(projectsApi: const _EmptyProjectsApi()),
         ),
       ),
     );
@@ -132,14 +125,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(
-      find.text('Choose a project to start chatting with Planora AI.'),
-      findsOneWidget,
-    );
+    expect(find.text('Plan a project with AI first.'), findsOneWidget);
 
-    await tester.tap(find.text('Open Projects'));
-
-    expect(openedProjects, isTrue);
+    expect(find.text('Plan with AI'), findsOneWidget);
   });
 
   testWidgets('AI Chat keeps welcome message when history fails', (

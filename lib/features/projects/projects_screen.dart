@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_exception.dart';
-import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
 import '../teams/teams_screen.dart';
 import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
+import 'ai_project_wizard_screen.dart';
 import 'project_detail_screen.dart';
+
+enum ProjectCreateStartMode { modeChoice, manual, ai }
 
 class ProjectsScreen extends StatefulWidget {
   final VoidCallback onBack;
   final int createRequestId;
   final bool openCreateOnStart;
+  final ProjectCreateStartMode createStartMode;
   final VoidCallback? onCreateRequestConsumed;
 
   const ProjectsScreen({
@@ -20,6 +23,7 @@ class ProjectsScreen extends StatefulWidget {
     required this.onBack,
     this.createRequestId = 0,
     this.openCreateOnStart = false,
+    this.createStartMode = ProjectCreateStartMode.modeChoice,
     this.onCreateRequestConsumed,
   });
 
@@ -30,16 +34,13 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
   final TasksApi _tasksApi = const TasksApi();
-  final AiPlanApi _aiPlanApi = const AiPlanApi();
 
   int selectedFilterIndex = 0;
-  int selectedProjectColorIndex = 0;
   int? selectedTeamId;
 
   bool isLoading = true;
   bool isCreatingProject = false;
   bool isLoadingTeams = false;
-  bool generateTasksWithAi = false;
 
   String? errorMessage;
   String? taskSummaryWarning;
@@ -120,8 +121,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
       setState(() {
         errorMessage = error is ApiException
-            ? 'Could not load projects: ${error.message}'
-            : 'Could not load projects. Please try again.';
+            ? 'Could not load plans: ${error.message}'
+            : 'Could not load plans. Please try again.';
         taskSummaryWarning = null;
         projectTasks = [];
         isLoading = false;
@@ -185,7 +186,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       }
 
       widget.onCreateRequestConsumed?.call();
-      showCreateProjectSheet();
+
+      switch (widget.createStartMode) {
+        case ProjectCreateStartMode.manual:
+          showManualCreateProjectSheet();
+        case ProjectCreateStartMode.ai:
+          openAiProjectWizard();
+        case ProjectCreateStartMode.modeChoice:
+          showCreateProjectSheet();
+      }
     });
   }
 
@@ -304,6 +313,44 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return '$completed/${tasks.length} tasks done';
   }
 
+  TaskListItem? nextTaskForProject(ProjectModel project) {
+    final tasks =
+        tasksForProject(
+            project,
+          ).where((item) => !item.task.isCompleted).toList()
+          ..sort(compareUpcomingTaskItems);
+
+    if (tasks.isEmpty) {
+      return null;
+    }
+
+    return tasks.first;
+  }
+
+  String projectHealthLabel(ProjectModel project) {
+    final tasks = tasksForProject(project);
+    final hasBlockedTask = tasks.any((item) => item.task.isBlocked);
+    final hasOverdueTask = tasks.any((item) => item.task.isOverdue);
+
+    if (!project.isCompleted && project.daysLeft < 0) {
+      return 'At risk';
+    }
+
+    if (hasBlockedTask) {
+      return 'Blocked';
+    }
+
+    if (hasOverdueTask) {
+      return 'Needs attention';
+    }
+
+    if (project.daysLeft <= 3 && !project.isCompleted) {
+      return 'Due soon';
+    }
+
+    return 'Healthy';
+  }
+
   void setProjectFilter(int index) {
     setState(() {
       selectedFilterIndex = index;
@@ -384,7 +431,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ),
         const SizedBox(width: 10),
         Text(
-          'Projects',
+          'Plans',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w900,
             color: isDark ? Colors.white : const Color(0xFF1E1B4B),
@@ -548,7 +595,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const Icon(Icons.add_rounded, color: Colors.white, size: 24),
             const SizedBox(width: 6),
             Text(
-              'New Project',
+              'New Plan',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.w900,
@@ -568,7 +615,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             context,
             icon: Icons.folder_rounded,
             value: totalProjectsCount.toString(),
-            label: 'Total Projects',
+            label: 'Total Plans',
             color: Theme.of(context).colorScheme.primary,
           ),
         ),
@@ -678,7 +725,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return buildMessageState(
         context,
         icon: Icons.wifi_off_rounded,
-        title: 'Could not load projects',
+        title: 'Could not load plans',
         message: errorMessage!,
         buttonText: 'Try Again',
         onPressed: loadProjects,
@@ -691,10 +738,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return buildMessageState(
         context,
         icon: Icons.folder_open_rounded,
-        title: 'No projects yet',
+        title: 'No plans yet',
         message:
-            'Create your first project and Planora will help you organize it.',
-        buttonText: 'New Project',
+            'Describe an idea or create a manual plan to start organizing it.',
+        buttonText: 'Start Plan',
         onPressed: showCreateProjectSheet,
       );
     }
@@ -802,6 +849,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final statusColor = getStatusColor(context, project);
     final iconColor = getProjectIconColor(project);
     final progress = getProjectProgress(project);
+    final nextTask = nextTaskForProject(project);
 
     return InkWell(
       onTap: () async {
@@ -872,7 +920,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        getProjectTaskLabel(project),
+                        nextTask == null
+                            ? getProjectTaskLabel(project)
+                            : 'Next: ${nextTask.task.title}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelMedium
@@ -947,6 +997,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
+                buildHealthChip(context, project),
+                const SizedBox(width: 8),
                 buildProjectTypeChip(context, project),
               ],
             ),
@@ -975,6 +1027,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: statusColor,
+          fontWeight: FontWeight.w900,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+
+  Widget buildHealthChip(BuildContext context, ProjectModel project) {
+    final label = projectHealthLabel(project);
+    final color = switch (label) {
+      'At risk' => const Color(0xFFEF4444),
+      'Blocked' => const Color(0xFFF59E0B),
+      'Needs attention' => const Color(0xFFF59E0B),
+      'Due soon' => const Color(0xFF3B82F6),
+      _ => const Color(0xFF22C55E),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: color,
           fontWeight: FontWeight.w900,
           fontSize: 10,
         ),
@@ -1026,16 +1107,236 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Future<void> showCreateProjectSheet() async {
+    resetCreateProjectForm();
+    await loadTeamsForCreateSheet();
+
+    if (!mounted) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
+
+        return SafeArea(
+          top: false,
+          child: Container(
+            margin: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF050816) : Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.22),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF475569)
+                          : const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.add_task_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Start a Plan',
+                            style: Theme.of(sheetContext).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Choose how Planora should create this project.',
+                            style: Theme.of(sheetContext).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: isDark
+                                      ? Colors.white60
+                                      : const Color(0xFF64748B),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                buildCreationModeCard(
+                  sheetContext,
+                  icon: Icons.edit_note_rounded,
+                  title: 'Create Manually',
+                  message: 'Build the project yourself and add tasks manually.',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    showManualCreateProjectSheet();
+                  },
+                ),
+                const SizedBox(height: 12),
+                buildCreationModeCard(
+                  sheetContext,
+                  icon: Icons.auto_awesome_rounded,
+                  title: 'Generate with AI',
+                  message:
+                      'Describe your idea and Planora will create the plan, tasks, timeline, and risks.',
+                  isPrimary: true,
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    openAiProjectWizard();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget buildCreationModeCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+    required VoidCallback onTap,
+    bool isPrimary = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isPrimary
+              ? primary.withValues(alpha: isDark ? 0.22 : 0.10)
+              : isDark
+              ? const Color(0xFF0F172A)
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isPrimary
+                ? primary.withValues(alpha: 0.42)
+                : isDark
+                ? const Color(0xFF1E293B)
+                : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isPrimary
+                    ? primary
+                    : primary.withValues(alpha: isDark ? 0.18 : 0.10),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: isPrimary ? Colors.white : primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(Icons.chevron_right_rounded, color: primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> openAiProjectWizard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadProjects),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    loadProjects();
+  }
+
+  void resetCreateProjectForm() {
     titleController.clear();
     descriptionController.clear();
 
     setState(() {
       selectedDeadline = null;
-      selectedProjectColorIndex = 0;
       selectedProjectType = 'personal';
-      generateTasksWithAi = false;
       isCreatingProject = false;
     });
+  }
+
+  Future<void> showManualCreateProjectSheet() async {
+    resetCreateProjectForm();
 
     await loadTeamsForCreateSheet();
 
@@ -1127,7 +1428,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'New Project',
+                                  'Create Manually',
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineSmall
@@ -1140,7 +1441,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Create a new project to start organizing your work.',
+                                  'Create the project shell now, then add tasks yourself.',
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         fontWeight: FontWeight.w600,
@@ -1155,12 +1456,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         ],
                       ),
                       const SizedBox(height: 28),
-                      buildCreateFieldLabel(context, 'Project Name'),
+                      buildCreateFieldLabel(context, 'Title'),
                       const SizedBox(height: 8),
                       buildCreateProjectTextField(
                         context,
                         controller: titleController,
-                        hintText: 'e.g. Website Redesign',
+                        hintText: 'e.g. FYP Mobile App',
                         icon: Icons.folder_outlined,
                         maxLines: 1,
                       ),
@@ -1173,17 +1474,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           return buildCreateProjectTextField(
                             context,
                             controller: descriptionController,
-                            hintText: 'Describe your project...',
+                            hintText: 'Describe what this plan is for...',
                             icon: Icons.notes_rounded,
                             maxLines: 4,
-                            maxLength: 200,
-                            counterText: '${value.text.length}/200',
+                            maxLength: 500,
+                            counterText: '${value.text.length}/500',
                           );
                         },
                       ),
                       const SizedBox(height: 20),
 
-                      buildCreateFieldLabel(context, 'Project Type'),
+                      buildCreateFieldLabel(context, 'Plan Type'),
                       const SizedBox(height: 8),
                       buildProjectTypeSelector(
                         context,
@@ -1198,12 +1499,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           setSheetState: setSheetState,
                         ),
                       ],
-                      const SizedBox(height: 20),
-
-                      buildCreateFieldLabel(context, 'Team Members (Optional)'),
-                      const SizedBox(height: 8),
-                      buildTeamMembersInviteCard(context),
-
                       const SizedBox(height: 20),
 
                       buildCreateFieldLabel(context, 'Deadline'),
@@ -1227,24 +1522,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         },
                       ),
 
-                      const SizedBox(height: 20),
-                      buildCreateFieldLabel(context, 'Project Color'),
-                      const SizedBox(height: 12),
-                      buildProjectColorSelector(
-                        context,
-                        setSheetState: setSheetState,
-                      ),
-                      const SizedBox(height: 20),
-                      buildCreateFieldLabel(context, 'AI Tasks'),
-                      const SizedBox(height: 8),
-                      buildAiTaskToggleCard(
-                        context,
-                        setSheetState: setSheetState,
-                      ),
-                      const SizedBox(height: 20),
-                      buildCreateFieldLabel(context, 'Privacy'),
-                      const SizedBox(height: 8),
-                      buildPrivacyCard(context),
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -1287,7 +1564,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                                       ),
                                     )
                                   : const Text(
-                                      'Create Project',
+                                      'Create Plan',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
@@ -1421,138 +1698,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget buildProjectColorSelector(
-    BuildContext context, {
-    required StateSetter setSheetState,
-  }) {
-    final colors = [
-      const Color(0xFF6D28D9),
-      const Color(0xFF60A5FA),
-      const Color(0xFF5ECAC6),
-      const Color(0xFF7ACB5A),
-      const Color(0xFFF2AA3C),
-      const Color(0xFFE75E5E),
-      const Color(0xFFD957A7),
-      const Color(0xFFA8ADBF),
-    ];
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(colors.length, (index) {
-        final isSelected = selectedProjectColorIndex == index;
-        final color = colors[index];
-
-        return InkWell(
-          onTap: () {
-            setSheetState(() {
-              selectedProjectColorIndex = index;
-            });
-
-            setState(() {
-              selectedProjectColorIndex = index;
-            });
-          },
-          borderRadius: BorderRadius.circular(999),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [
-                if (isSelected)
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-              ],
-            ),
-            child: isSelected
-                ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
-                : null,
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget buildAiTaskToggleCard(
-    BuildContext context, {
-    required StateSetter setSheetState,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              size: 18,
-              color: Color(0xFF7C3AED),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Generate project tasks',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Adds an initial task plan after creation',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: generateTasksWithAi,
-            activeThumbColor: const Color(0xFF7C3AED),
-            onChanged: isCreatingProject
-                ? null
-                : (value) {
-                    setSheetState(() {
-                      generateTasksWithAi = value;
-                    });
-                    setState(() {
-                      generateTasksWithAi = value;
-                    });
-                  },
-          ),
-        ],
       ),
     );
   }
@@ -1766,70 +1911,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     await loadTeamsForCreateSheet();
   }
 
-  Widget buildPrivacyCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.lock_outline_rounded,
-              size: 18,
-              color: Color(0xFF7C3AED),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  selectedProjectType == 'team' ? 'Team' : 'Private',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  selectedProjectType == 'team'
-                      ? 'Members of the selected team can access it'
-                      : 'Only you can access this project',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: isDark ? Colors.white54 : const Color(0xFF64748B),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<DateTime?> pickDeadlineDate() async {
     final now = DateTime.now();
 
@@ -1923,48 +2004,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     });
 
     try {
-      final shouldGenerateTasks = generateTasksWithAi;
       final request = ProjectCreateRequest(
         title: title,
         description: description.isEmpty ? null : description,
         deadline: selectedDeadline!,
       );
-      debugPrint('Create project selectedProjectType: $selectedProjectType');
-      debugPrint('Create project selectedTeamId: $selectedTeamId');
-      debugPrint('Create project payload: ${request.toJson()}');
-      debugPrint(
-        'Create project deadline: ${selectedDeadline!.toIso8601String()}',
-      );
 
-      final createdProject = selectedProjectType == 'team'
-          ? await _projectsApi.createTeamProject(
-              teamId: selectedTeamId!,
-              request: request,
-            )
-          : await _projectsApi.createProject(request);
-      var generatedTaskCount = 0;
-      var aiGenerationFailed = false;
-
-      if (shouldGenerateTasks) {
-        try {
-          final aiPlan = await _aiPlanApi.generatePlan(
-            project: createdProject,
-            prompt: description.isEmpty
-                ? 'Create a practical task plan for $title.'
-                : 'Create a practical task plan for $title. Context: $description',
-            generateTasks: true,
-            overwriteExistingTasks: false,
-            preferredTaskCount: 8,
-          );
-
-          generatedTaskCount = aiPlan.tasksCreated;
-        } catch (error, stackTrace) {
-          debugPrint(
-            'AI task generation after project creation failed: $error',
-          );
-          debugPrintStack(stackTrace: stackTrace);
-          aiGenerationFailed = true;
-        }
+      if (selectedProjectType == 'team') {
+        await _projectsApi.createTeamProject(
+          teamId: selectedTeamId!,
+          request: request,
+        );
+      } else {
+        await _projectsApi.createProject(request);
       }
 
       if (!mounted) {
@@ -1980,7 +2032,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
       setState(() {
         selectedDeadline = null;
-        generateTasksWithAi = false;
         isCreatingProject = false;
       });
 
@@ -1990,15 +2041,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         return;
       }
 
-      final snackBarMessage = aiGenerationFailed
-          ? 'Project created, but AI tasks could not be generated.'
-          : shouldGenerateTasks
-          ? 'Project created with $generatedTaskCount AI tasks.'
-          : 'Project created successfully.';
-
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
+      ).showSnackBar(const SnackBar(content: Text('Plan created.')));
     } catch (error, stackTrace) {
       debugPrint('Project creation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -2045,76 +2090,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
 
     return 'Could not create project. Try again.';
-  }
-
-  Widget buildTeamMembersInviteCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isTeamProject = selectedProjectType == 'team';
-    final hasTeam = selectedTeamId != null;
-    final canManageInvites = isTeamProject && hasTeam;
-    final text = !isTeamProject
-        ? 'Members are available for team projects.'
-        : hasTeam
-        ? 'Invite members from Teams'
-        : 'Select or create a team before inviting members.';
-    final iconColor = canManageInvites
-        ? const Color(0xFF7C3AED)
-        : (isDark ? Colors.white38 : const Color(0xFF94A3B8));
-
-    return Container(
-      width: double.infinity,
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
-        ),
-      ),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: canManageInvites ? openTeamsFromProjectSheet : null,
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: iconColor.withValues(alpha: 0.10),
-                border: Border.all(color: iconColor.withValues(alpha: 0.25)),
-              ),
-              child: Icon(Icons.add_rounded, color: iconColor, size: 22),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white54 : const Color(0xFF64748B),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: canManageInvites ? openTeamsFromProjectSheet : null,
-            child: Text(
-              canManageInvites ? 'Invite' : 'Disabled',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: canManageInvites
-                    ? const Color(0xFF7C3AED)
-                    : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override

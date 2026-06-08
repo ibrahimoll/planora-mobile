@@ -11,9 +11,21 @@ Last updated: 2026-06-08
 
 ## Latest Mobile State - 2026-06-08
 
-- Home is now wired beyond the AI crash pass: the search icon opens backend-backed grouped project/task search, the Project Overview date pill opens This Week/This Month/All Time filters, Invite Team opens Teams/Invitations, View Reports opens Reports, and the Calendar tab shows a real task due-date calendar.
+- Home is now centered on Today and AI guidance: the primary card asks `What do you want to plan today?`, opens the AI planning wizard, and the rest of Home shows Today's Focus, Project Health, Continue Planning, and quick actions for AI planning, manual creation, Ask Planora, and Tasks.
+- Bottom navigation now reads Today, Plans, AI Planner, Tasks, Profile. The old Calendar tab is no longer a primary bottom-nav destination.
+- New Plan now starts with a mode choice: Create Manually or Generate with AI. The manual sheet only sends backend-supported project fields: title, description, deadline, personal/team, and team selection.
+- The old manual `AI Tasks` toggle, project color picker, privacy card, and fake team member invite row were removed from the create flow.
+- Added `AiProjectWizardScreen`: it collects idea/goal, deadline, personal/team, team selection, available hours per week, preferred task count, and requirements/constraints before creation.
+- AI project creation is backend-compatible and staged: after the user reviews context and taps Generate Plan, mobile creates the project through `/projects` or `/teams/{team_id}/projects`, then immediately calls the existing `/ai-plan/generate` endpoint with the full idea/context prompt and shows generated tasks.
+- Backend TODOs are documented in code for future true preview support: `POST /ai-plans/preview-from-idea` and `POST /ai-plans/accept-preview`.
+- Session security changed: there is no fallback user. If `/auth/me` fails during startup, mobile clears the secure token and returns to onboarding/login. Protected API 401 responses, plus auth-state 403 responses for deactivated/unverified accounts, clear secure storage through `ApiClient.onUnauthorized`.
+- Planora AI chat now points empty users to the AI planning wizard and uses project-planning prompts such as next steps, schedule rebuilds, risk explanation, and task breakdowns.
+- Plans cards now include derived health labels and next unfinished tasks from backend project/task data.
+- Home search, notifications, reports, teams, tasks, attachments, comments, profile, and reset-password flows remain wired to their previous backend-backed screens.
+- Verification for this refactor should include `flutter pub get`, `dart format lib test`, `flutter analyze`, `flutter test`, and `git diff --check`.
+
+- Previous wiring state: the search icon opens backend-backed grouped project/task search, reports and teams are reachable, and task due dates still back the calendar screen even though Calendar is no longer in bottom navigation.
 - `ProjectsApi.getProjects()` now combines personal projects from `/projects` with team projects from `/teams/{team_id}/projects`; personal project creation still uses `/projects`, and team project creation uses `/teams/{team_id}/projects`.
-- Create Project now has a Personal/Team selector. Personal disables member invites with `Members are available for team projects.` Team requires selecting/creating a team before creating or inviting.
 - Create Task no longer shows dead `Assign to someone` or `Add tags...` controls. Personal tasks show `Assigned to me`; team projects load project members and send `assigned_to`; tags are disabled because no backend tags route exists.
 - Task Details hides the unsupported Subtasks tab, supports backend task attachment upload/delete via multipart image picker, and supports backend comment create/delete in the Activity tab.
 - Added `ReportsScreen`, `TeamsScreen`, `CalendarScreen`, and `SearchScreen` without redesigning the Planora light purple direction.
@@ -25,9 +37,9 @@ Last updated: 2026-06-08
 - Home tab pages now receive full `AnimatedSwitcher` stack constraints, which protects AI Chat and other tab pages from loose animated layout constraints.
 - AI Chat uses a burger-menu `Project Chats` drawer instead of a dropdown. The drawer lists personal projects from `/projects`, and each selection loads project-scoped chat history.
 - AI Chat header shows the selected project title, keeps the local welcome bubble, anchors the composer above bottom nav, and shows `Planora AI is typing` while awaiting replies.
-- Home `New Project` now opens the real Create Project bottom sheet instead of only navigating to the Projects tab.
+- Home `Plan with AI` opens the idea-first AI planning wizard; `Create Manually` opens the manual plan sheet through the Plans tab.
 - Projects tune icon now opens a real All/Active/Completed filter sheet.
-- `AuthGate` preserves the saved token if `/auth/me` fails, logs the real error, and enters Home with a minimal fallback session user so token-authenticated screens can still load.
+- `AuthGate` clears the saved token if `/auth/me` fails and never enters Home with a fallback session user.
 - Unexpected auth/reset/notification failures are now logged with `debugPrint`/`debugPrintStack` while users still get friendly messages.
 - Apple login/register buttons were removed from visible auth UI while Apple auth is paused; Google remains a clear coming-soon action.
 - Latest verification: `dart format lib test`, `flutter analyze`, `flutter test`, and emulator launch with `--dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com` passed. Home `New Project`, AI Chat, and AI project drawer were manually checked on the emulator.
@@ -45,8 +57,8 @@ Last updated: 2026-06-08
 
 - Home dashboard, Project Overview, My Projects, and Upcoming Tasks use real backend project/task data instead of static samples.
 - Projects list now loads task summaries per backend project and computes progress from completed task rows when available.
-- Project details now shows real project tasks and can generate AI tasks through the backend `/ai-plan/generate` endpoints.
-- Create Project has an opt-in AI Tasks toggle: the project is created first, then generated tasks are persisted by the backend planner.
+- Project details now shows real project tasks and can improve a plan through the backend `/ai-plan/generate` endpoints.
+- Superseded: the old create-project task-generation toggle has been removed. Idea-first AI planning now lives in the dedicated AI wizard.
 - Planora AI chat has a `Plan` action that calls the same backend planner for the selected personal/team project.
 - `flutter analyze` and `flutter test` pass after the latest home/project/task AI-planning follow-up.
 

@@ -3,6 +3,7 @@ import 'package:mobile/features/ai/ai_chat_screen.dart';
 import 'package:mobile/features/notifications/data/notifications_api.dart';
 import 'package:mobile/features/notifications/notifications_screen.dart';
 import 'package:mobile/features/profile/profile_screen.dart';
+import 'package:mobile/features/projects/ai_project_wizard_screen.dart';
 import 'package:mobile/features/projects/project_detail_screen.dart';
 import 'package:mobile/features/projects/projects_screen.dart';
 import 'package:mobile/features/reports/reports_screen.dart';
@@ -19,7 +20,6 @@ import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/auth_models.dart';
 import '../auth/models/project_models.dart';
-import '../calendar/calendar_screen.dart';
 import 'widgets/home_bottom_nav.dart';
 
 enum DashboardRange {
@@ -58,6 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   int projectCreateRequestId = 0;
   int taskCreateRequestId = 0;
+  ProjectCreateStartMode projectCreateStartMode =
+      ProjectCreateStartMode.modeChoice;
   DashboardRange dashboardRange = DashboardRange.month;
 
   bool hasUnreadNotifications = false;
@@ -227,11 +229,38 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void openNewProjectFlow() {
+  void openNewProjectFlow({
+    ProjectCreateStartMode mode = ProjectCreateStartMode.modeChoice,
+  }) {
     setState(() {
       selectedIndex = 1;
       projectCreateRequestId += 1;
       shouldOpenProjectCreateOnStart = true;
+      projectCreateStartMode = mode;
+    });
+  }
+
+  void openManualProjectFlow() {
+    openNewProjectFlow(mode: ProjectCreateStartMode.manual);
+  }
+
+  Future<void> openAiPlanningFlow() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadDashboardData),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    loadDashboardData();
+  }
+
+  void openAiPlannerTab() {
+    setState(() {
+      selectedIndex = 2;
     });
   }
 
@@ -248,6 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
       selectedIndex = 1;
       projectCreateRequestId = 0;
       shouldOpenProjectCreateOnStart = false;
+      projectCreateStartMode = ProjectCreateStartMode.modeChoice;
     });
   }
 
@@ -576,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 3),
               Text(
-                'Ready to plan something amazing?',
+                'What should Planora help you plan today?',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -692,6 +722,262 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'No Data';
   }
 
+  Widget buildMainAiPlanningCard(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return InkWell(
+      onTap: openAiPlanningFlow,
+      borderRadius: BorderRadius.circular(26),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.primaryGradientFor(context),
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: PlanoraTheme.floatingShadowFor(context),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.24),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'AI-first',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'What do you want to plan today?',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              'Describe an idea and Planora will shape the plan, tasks, timeline, and risks.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.white.withValues(alpha: isDark ? 0.84 : 0.90),
+                height: 1.45,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 46,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Text(
+                      'Plan with AI',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: openAiPlannerTab,
+                  borderRadius: BorderRadius.circular(15),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildTodayFocus(BuildContext context) {
+    if (isLoadingDashboard) {
+      return buildFocusSection(
+        context,
+        icon: Icons.sync_rounded,
+        title: 'Loading today focus...',
+        message: 'Checking tasks, deadlines, and project health.',
+        showSpinner: true,
+      );
+    }
+
+    if (dashboardError != null) {
+      return buildFocusSection(
+        context,
+        icon: Icons.wifi_off_rounded,
+        title: 'Could not load today focus',
+        message: 'Refresh when the backend is reachable.',
+        actionText: 'Try Again',
+        onAction: loadDashboardData,
+      );
+    }
+
+    final overdueTasks =
+        dashboardTasks.where((item) => item.task.isOverdue).toList()
+          ..sort(compareUpcomingTaskItems);
+    final focusTask = overdueTasks.isNotEmpty
+        ? overdueTasks.first
+        : upcomingTasks.isEmpty
+        ? null
+        : upcomingTasks.first;
+
+    if (focusTask == null) {
+      return buildFocusSection(
+        context,
+        icon: Icons.auto_awesome_rounded,
+        title: 'Plan your next move',
+        message: dashboardProjects.isEmpty
+            ? 'Start with an idea and let Planora build the first plan.'
+            : 'No urgent tasks. Ask Planora to refine a plan or create the next task.',
+        actionText: dashboardProjects.isEmpty ? 'Plan with AI' : 'Ask Planora',
+        onAction: dashboardProjects.isEmpty
+            ? openAiPlanningFlow
+            : openAiPlannerTab,
+      );
+    }
+
+    final task = focusTask.task;
+
+    return buildFocusSection(
+      context,
+      icon: task.isOverdue
+          ? Icons.warning_amber_rounded
+          : Icons.radio_button_unchecked_rounded,
+      title: task.isOverdue ? 'Overdue: ${task.title}' : task.title,
+      message: '${focusTask.project.title} - ${task.dueDateLabel}',
+      actionText: 'Open Task',
+      onAction: () => openUpcomingTaskDetail(focusTask),
+      accent: task.isOverdue ? PlanoraTheme.error : null,
+    );
+  }
+
+  Widget buildFocusSection(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+    String? actionText,
+    VoidCallback? onAction,
+    Color? accent,
+    bool showSpinner = false,
+  }) {
+    final color = accent ?? Theme.of(context).colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        buildSectionTitle(context, "Today's Focus"),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: cardDecoration(context),
+          child: Row(
+            children: [
+              if (showSpinner)
+                const SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 2.6),
+                )
+              else
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(icon, color: color),
+                ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: mutedColor(context),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (actionText != null && onAction != null) ...[
+                const SizedBox(width: 8),
+                TextButton(onPressed: onAction, child: Text(actionText)),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget buildProjectOverview(BuildContext context) {
     if (isLoadingDashboard) {
       return buildUpcomingStateCard(
@@ -724,7 +1010,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'Project Overview',
+                  'Project Health',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                     color: isDark
@@ -919,28 +1205,28 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget buildQuickActions(BuildContext context) {
     final actions = [
       _HomeQuickAction(
-        icon: Icons.add_rounded,
-        label: 'New Project',
+        icon: Icons.auto_awesome_rounded,
+        label: 'Plan with AI',
         isFilled: true,
-        onTap: openNewProjectFlow,
+        onTap: openAiPlanningFlow,
+      ),
+      _HomeQuickAction(
+        icon: Icons.edit_note_rounded,
+        label: 'Create Manually',
+        isFilled: false,
+        onTap: openManualProjectFlow,
+      ),
+      _HomeQuickAction(
+        icon: Icons.chat_bubble_outline_rounded,
+        label: 'Ask Planora',
+        isFilled: false,
+        onTap: openAiPlannerTab,
       ),
       _HomeQuickAction(
         icon: Icons.check_box_outlined,
-        label: 'New Task',
+        label: 'View Tasks',
         isFilled: false,
-        onTap: openNewTaskFlow,
-      ),
-      _HomeQuickAction(
-        icon: Icons.groups_2_outlined,
-        label: 'Invite Team',
-        isFilled: false,
-        onTap: openTeams,
-      ),
-      _HomeQuickAction(
-        icon: Icons.description_outlined,
-        label: 'View Reports',
-        isFilled: false,
-        onTap: openReports,
+        onTap: openTasksTab,
       ),
     ];
 
@@ -1045,7 +1331,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          buildSectionTitle(context, 'My Projects'),
+          buildSectionTitle(context, 'Continue Planning'),
           const SizedBox(height: 10),
           buildUpcomingStateCard(
             context,
@@ -1061,7 +1347,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          buildSectionTitle(context, 'My Projects'),
+          buildSectionTitle(context, 'Continue Planning'),
           const SizedBox(height: 10),
           buildUpcomingStateCard(
             context,
@@ -1081,8 +1367,8 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         buildSectionTitle(
           context,
-          'My Projects',
-          action: 'See All',
+          'Continue Planning',
+          action: 'All Plans',
           onAction: openProjectsTab,
         ),
         const SizedBox(height: 10),
@@ -1090,9 +1376,9 @@ class _HomeScreenState extends State<HomeScreen> {
           buildUpcomingStateCard(
             context,
             icon: Icons.folder_open_rounded,
-            title: 'No projects yet',
-            actionText: 'New Project',
-            onAction: openNewProjectFlow,
+            title: 'No plans yet',
+            actionText: 'Plan with AI',
+            onAction: openAiPlanningFlow,
           )
         else
           for (final project in visibleProjects) ...[
@@ -1493,13 +1779,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          buildMainAiPlanningCard(context),
+          const SizedBox(height: 22),
+          buildTodayFocus(context),
+          const SizedBox(height: 22),
           buildProjectOverview(context),
           const SizedBox(height: 22),
           buildQuickActions(context),
           const SizedBox(height: 22),
           buildProjects(context),
-          const SizedBox(height: 22),
-          buildUpcomingTask(context),
         ],
       ),
     );
@@ -1565,6 +1853,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return ProjectsScreen(
           createRequestId: projectCreateRequestId,
           openCreateOnStart: shouldOpenProjectCreateOnStart,
+          createStartMode: projectCreateStartMode,
           onCreateRequestConsumed: () {
             if (!mounted) {
               return;
@@ -1573,6 +1862,7 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {
               projectCreateRequestId = 0;
               shouldOpenProjectCreateOnStart = false;
+              projectCreateStartMode = ProjectCreateStartMode.modeChoice;
             });
           },
           onBack: () {
@@ -1580,6 +1870,7 @@ class _HomeScreenState extends State<HomeScreen> {
               selectedIndex = 0;
               projectCreateRequestId = 0;
               shouldOpenProjectCreateOnStart = false;
+              projectCreateStartMode = ProjectCreateStartMode.modeChoice;
             });
             loadDashboardData();
           },
@@ -1616,7 +1907,12 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
       case 4:
-        return const CalendarScreen();
+        return ProfileScreen(
+          user: widget.user,
+          onThemeToggle: widget.onThemeToggle,
+          onLoggedOut: widget.onLoggedOut ?? () {},
+          onUserUpdated: widget.onUserUpdated,
+        );
 
       default:
         return buildHomeDashboard(context);
@@ -1633,6 +1929,7 @@ class _HomeScreenState extends State<HomeScreen> {
             if (index == 1) {
               projectCreateRequestId = 0;
               shouldOpenProjectCreateOnStart = false;
+              projectCreateStartMode = ProjectCreateStartMode.modeChoice;
             }
 
             if (index == 3) {

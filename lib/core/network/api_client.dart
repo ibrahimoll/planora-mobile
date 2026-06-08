@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
@@ -6,6 +8,8 @@ import 'api_exception.dart';
 
 class ApiClient {
   ApiClient._();
+
+  static FutureOr<void> Function()? onUnauthorized;
 
   static final Dio _dio =
       Dio(
@@ -50,9 +54,9 @@ class ApiClient {
         options: Options(extra: {'requiresAuth': requiresAuth}),
       );
 
-      return _handleResponse(response);
+      return _handleResponse(response, requiresAuth: requiresAuth);
     } on DioException catch (error) {
-      throw _handleDioException(error);
+      throw _handleDioException(error, requiresAuth: requiresAuth);
     }
   }
 
@@ -71,9 +75,9 @@ class ApiClient {
         ),
       );
 
-      return _handleResponse(response);
+      return _handleResponse(response, requiresAuth: requiresAuth);
     } on DioException catch (error) {
-      throw _handleDioException(error);
+      throw _handleDioException(error, requiresAuth: requiresAuth);
     }
   }
 
@@ -92,9 +96,9 @@ class ApiClient {
         ),
       );
 
-      return _handleResponse(response);
+      return _handleResponse(response, requiresAuth: requiresAuth);
     } on DioException catch (error) {
-      throw _handleDioException(error);
+      throw _handleDioException(error, requiresAuth: requiresAuth);
     }
   }
 
@@ -110,9 +114,9 @@ class ApiClient {
         options: Options(extra: {'requiresAuth': requiresAuth}),
       );
 
-      return _handleResponse(response);
+      return _handleResponse(response, requiresAuth: requiresAuth);
     } on DioException catch (error) {
-      throw _handleDioException(error);
+      throw _handleDioException(error, requiresAuth: requiresAuth);
     }
   }
 
@@ -131,9 +135,9 @@ class ApiClient {
         ),
       );
 
-      return _handleResponse(response);
+      return _handleResponse(response, requiresAuth: requiresAuth);
     } on DioException catch (error) {
-      throw _handleDioException(error);
+      throw _handleDioException(error, requiresAuth: requiresAuth);
     }
   }
 
@@ -144,33 +148,47 @@ class ApiClient {
         options: Options(extra: {'requiresAuth': requiresAuth}),
       );
 
-      return _handleResponse(response);
+      return _handleResponse(response, requiresAuth: requiresAuth);
     } on DioException catch (error) {
-      throw _handleDioException(error);
+      throw _handleDioException(error, requiresAuth: requiresAuth);
     }
   }
 
-  static dynamic _handleResponse(Response response) {
+  static dynamic _handleResponse(
+    Response response, {
+    required bool requiresAuth,
+  }) {
     final statusCode = response.statusCode ?? 0;
 
     if (statusCode >= 200 && statusCode < 300) {
       return response.data;
     }
 
-    throw ApiException(
-      message: _extractErrorMessage(response.data),
-      statusCode: statusCode,
-    );
+    final errorMessage = _extractErrorMessage(response.data);
+
+    if (requiresAuth && _isSessionFailure(statusCode, errorMessage)) {
+      _notifyUnauthorized();
+    }
+
+    throw ApiException(message: errorMessage, statusCode: statusCode);
   }
 
-  static ApiException _handleDioException(DioException error) {
+  static ApiException _handleDioException(
+    DioException error, {
+    required bool requiresAuth,
+  }) {
     final response = error.response;
 
     if (response != null) {
-      return ApiException(
-        message: _extractErrorMessage(response.data),
-        statusCode: response.statusCode,
-      );
+      final statusCode = response.statusCode ?? 0;
+
+      final errorMessage = _extractErrorMessage(response.data);
+
+      if (requiresAuth && _isSessionFailure(statusCode, errorMessage)) {
+        _notifyUnauthorized();
+      }
+
+      return ApiException(message: errorMessage, statusCode: statusCode);
     }
 
     switch (error.type) {
@@ -192,6 +210,31 @@ class ApiClient {
           message: 'Something went wrong. Please try again.',
         );
     }
+  }
+
+  static void _notifyUnauthorized() {
+    unawaited(TokenStorage.clearAccessToken());
+
+    final callback = onUnauthorized;
+
+    if (callback != null) {
+      unawaited(Future<void>.sync(callback));
+    }
+  }
+
+  static bool _isSessionFailure(int statusCode, String message) {
+    if (statusCode == 401) {
+      return true;
+    }
+
+    if (statusCode != 403) {
+      return false;
+    }
+
+    final normalized = message.trim().toLowerCase();
+
+    return normalized == 'account is deactivated.' ||
+        normalized == 'email is not verified.';
   }
 
   static String _extractErrorMessage(dynamic data) {

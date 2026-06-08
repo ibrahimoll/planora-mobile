@@ -13,10 +13,10 @@ class HomeBottomNav extends StatelessWidget {
   });
 
   static const _items = [
-    _BottomNavItem(Icons.home_rounded, 'Home', 0),
-    _BottomNavItem(Icons.folder_rounded, 'Projects', 1),
+    _BottomNavItem(Icons.today_rounded, 'Today', 0),
+    _BottomNavItem(Icons.route_rounded, 'Plans', 1),
     _BottomNavItem(Icons.check_box_rounded, 'Tasks', 3),
-    _BottomNavItem(Icons.calendar_month_rounded, 'Calendar', 4),
+    _BottomNavItem(Icons.person_rounded, 'Profile', 4),
   ];
 
   int get _visualSlot {
@@ -158,6 +158,20 @@ class HomeBottomNav extends StatelessWidget {
                       color: Colors.white,
                       size: 25,
                     ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 58,
+              child: IgnorePointer(
+                child: Text(
+                  'AI Planner',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontWeight: aiSelected ? FontWeight.w900 : FontWeight.w800,
+                    color: aiSelected ? primary : inactiveColor,
                   ),
                 ),
               ),

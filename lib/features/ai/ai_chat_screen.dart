@@ -4,6 +4,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../projects/ai_project_wizard_screen.dart';
 import '../tasks/models/task_models.dart';
 import 'data/ai_chat_api.dart';
 import 'data/ai_plan_api.dart';
@@ -317,11 +318,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
   }
 
+  Future<void> openAiProjectWizard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadProjects),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await loadProjects();
+  }
+
   AiChatMessageModel buildLocalWelcomeMessage(TaskProjectSummary? project) {
     return AiChatMessageModel.localAssistant(
       projectId: project?.projectId,
       message:
-          'Hi, I am Planora AI. Choose a project and ask me about planning, risks, priorities, or next steps.',
+          'Hi, I am Planora AI. Ask me what to do next, how to improve this plan, why it is risky, or how to break work into smaller tasks.',
     );
   }
 
@@ -430,8 +443,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
               const SizedBox(height: 3),
               Text(
                 project == null
-                    ? 'Ask about project planning, risks, and next steps.'
-                    : 'Project chat • Ask about tasks, risks, and next steps.',
+                    ? 'Plan new ideas or improve an existing project.'
+                    : 'Project planning chat for tasks, risks, and next steps.',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -661,10 +674,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return buildStateCard(
         context,
         icon: Icons.folder_open_rounded,
-        title: 'Choose a project to start chatting with Planora AI.',
-        message: 'Create or open a project so Planora AI has context.',
-        buttonText: widget.onOpenProjects == null ? null : 'Open Projects',
-        onPressed: widget.onOpenProjects,
+        title: 'Plan a project with AI first.',
+        message:
+            'Describe an idea so Planora can create a project plan and tasks.',
+        buttonText: 'Plan with AI',
+        onPressed: openAiProjectWizard,
       );
     }
 
@@ -698,7 +712,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
         icon: Icons.chat_bubble_outline_rounded,
         title: 'Start a planning chat',
         message:
-            'Ask Planora AI to summarize risk, suggest tasks, or clarify priorities.',
+            'Try "What should I do next?", "Rebuild my schedule", or "Break this milestone into smaller tasks."',
       );
     }
 
@@ -878,7 +892,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => sendMessage(),
               decoration: const InputDecoration(
-                hintText: 'Ask Planora AI...',
+                hintText: 'Ask about this plan...',
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(horizontal: 8),
               ),
