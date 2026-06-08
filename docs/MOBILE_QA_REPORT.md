@@ -7,6 +7,92 @@ Date: 2026-06-07
 Checked the Flutter mobile app against the local backend reference in `../backend`.
 The pass focused on setup, routing, auth/API contracts, core screen reachability, loading/error/empty states, and targeted stability fixes without redesigning the existing light purple Planora direction.
 
+## Follow-up: Create Project Backend Compatibility Fix
+
+Date: 2026-06-08
+
+### Commands Run
+
+From `C:\Users\Ibrahim\Documents\Planora\mobile`:
+
+```powershell
+dart format lib test
+```
+
+Result: succeeded.
+
+```powershell
+flutter analyze
+```
+
+Result: succeeded with `No issues found!`.
+
+```powershell
+flutter test
+```
+
+Result: succeeded with `All tests passed!` across 8 tests.
+
+```powershell
+git diff --check
+```
+
+Result: succeeded. Git printed Windows CRLF warnings for touched files only.
+
+### Backend Contract Confirmed
+
+- Personal project create uses `POST /projects`.
+- Team project create uses `POST /teams/{team_id}/projects`.
+- `ProjectCreateRequest.toJson()` serializes only `title`, `description`, and `deadline`.
+- Added a regression test confirming `project_type`, `team_id`, `color`, and `generateTasksWithAi` are not sent in the create payload.
+
+### Issues Fixed
+
+- Create Project now validates `title.trim().length >= 2`, matching backend `min_length=2`.
+- Picked deadlines are normalized to noon local time, or end-of-day if noon has already passed, to avoid midnight/timezone edge cases.
+- Create Project logs the selected project type, selected team id, payload, and deadline ISO string before calling the API. Tokens are not logged.
+- Create Project catch block now shows `ApiException.message` instead of hiding backend details behind `Could not create project. Try again.`
+- Team project 403 errors now show clear owner/admin guidance while preserving the backend message.
+- The create sheet stays open on failure and restores `isCreatingProject=false`.
+- The sheet closes only after project creation succeeds.
+- AI task generation still runs only after project creation succeeds. If AI task generation fails, the project remains created and the user sees `Project created, but AI tasks could not be generated.`
+
+### Exact Create Flow Results
+
+- Personal project creation: code path now calls `ProjectsApi.createProject()`, which posts `ProjectCreateRequest.toJson()` to `/projects`. Live Render creation with title `Test Project`, no description, deadline tomorrow, AI tasks off still needs to be run with a logged-in account.
+- Team project creation: code path now calls `ProjectsApi.createTeamProject(teamId, request)`, which posts the same three-field payload to `/teams/{team_id}/projects`. Live Render verification still needs a team owned/admin-managed by the logged-in account.
+- Failure error message: backend `ApiException.message` is shown directly. Team 403 additionally says `You can only create team projects in teams where you are owner/admin.` and includes the backend detail.
+- AI task generation after project creation: AI generation is post-create only; AI failure does not roll back or hide the created project.
+
+### Files Changed
+
+- `lib/features/projects/projects_screen.dart`
+- `test/widget_test.dart`
+- `docs/MOBILE_QA_REPORT.md`
+
+### Manual Test Steps
+
+1. Run with Render: `flutter run --dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com`.
+2. Log in and open Projects > New Project.
+3. Create Personal project:
+   - Project Type: Personal
+   - Title: `Test Project`
+   - Description: empty
+   - Deadline: tomorrow
+   - AI Tasks: off
+   - Expected: request posts to `/projects`, sheet closes, and project appears in Projects list.
+4. Create Team project:
+   - Create/select a team owned/admin-managed by the account.
+   - Project Type: Team
+   - Select that team.
+   - Expected: request posts to `/teams/{team_id}/projects`, sheet closes, and project appears as Team.
+5. Team permission failure:
+   - Select a team where the user cannot manage projects.
+   - Expected: sheet stays open, button stops loading, and backend/403 reason is visible.
+6. AI tasks after create:
+   - Enable AI Tasks for a valid project create.
+   - Expected: if project create succeeds but AI fails, project remains visible and the SnackBar says `Project created, but AI tasks could not be generated.`
+
 ## Follow-up: Home, Projects, Tasks, Reports, Teams, Calendar Wiring
 
 Date: 2026-06-08

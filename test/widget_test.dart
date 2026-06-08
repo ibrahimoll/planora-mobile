@@ -49,6 +49,25 @@ void main() {
     expect(tappedIndex, 3);
   });
 
+  test('ProjectCreateRequest only serializes backend fields', () {
+    final deadline = DateTime(2026, 6, 9, 12);
+    final request = ProjectCreateRequest(
+      title: 'Test Project',
+      description: null,
+      deadline: deadline,
+    );
+
+    expect(request.toJson(), {
+      'title': 'Test Project',
+      'description': null,
+      'deadline': deadline.toIso8601String(),
+    });
+    expect(request.toJson().containsKey('project_type'), isFalse);
+    expect(request.toJson().containsKey('team_id'), isFalse);
+    expect(request.toJson().containsKey('color'), isFalse);
+    expect(request.toJson().containsKey('generateTasksWithAi'), isFalse);
+  });
+
   test('AI plan generation response parses backend task payloads', () {
     final response = AiPlanGenerateResponse.fromJson({
       'project_id': '7',

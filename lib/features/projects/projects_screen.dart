@@ -1835,12 +1835,45 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: selectedDeadline ?? now.add(const Duration(days: 7)),
-      firstDate: now,
+      initialDate: selectedDeadline ?? now.add(const Duration(days: 1)),
+      firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 5),
     );
 
-    return pickedDate;
+    if (pickedDate == null) {
+      return null;
+    }
+
+    return normalizeProjectDeadline(pickedDate);
+  }
+
+  DateTime normalizeProjectDeadline(DateTime pickedDate) {
+    final now = DateTime.now();
+    final noon = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      12,
+    );
+
+    if (noon.isAfter(now)) {
+      return noon;
+    }
+
+    final endOfDay = DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      23,
+      59,
+      59,
+    );
+
+    if (endOfDay.isAfter(now)) {
+      return endOfDay;
+    }
+
+    return DateTime(now.year, now.month, now.day + 1, 12);
   }
 
   String formatDeadlineDate(DateTime date) {
@@ -1858,9 +1891,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final title = titleController.text.trim();
     final description = descriptionController.text.trim();
 
-    if (title.isEmpty) {
+    if (title.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project title is required.')),
+        const SnackBar(
+          content: Text('Project title must be at least 2 letters.'),
+        ),
       );
       return;
     }
@@ -1894,6 +1929,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         description: description.isEmpty ? null : description,
         deadline: selectedDeadline!,
       );
+      debugPrint('Create project selectedProjectType: $selectedProjectType');
+      debugPrint('Create project selectedTeamId: $selectedTeamId');
+      debugPrint('Create project payload: ${request.toJson()}');
+      debugPrint(
+        'Create project deadline: ${selectedDeadline!.toIso8601String()}',
+      );
+
       final createdProject = selectedProjectType == 'team'
           ? await _projectsApi.createTeamProject(
               teamId: selectedTeamId!,
@@ -1976,9 +2018,33 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not create project. Try again.')),
+        SnackBar(content: Text(projectCreationErrorMessage(error))),
       );
     }
+  }
+
+  String projectCreationErrorMessage(Object error) {
+    if (error is ApiException) {
+      final backendMessage = error.message.trim();
+
+      if (selectedProjectType == 'team' && error.statusCode == 403) {
+        const permissionMessage =
+            'You can only create team projects in teams where you are owner/admin.';
+
+        if (backendMessage.isNotEmpty &&
+            backendMessage != 'Something went wrong. Please try again.') {
+          return '$permissionMessage $backendMessage';
+        }
+
+        return permissionMessage;
+      }
+
+      if (backendMessage.isNotEmpty) {
+        return backendMessage;
+      }
+    }
+
+    return 'Could not create project. Try again.';
   }
 
   Widget buildTeamMembersInviteCard(BuildContext context) {
