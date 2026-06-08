@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_exception.dart';
@@ -22,11 +24,20 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   final TextEditingController ideaController = TextEditingController();
   final TextEditingController requirementsController = TextEditingController();
 
+  static const List<String> _generationMessages = [
+    'Understanding your idea…',
+    'Creating milestones…',
+    'Generating tasks…',
+    'Checking risks…',
+    'Finalizing your plan…',
+  ];
+
   int currentStep = 0;
   int availableHoursPerWeek = 8;
   int preferredTaskCount = 8;
   int? selectedTeamId;
   String selectedProjectType = 'personal';
+  int generationMessageIndex = 0;
 
   bool isLoadingTeams = false;
   bool isGeneratingPlan = false;
@@ -34,6 +45,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   ProjectModel? createdProject;
   AiPlanGenerateResponse? generatedPlan;
   String? generationError;
+  Timer? generationMessageTimer;
 
   List<TeamModel> teams = [];
 
@@ -45,6 +57,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
 
   @override
   void dispose() {
+    generationMessageTimer?.cancel();
     ideaController.dispose();
     requirementsController.dispose();
     super.dispose();
@@ -193,10 +206,12 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     setState(() {
       currentStep = 2;
       isGeneratingPlan = true;
+      generationMessageIndex = 0;
       generationError = null;
       createdProject = null;
       generatedPlan = null;
     });
+    startGenerationLoadingSequence();
 
     try {
       // TODO: Replace this staged create-then-generate flow when the backend
@@ -232,6 +247,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         generatedPlan = plan;
         isGeneratingPlan = false;
       });
+      stopGenerationLoadingSequence();
 
       widget.onPlanCreated?.call();
     } catch (error, stackTrace) {
@@ -248,7 +264,30 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             ? error.message
             : 'Could not generate this AI plan. Please try again.';
       });
+      stopGenerationLoadingSequence();
     }
+  }
+
+  void startGenerationLoadingSequence() {
+    generationMessageTimer?.cancel();
+    generationMessageTimer = Timer.periodic(
+      const Duration(milliseconds: 1150),
+      (_) {
+        if (!mounted || !isGeneratingPlan) {
+          return;
+        }
+
+        setState(() {
+          generationMessageIndex =
+              (generationMessageIndex + 1) % _generationMessages.length;
+        });
+      },
+    );
+  }
+
+  void stopGenerationLoadingSequence() {
+    generationMessageTimer?.cancel();
+    generationMessageTimer = null;
   }
 
   String deriveProjectTitle(String idea) {
@@ -314,6 +353,10 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         requirements,
       ],
       '',
+      'Create tasks that directly depend on the project idea and domain.',
+      'Do not default to software, app, coding, or implementation tasks unless the user idea is actually about software.',
+      'For a clothing business, include niche research, budget, suppliers, brand name, collection planning, store or social media setup, launch plan, delivery, legal, and operations tasks.',
+      'Do not suggest extreme physical asset tasks such as owning land, buying land, or building a factory unless the user specifically says they need land, a physical location, a factory, or manufacturing site.',
       'Return a practical plan with milestones, priorities, estimated hours, due dates, risks, and next-step recommendations when available.',
     ].join('\n');
   }
@@ -1066,14 +1109,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     final error = generationError;
 
     if (isGeneratingPlan) {
-      return buildResultState(
-        context,
-        icon: Icons.auto_awesome_rounded,
-        title: 'Generating your plan...',
-        message:
-            'Planora is creating the project and turning your idea into tasks.',
-        showSpinner: true,
-      );
+      return buildAiGenerationLoadingState(context);
     }
 
     if (error != null) {
@@ -1219,6 +1255,145 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget buildAiGenerationLoadingState(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final activeMessage = _generationMessages[generationMessageIndex];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: cardDecoration(context),
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: PlanoraTheme.primaryGradientFor(context),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: PlanoraTheme.floatingShadowFor(context),
+            ),
+            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+          ),
+          const SizedBox(height: 18),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              final slide = Tween<Offset>(
+                begin: const Offset(0, 0.16),
+                end: Offset.zero,
+              ).animate(animation);
+
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: slide, child: child),
+              );
+            },
+            child: Text(
+              activeMessage,
+              key: ValueKey(activeMessage),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Planora is turning your brief into project-specific milestones, tasks, and risks.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: mutedColor(context),
+              height: 1.45,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 7,
+              value: (generationMessageIndex + 1) / _generationMessages.length,
+              backgroundColor: mutedColor(context).withValues(alpha: 0.14),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Column(
+            children: [
+              for (var index = 0; index < _generationMessages.length; index++)
+                buildGenerationStepRow(
+                  context,
+                  label: _generationMessages[index],
+                  index: index,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildGenerationStepRow(
+    BuildContext context, {
+    required String label,
+    required int index,
+  }) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final isComplete = index < generationMessageIndex;
+    final isActive = index == generationMessageIndex;
+    final color = isComplete || isActive ? primary : mutedColor(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 220),
+        opacity: isComplete || isActive ? 1 : 0.58,
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isComplete
+                    ? primary
+                    : isActive
+                    ? primary.withValues(alpha: 0.14)
+                    : mutedColor(context).withValues(alpha: 0.10),
+                border: Border.all(color: color.withValues(alpha: 0.5)),
+              ),
+              child: isComplete
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    )
+                  : Icon(Icons.circle, size: 8, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

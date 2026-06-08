@@ -9,7 +9,9 @@ import 'package:mobile/features/auth/data/project_api.dart';
 import 'package:mobile/features/auth/models/project_models.dart';
 import 'package:mobile/features/home/widgets/home_bottom_nav.dart';
 import 'package:mobile/main.dart';
+import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
+import 'package:mobile/features/tasks/tasks_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +49,117 @@ void main() {
     await tester.tap(find.text('Tasks'));
 
     expect(tappedIndex, 3);
+  });
+
+  testWidgets('TasksScreen filters tasks by selected project and All Plans', (
+    tester,
+  ) async {
+    final clothing = _taskProject(7, 'Clothing Brand');
+    final app = _taskProject(9, 'Mobile App');
+    final tasksApi = _ProjectFirstTasksApi(
+      projects: [clothing, app],
+      tasks: [
+        _taskItem(
+          project: clothing,
+          taskId: 71,
+          title: 'Compare clothing suppliers',
+          status: TaskStatus.todo,
+        ),
+        _taskItem(
+          project: app,
+          taskId: 91,
+          title: 'Design app onboarding',
+          status: TaskStatus.todo,
+        ),
+        _taskItem(
+          project: app,
+          taskId: 92,
+          title: 'Prepare app release notes',
+          status: TaskStatus.completed,
+        ),
+      ],
+    );
+
+    await _pumpTasksScreen(tester, tasksApi);
+
+    expect(find.text('Compare clothing suppliers'), findsOneWidget);
+    expect(find.text('Design app onboarding'), findsNothing);
+
+    await tester.tap(find.text('Mobile App').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Design app onboarding'), findsOneWidget);
+    expect(find.text('Compare clothing suppliers'), findsNothing);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Prepare app release notes'), findsOneWidget);
+    expect(find.text('Design app onboarding'), findsNothing);
+
+    await tester.tap(find.text('All Plans'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Prepare app release notes'), findsOneWidget);
+    expect(find.text('Compare clothing suppliers'), findsNothing);
+
+    await tester.tap(find.text('All Tasks'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Compare clothing suppliers'), findsOneWidget);
+    expect(find.text('Design app onboarding'), findsOneWidget);
+  });
+
+  testWidgets('TasksScreen creates a task for the selected project', (
+    tester,
+  ) async {
+    final clothing = _taskProject(17, 'Clothing Brand');
+    final launch = _taskProject(19, 'Launch Plan');
+    final tasksApi = _ProjectFirstTasksApi(
+      projects: [clothing, launch],
+      tasks: [
+        _taskItem(
+          project: clothing,
+          taskId: 171,
+          title: 'Research fashion niche',
+          status: TaskStatus.todo,
+        ),
+      ],
+    );
+
+    await _pumpTasksScreen(tester, tasksApi);
+    await tester.tap(find.text('Launch Plan').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('No tasks for this project yet.'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Launch Plan'), findsWidgets);
+    expect(find.text('Tags (Optional)'), findsNothing);
+
+    await tester.enterText(
+      find.byType(TextField).first,
+      'Schedule launch content',
+    );
+    await tester.ensureVisible(find.text('Create Task'));
+    await tester.tap(find.text('Create Task'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Schedule launch content'), findsOneWidget);
+    expect(find.text('Research fashion niche'), findsNothing);
+
+    await tester.tap(find.text('Clothing Brand').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Research fashion niche'), findsOneWidget);
+    expect(find.text('Schedule launch content'), findsNothing);
+
+    await tester.tap(find.text('Launch Plan').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Schedule launch content'), findsOneWidget);
   });
 
   test('ProjectCreateRequest only serializes backend fields', () {
@@ -250,5 +363,102 @@ class _SlowAiChatApi extends AiChatApi {
       projectId: project.projectId,
       message: 'Start with the highest-risk task.',
     );
+  }
+}
+
+Future<void> _pumpTasksScreen(
+  WidgetTester tester,
+  _ProjectFirstTasksApi tasksApi,
+) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: TasksScreen(onBack: () {}, tasksApi: tasksApi),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
+TaskProjectSummary _taskProject(int projectId, String title) {
+  return TaskProjectSummary(
+    projectId: projectId,
+    title: title,
+    projectType: 'personal',
+  );
+}
+
+TaskListItem _taskItem({
+  required TaskProjectSummary project,
+  required int taskId,
+  required String title,
+  required TaskStatus status,
+}) {
+  return TaskListItem(
+    project: project,
+    task: TaskModel(
+      taskId: taskId,
+      projectId: project.projectId,
+      assignedTo: 1,
+      assignedToName: 'Planora Tester',
+      assignedToEmail: 'tester@example.com',
+      assignedToAvatarUrl: null,
+      members: const [],
+      followers: const [],
+      subtasks: const [],
+      tags: const [],
+      createdBy: 1,
+      title: title,
+      description: null,
+      sectionName: null,
+      priority: TaskPriority.medium,
+      estimatedHours: null,
+      actualHours: null,
+      status: status,
+      startDate: null,
+      dueDate: DateTime(2026, 6, 20),
+      completedAt: status == TaskStatus.completed
+          ? DateTime(2026, 6, 18)
+          : null,
+      createdAt: DateTime(2026, 6, 1, 12, taskId % 60),
+    ),
+  );
+}
+
+class _ProjectFirstTasksApi extends TasksApi {
+  final List<TaskProjectSummary> projects;
+  final List<TaskListItem> _tasks;
+  int _nextTaskId = 1000;
+
+  _ProjectFirstTasksApi({
+    required this.projects,
+    required List<TaskListItem> tasks,
+  }) : _tasks = [...tasks];
+
+  @override
+  Future<TaskBoardData> getTasks({TaskStatus? status}) async {
+    final tasks = status == null
+        ? _tasks
+        : _tasks.where((item) => item.task.status == status).toList();
+
+    return TaskBoardData(projects: projects, tasks: [...tasks]);
+  }
+
+  @override
+  Future<TaskListItem> createTask({
+    required TaskCreateRequest request,
+    required TaskProjectSummary project,
+  }) async {
+    final task = _taskItem(
+      project: project,
+      taskId: _nextTaskId++,
+      title: request.title,
+      status: TaskStatus.todo,
+    );
+
+    _tasks.add(task);
+
+    return task;
   }
 }

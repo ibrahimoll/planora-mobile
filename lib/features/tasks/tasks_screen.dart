@@ -15,6 +15,8 @@ class TasksScreen extends StatefulWidget {
   final String userInitials;
   final VoidCallback? onCreateRequestConsumed;
   final VoidCallback? onTasksChanged;
+  final TasksApi tasksApi;
+  final ProjectsApi projectsApi;
 
   const TasksScreen({
     super.key,
@@ -25,6 +27,8 @@ class TasksScreen extends StatefulWidget {
     this.userInitials = 'P',
     this.onCreateRequestConsumed,
     this.onTasksChanged,
+    this.tasksApi = const TasksApi(),
+    this.projectsApi = const ProjectsApi(),
   });
 
   @override
@@ -32,8 +36,8 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  final TasksApi _tasksApi = const TasksApi();
-  final ProjectsApi _projectsApi = const ProjectsApi();
+  late final TasksApi _tasksApi;
+  late final ProjectsApi _projectsApi;
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
 
@@ -46,8 +50,10 @@ class _TasksScreenState extends State<TasksScreen> {
 
   int selectedFilterIndex = 0;
   int? selectedProjectId;
+  int? selectedCreateProjectId;
   int? selectedAssignedUserId;
   int? completingTaskId;
+  int? completionFeedbackTaskId;
   TaskSortOrder selectedSortOrder = TaskSortOrder.overdueFirst;
 
   bool isLoading = true;
@@ -55,7 +61,8 @@ class _TasksScreenState extends State<TasksScreen> {
   bool isLoadingAssignees = false;
   bool _openCreateAfterLoad = false;
   bool _isCreateSheetOpen = false;
-  bool addAnotherTask = true;
+  bool _hasInitializedProjectFilter = false;
+  bool addAnotherTask = false;
 
   String? errorMessage;
   DateTime? selectedDueDate;
@@ -66,6 +73,19 @@ class _TasksScreenState extends State<TasksScreen> {
   List<ProjectMemberModel> createTaskMembers = [];
 
   TaskProjectSummary? get selectedCreateProject {
+    final projectId = selectedCreateProjectId;
+
+    if (projectId == null || projects.isEmpty) {
+      return null;
+    }
+
+    return projects.firstWhere(
+      (item) => item.projectId == projectId,
+      orElse: () => projects.first,
+    );
+  }
+
+  TaskProjectSummary? get selectedProject {
     final projectId = selectedProjectId;
 
     if (projectId == null || projects.isEmpty) {
@@ -81,6 +101,8 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
+    _tasksApi = widget.tasksApi;
+    _projectsApi = widget.projectsApi;
 
     if (widget.openCreateOnStart) {
       _openCreateAfterLoad = true;
@@ -112,14 +134,25 @@ class _TasksScreenState extends State<TasksScreen> {
 
   List<TaskListItem> get filteredTasks {
     final status = selectedStatus;
+    final scopedTasks = projectScopedTasks;
 
     if (status == null) {
-      return sortedTaskItems(tasks);
+      return sortedTaskItems(scopedTasks);
     }
 
     return sortedTaskItems(
-      tasks.where((item) => item.task.status == status).toList(),
+      scopedTasks.where((item) => item.task.status == status).toList(),
     );
+  }
+
+  List<TaskListItem> get projectScopedTasks {
+    final projectId = selectedProjectId;
+
+    if (projectId == null) {
+      return tasks;
+    }
+
+    return tasks.where((item) => item.project.projectId == projectId).toList();
   }
 
   int get todoCount {
@@ -135,7 +168,9 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   int countByStatus(TaskStatus status) {
-    return tasks.where((item) => item.task.status == status).length;
+    return projectScopedTasks
+        .where((item) => item.task.status == status)
+        .length;
   }
 
   List<TaskListItem> sortedTaskItems(List<TaskListItem> items) {
@@ -171,6 +206,10 @@ class _TasksScreenState extends State<TasksScreen> {
         projects = data.projects;
         tasks = data.tasks;
         selectedProjectId = _resolveSelectedProjectId(data.projects);
+        selectedCreateProjectId = _resolveSelectedCreateProjectId(
+          data.projects,
+        );
+        _hasInitializedProjectFilter = true;
         isLoading = false;
       });
     } catch (error, stackTrace) {
@@ -202,13 +241,48 @@ class _TasksScreenState extends State<TasksScreen> {
       return null;
     }
 
+    if (!_hasInitializedProjectFilter) {
+      return loadedProjects.first.projectId;
+    }
+
     final currentProjectId = selectedProjectId;
 
-    if (currentProjectId != null &&
-        loadedProjects.any(
-          (project) => project.projectId == currentProjectId,
-        )) {
+    if (currentProjectId == null) {
+      return null;
+    }
+
+    if (loadedProjects.any(
+      (project) => project.projectId == currentProjectId,
+    )) {
       return currentProjectId;
+    }
+
+    return loadedProjects.first.projectId;
+  }
+
+  int? _resolveSelectedCreateProjectId(
+    List<TaskProjectSummary> loadedProjects,
+  ) {
+    if (loadedProjects.isEmpty) {
+      return null;
+    }
+
+    final currentCreateProjectId = selectedCreateProjectId;
+
+    if (currentCreateProjectId != null &&
+        loadedProjects.any(
+          (project) => project.projectId == currentCreateProjectId,
+        )) {
+      return currentCreateProjectId;
+    }
+
+    final currentFilterProjectId = selectedProjectId;
+
+    if (currentFilterProjectId != null &&
+        loadedProjects.any(
+          (project) => project.projectId == currentFilterProjectId,
+        )) {
+      return currentFilterProjectId;
     }
 
     return loadedProjects.first.projectId;
@@ -512,10 +586,223 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  Widget buildProjectSelector(BuildContext context) {
+    if (isLoading) {
+      return buildProjectSelectorSkeleton(context);
+    }
+
+    if (projects.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Choose Plan',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Text(
+              selectedProjectId == null
+                  ? '${tasks.length} total'
+                  : '${projectScopedTasks.length} in plan',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              buildProjectChip(
+                context,
+                label: 'All Plans',
+                count: tasks.length,
+                icon: Icons.dashboard_customize_outlined,
+                isSelected: selectedProjectId == null,
+                onTap: () {
+                  setState(() {
+                    selectedProjectId = null;
+                    _hasInitializedProjectFilter = true;
+                  });
+                },
+              ),
+              const SizedBox(width: 10),
+              for (final project in projects) ...[
+                buildProjectChip(
+                  context,
+                  label: project.title,
+                  count: taskCountForProject(project.projectId),
+                  icon: project.isTeamProject
+                      ? Icons.groups_2_outlined
+                      : Icons.folder_outlined,
+                  isSelected: selectedProjectId == project.projectId,
+                  onTap: () {
+                    setState(() {
+                      selectedProjectId = project.projectId;
+                      selectedCreateProjectId = project.projectId;
+                      _hasInitializedProjectFilter = true;
+                    });
+                  },
+                ),
+                if (project != projects.last) const SizedBox(width: 10),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  int taskCountForProject(int projectId) {
+    return tasks.where((item) => item.project.projectId == projectId).length;
+  }
+
+  Widget buildProjectChip(
+    BuildContext context, {
+    required String label,
+    required int count,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
+    final foreground = isSelected
+        ? Colors.white
+        : isDark
+        ? PlanoraTheme.darkTextPrimary
+        : PlanoraTheme.textPrimary;
+    final muted = isSelected ? Colors.white70 : mutedColor(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        constraints: const BoxConstraints(minWidth: 138, maxWidth: 220),
+        padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? PlanoraTheme.primaryGradientFor(context)
+              : null,
+          color: isSelected
+              ? null
+              : isDark
+              ? const Color(0xFF121A2A)
+              : PlanoraTheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected
+                ? Colors.transparent
+                : isDark
+                ? PlanoraTheme.darkBorder.withValues(alpha: 0.72)
+                : PlanoraTheme.border.withValues(alpha: 0.86),
+          ),
+          boxShadow: isSelected
+              ? PlanoraTheme.floatingShadowFor(context)
+              : PlanoraTheme.cardShadowFor(context),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.18)
+                    : primary.withValues(alpha: isDark ? 0.18 : 0.09),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : primary,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$count ${count == 1 ? 'task' : 'tasks'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: muted,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildProjectSelectorSkeleton(BuildContext context) {
+    return _PlanoraShimmer(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        child: Row(
+          children: [
+            for (var index = 0; index < 4; index++) ...[
+              buildSkeletonBox(context, width: 142, height: 58, radius: 18),
+              if (index != 3) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget buildTaskStatsFilterRow(BuildContext context) {
+    if (isLoading) {
+      return _PlanoraShimmer(
+        child: Row(
+          children: [
+            for (var index = 0; index < 4; index++) ...[
+              Expanded(
+                child: buildSkeletonBox(context, height: 76, radius: 16),
+              ),
+              if (index != 3) const SizedBox(width: 9),
+            ],
+          ],
+        ),
+      );
+    }
+
     final stats = [
       _TaskStatData(
-        value: tasks.length.toString(),
+        value: projectScopedTasks.length.toString(),
         label: 'All Tasks',
         color: Theme.of(context).colorScheme.primary,
       ),
@@ -544,6 +831,11 @@ class _TasksScreenState extends State<TasksScreen> {
               context,
               stat: stats[index],
               isSelected: selectedFilterIndex == index,
+              onTap: () {
+                setState(() {
+                  selectedFilterIndex = index;
+                });
+              },
             ),
           ),
           if (index != stats.length - 1) const SizedBox(width: 9),
@@ -793,6 +1085,7 @@ class _TasksScreenState extends State<TasksScreen> {
     BuildContext context, {
     required _TaskStatData stat,
     required bool isSelected,
+    required VoidCallback onTap,
   }) {
     final isDark = PlanoraTheme.isDark(context);
     final labelColor = isSelected
@@ -802,75 +1095,81 @@ class _TasksScreenState extends State<TasksScreen> {
         : PlanoraTheme.textPrimary;
     final countColor = isSelected ? Colors.white : stat.color;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      height: 76,
-      padding: const EdgeInsets.fromLTRB(6, 12, 6, 9),
-      decoration: BoxDecoration(
-        gradient: isSelected ? PlanoraTheme.primaryGradientFor(context) : null,
-        color: isSelected
-            ? null
-            : isDark
-            ? PlanoraTheme.darkSurface
-            : PlanoraTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        height: 76,
+        padding: const EdgeInsets.fromLTRB(6, 12, 6, 9),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? PlanoraTheme.primaryGradientFor(context)
+              : null,
           color: isSelected
-              ? Colors.transparent
+              ? null
               : isDark
-              ? PlanoraTheme.darkBorder.withValues(alpha: 0.52)
-              : PlanoraTheme.border.withValues(alpha: 0.78),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
-            blurRadius: isDark ? 18 : 16,
-            offset: const Offset(0, 8),
+              ? PlanoraTheme.darkSurface
+              : PlanoraTheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? Colors.transparent
+                : isDark
+                ? PlanoraTheme.darkBorder.withValues(alpha: 0.52)
+                : PlanoraTheme.border.withValues(alpha: 0.78),
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Center(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
+              blurRadius: isDark ? 18 : 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    stat.value,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w900,
+                      color: countColor,
+                      height: 1,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            SizedBox(
+              width: double.infinity,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  stat.value,
+                  stat.label,
                   maxLines: 1,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w900,
-                    color: countColor,
-                    height: 1,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 9.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                    color: labelColor,
+                    height: 1.12,
                     letterSpacing: 0,
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 5),
-          SizedBox(
-            width: double.infinity,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                stat.label,
-                maxLines: 1,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontSize: 9.5,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                  color: labelColor,
-                  height: 1.12,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -915,17 +1214,22 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     final visibleTasks = filteredTasks;
+    final hasSelectedProject = selectedProjectId != null;
 
     if (visibleTasks.isEmpty) {
       return buildMessageState(
         context,
         icon: Icons.check_box_outlined,
-        title: selectedStatus == null
+        title: hasSelectedProject && selectedStatus == null
+            ? 'No tasks for this project yet.'
+            : selectedStatus == null
             ? 'No tasks yet'
             : 'No ${filterLabel(selectedStatus).toLowerCase()} tasks',
-        message: selectedStatus == null
-            ? 'Create your first task and connect it to a confirmed project.'
-            : 'Try another status or create a new task for this project set.',
+        message: hasSelectedProject
+            ? 'Create a task here or switch plans to see other work.'
+            : selectedStatus == null
+            ? 'Choose a plan or create your first task across all plans.'
+            : 'Try another status or create a task in one of your plans.',
         buttonText: 'New Task',
         onPressed: showCreateTaskSheet,
       );
@@ -935,20 +1239,80 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Widget buildLoadingState(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 34),
+    return _PlanoraShimmer(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          children: [
+            for (var index = 0; index < 5; index++) ...[
+              buildTaskSkeletonCard(context),
+              if (index != 4) const SizedBox(height: 12),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildTaskSkeletonCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+      decoration: taskCardDecoration(context),
       child: Column(
         children: [
-          const Center(child: CircularProgressIndicator()),
-          const SizedBox(height: 18),
-          Text(
-            'Loading tasks...',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildSkeletonBox(context, width: 24, height: 24, radius: 999),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buildSkeletonBox(context, height: 16, radius: 8),
+                    const SizedBox(height: 10),
+                    buildSkeletonBox(
+                      context,
+                      width: 180,
+                      height: 10,
+                      radius: 6,
+                    ),
+                    const SizedBox(height: 10),
+                    buildSkeletonBox(
+                      context,
+                      width: 132,
+                      height: 10,
+                      radius: 6,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              buildSkeletonBox(context, width: 72, height: 26, radius: 10),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget buildSkeletonBox(
+    BuildContext context, {
+    double? width,
+    required double height,
+    required double radius,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : PlanoraTheme.border.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(radius),
       ),
     );
   }
@@ -1102,11 +1466,41 @@ class _TasksScreenState extends State<TasksScreen> {
           ],
         ),
         const SizedBox(height: 10),
-        for (final item in sectionTasks) ...[
-          buildTaskCard(context, item),
+        for (var index = 0; index < sectionTasks.length; index++) ...[
+          buildAnimatedTaskCard(context, sectionTasks[index], index),
           const SizedBox(height: 12),
         ],
       ],
+    );
+  }
+
+  Widget buildAnimatedTaskCard(
+    BuildContext context,
+    TaskListItem item,
+    int index,
+  ) {
+    final cappedIndex = index.clamp(0, 5).toInt();
+    final delay = Duration(milliseconds: 45 * cappedIndex);
+
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(
+        'task-card-${selectedProjectId ?? 'all'}-$selectedFilterIndex-${item.task.taskId}',
+      ),
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + delay.inMilliseconds),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        final delayedValue = value <= 0 ? 0.0 : value;
+
+        return Opacity(
+          opacity: delayedValue,
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - delayedValue)),
+            child: child,
+          ),
+        );
+      },
+      child: buildTaskCard(context, item),
     );
   }
 
@@ -1116,6 +1510,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final taskStatusColor = statusColor(task.status);
     final taskPriorityColor = priorityColor(task.priority);
     final isCompleting = completingTaskId == task.taskId;
+    final showCompletionFeedback = completionFeedbackTaskId == task.taskId;
 
     return InkWell(
       onTap: () => openTaskDetail(item),
@@ -1123,7 +1518,10 @@ class _TasksScreenState extends State<TasksScreen> {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-        decoration: taskCardDecoration(context),
+        decoration: taskCardDecoration(
+          context,
+          isCompletionFeedback: showCompletionFeedback,
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1132,38 +1530,74 @@ class _TasksScreenState extends State<TasksScreen> {
                   ? null
                   : () => markTaskCompleted(item),
               borderRadius: BorderRadius.circular(999),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 24,
-                height: 24,
-                margin: const EdgeInsets.only(top: 3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: task.isCompleted
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: task.isCompleted
-                        ? Theme.of(context).colorScheme.primary
-                        : mutedColor(context).withValues(alpha: 0.46),
-                    width: 1.4,
-                  ),
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (showCompletionFeedback)
+                      TweenAnimationBuilder<double>(
+                        key: ValueKey('completion-pulse-${task.taskId}'),
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 720),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return Transform.scale(
+                            scale: 1 + (value * 0.75),
+                            child: Opacity(opacity: 1 - value, child: child),
+                          );
+                        },
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: PlanoraTheme.success.withValues(alpha: 0.22),
+                          ),
+                        ),
+                      ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: task.isCompleted
+                            ? PlanoraTheme.success
+                            : Colors.transparent,
+                        border: Border.all(
+                          color: task.isCompleted
+                              ? PlanoraTheme.success
+                              : mutedColor(context).withValues(alpha: 0.46),
+                          width: 1.4,
+                        ),
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: isCompleting
+                            ? const Padding(
+                                key: ValueKey('completing'),
+                                padding: EdgeInsets.all(5),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : task.isCompleted
+                            ? const Icon(
+                                Icons.check_rounded,
+                                key: ValueKey('completed'),
+                                size: 17,
+                                color: Colors.white,
+                              )
+                            : const SizedBox.shrink(key: ValueKey('todo')),
+                      ),
+                    ),
+                  ],
                 ),
-                child: isCompleting
-                    ? const Padding(
-                        padding: EdgeInsets.all(5),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : task.isCompleted
-                    ? const Icon(
-                        Icons.check_rounded,
-                        size: 17,
-                        color: Colors.white,
-                      )
-                    : null,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 6),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1272,21 +1706,28 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  BoxDecoration taskCardDecoration(BuildContext context) {
+  BoxDecoration taskCardDecoration(
+    BuildContext context, {
+    bool isCompletionFeedback = false,
+  }) {
     final isDark = PlanoraTheme.isDark(context);
 
     return BoxDecoration(
       color: isDark ? const Color(0xFF121A2A) : PlanoraTheme.surface,
       borderRadius: BorderRadius.circular(18),
       border: Border.all(
-        color: isDark
+        color: isCompletionFeedback
+            ? PlanoraTheme.success.withValues(alpha: 0.62)
+            : isDark
             ? Colors.white.withValues(alpha: 0.05)
             : PlanoraTheme.border.withValues(alpha: 0.72),
       ),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.055),
-          blurRadius: 18,
+          color: isCompletionFeedback
+              ? PlanoraTheme.success.withValues(alpha: isDark ? 0.24 : 0.16)
+              : Colors.black.withValues(alpha: isDark ? 0.30 : 0.055),
+          blurRadius: isCompletionFeedback ? 24 : 18,
           offset: const Offset(0, 9),
         ),
       ],
@@ -1456,11 +1897,24 @@ class _TasksScreenState extends State<TasksScreen> {
       }
 
       replaceTask(updatedTask);
+      setState(() {
+        completionFeedbackTaskId = updatedTask.task.taskId;
+      });
       widget.onTasksChanged?.call();
 
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Task marked completed.')));
+
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (!mounted || completionFeedbackTaskId != updatedTask.task.taskId) {
+          return;
+        }
+
+        setState(() {
+          completionFeedbackTaskId = null;
+        });
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -1504,7 +1958,7 @@ class _TasksScreenState extends State<TasksScreen> {
       return;
     }
 
-    selectedProjectId ??= projects.first.projectId;
+    selectedCreateProjectId = selectedProjectId ?? projects.first.projectId;
     await prepareCreateTaskMembersForSelectedProject();
 
     if (!mounted) {
@@ -1626,15 +2080,6 @@ class _TasksScreenState extends State<TasksScreen> {
                         buildAssigneeField(
                           sheetContext,
                           setSheetState: setSheetState,
-                        ),
-                        const SizedBox(height: 18),
-                        buildCreateFieldLabel(sheetContext, 'Tags (Optional)'),
-                        const SizedBox(height: 8),
-                        buildCreateInfoField(
-                          sheetContext,
-                          icon: Icons.sell_outlined,
-                          label: 'Tags are not enabled yet.',
-                          helper: 'No tags endpoint exists in the backend.',
                         ),
                         const SizedBox(height: 24),
                         Row(
@@ -1804,7 +2249,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final isDark = PlanoraTheme.isDark(context);
 
     return DropdownButtonFormField<int>(
-      initialValue: selectedProjectId,
+      initialValue: selectedCreateProjectId,
       isExpanded: true,
       icon: Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
       dropdownColor: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
@@ -1831,11 +2276,11 @@ class _TasksScreenState extends State<TasksScreen> {
         );
 
         setSheetState(() {
-          selectedProjectId = value;
+          selectedCreateProjectId = value;
         });
 
         setState(() {
-          selectedProjectId = value;
+          selectedCreateProjectId = value;
         });
 
         loadCreateTaskMembers(
@@ -2300,7 +2745,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }) async {
     final title = titleController.text.trim();
     final description = descriptionController.text.trim();
-    final projectId = selectedProjectId;
+    final projectId = selectedCreateProjectId;
 
     if (title.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2345,6 +2790,12 @@ class _TasksScreenState extends State<TasksScreen> {
       if (!mounted || !sheetContext.mounted) {
         return;
       }
+
+      setState(() {
+        selectedProjectId = project.projectId;
+        selectedCreateProjectId = project.projectId;
+        _hasInitializedProjectFilter = true;
+      });
 
       await loadTasks();
       widget.onTasksChanged?.call();
@@ -2398,7 +2849,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   void resetCreateForm({bool keepProject = false}) {
-    final projectId = selectedProjectId;
+    final projectId = selectedCreateProjectId;
 
     titleController.clear();
     descriptionController.clear();
@@ -2409,12 +2860,14 @@ class _TasksScreenState extends State<TasksScreen> {
     isLoadingAssignees = false;
 
     if (!keepProject) {
-      selectedProjectId = projects.isEmpty ? null : projects.first.projectId;
-      addAnotherTask = true;
+      selectedCreateProjectId =
+          selectedProjectId ??
+          (projects.isEmpty ? null : projects.first.projectId);
+      addAnotherTask = false;
       return;
     }
 
-    selectedProjectId =
+    selectedCreateProjectId =
         projectId ?? (projects.isEmpty ? null : projects.first.projectId);
   }
 
@@ -2431,9 +2884,32 @@ class _TasksScreenState extends State<TasksScreen> {
               children: [
                 buildTasksHeader(context),
                 const SizedBox(height: 24),
+                buildProjectSelector(context),
+                const SizedBox(height: 18),
                 buildTaskStatsFilterRow(context),
                 const SizedBox(height: 20),
-                buildTaskContent(context),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    final slide = Tween<Offset>(
+                      begin: const Offset(0, 0.025),
+                      end: Offset.zero,
+                    ).animate(animation);
+
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(position: slide, child: child),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey(
+                      'task-content-${isLoading ? 'loading' : 'ready'}-${selectedProjectId ?? 'all'}-$selectedFilterIndex-$selectedSortOrder-${tasks.length}',
+                    ),
+                    child: buildTaskContent(context),
+                  ),
+                ),
               ],
             ),
           ),
@@ -2472,4 +2948,67 @@ class _TaskFilterSheetResult {
   final TaskSortOrder? sortOrder;
 
   const _TaskFilterSheetResult({this.filterIndex, this.sortOrder});
+}
+
+class _PlanoraShimmer extends StatefulWidget {
+  final Widget child;
+
+  const _PlanoraShimmer({required this.child});
+
+  @override
+  State<_PlanoraShimmer> createState() => _PlanoraShimmerState();
+}
+
+class _PlanoraShimmerState extends State<_PlanoraShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1250),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final base = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : PlanoraTheme.border.withValues(alpha: 0.72);
+    final highlight = isDark
+        ? Colors.white.withValues(alpha: 0.18)
+        : Colors.white.withValues(alpha: 0.86);
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) {
+            final width = bounds.width;
+            final shimmerWidth = width * 1.8;
+            final dx = -shimmerWidth + (shimmerWidth * 2 * _controller.value);
+
+            return LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [base, highlight, base],
+              stops: const [0.32, 0.5, 0.68],
+            ).createShader(Rect.fromLTWH(dx, 0, shimmerWidth, bounds.height));
+          },
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
 }
