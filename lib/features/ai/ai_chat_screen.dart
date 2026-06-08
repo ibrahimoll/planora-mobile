@@ -655,7 +655,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             children: [
               Flexible(
                 child: Text(
-                  'Planora AI is typing',
+                  'Typing',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
