@@ -43,12 +43,16 @@ class _AuthGateState extends State<AuthGate> {
 
       final user = await AuthApi.getCurrentUser();
 
-      if (!mounted) return;
+      if (user.role == 'admin') {
+        await TokenStorage.clearAccessToken();
 
-      setState(() {
-        currentUser = user;
-        isLoading = false;
-      });
+        if (!mounted) return;
+
+        setState(() {
+          currentUser = user;
+          isLoading = false;
+        });
+      }
     } on ApiException {
       await TokenStorage.clearAccessToken();
 

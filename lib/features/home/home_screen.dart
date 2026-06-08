@@ -10,6 +10,7 @@ import 'package:mobile/features/tasks/models/task_models.dart';
 import 'package:mobile/features/tasks/task_detail_screen.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/auth_models.dart';
@@ -123,13 +124,20 @@ class _HomeScreenState extends State<HomeScreen> {
         upcomingTasks = nextTasks.take(3).toList();
         isLoadingDashboard = false;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Dashboard load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
 
+      final message = error is ApiException
+          ? 'Could not load dashboard: ${error.message}'
+          : 'Could not load dashboard data. Please try again.';
+
       setState(() {
-        dashboardError = 'Could not load dashboard data. Please try again.';
+        dashboardError = message;
         isLoadingDashboard = false;
       });
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_exception.dart';
 import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
@@ -96,7 +97,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (!mounted) return;
 
       setState(() {
-        errorMessage = 'Could not load projects. Please try again.';
+        errorMessage = error is ApiException
+            ? 'Could not load projects: ${error.message}'
+            : 'Could not load projects. Please try again.';
         taskSummaryWarning = null;
         projectTasks = [];
         isLoading = false;
