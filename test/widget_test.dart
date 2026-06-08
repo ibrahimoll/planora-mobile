@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -91,7 +93,7 @@ void main() {
     expect(find.text('Design app onboarding'), findsOneWidget);
     expect(find.text('Compare clothing suppliers'), findsNothing);
 
-    await tester.tap(find.text('Done'));
+    await tester.tap(find.text('Done').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Prepare app release notes'), findsOneWidget);
@@ -140,7 +142,7 @@ void main() {
     expect(find.text('Tags (Optional)'), findsNothing);
 
     await tester.enterText(
-      find.byType(TextField).first,
+      find.byType(TextField).at(1),
       'Schedule launch content',
     );
     await tester.ensureVisible(find.text('Create Task'));
@@ -160,6 +162,88 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Schedule launch content'), findsOneWidget);
+  });
+
+  testWidgets('TasksScreen searches inside the selected project scope', (
+    tester,
+  ) async {
+    final clothing = _taskProject(27, 'Clothing Brand');
+    final app = _taskProject(29, 'Mobile App');
+    final tasksApi = _ProjectFirstTasksApi(
+      projects: [clothing, app],
+      tasks: [
+        _taskItem(
+          project: clothing,
+          taskId: 271,
+          title: 'Research clothing suppliers',
+          description: 'Compare fabric vendors and sample costs.',
+          status: TaskStatus.todo,
+        ),
+        _taskItem(
+          project: clothing,
+          taskId: 272,
+          title: 'Plan launch campaign',
+          description: 'Prepare TikTok and Instagram content.',
+          status: TaskStatus.todo,
+        ),
+        _taskItem(
+          project: app,
+          taskId: 291,
+          title: 'Supplier admin dashboard',
+          description: 'Software task in another plan.',
+          status: TaskStatus.todo,
+        ),
+      ],
+    );
+
+    await _pumpTasksScreen(tester, tasksApi);
+
+    await tester.enterText(find.byType(TextField).first, 'supplier');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Research clothing suppliers'), findsOneWidget);
+    expect(find.text('Plan launch campaign'), findsNothing);
+    expect(find.text('Supplier admin dashboard'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).first, 'instagram');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Plan launch campaign'), findsOneWidget);
+    expect(find.text('Research clothing suppliers'), findsNothing);
+  });
+
+  testWidgets('TasksScreen renders loading, error, and no-project states', (
+    tester,
+  ) async {
+    final delayedApi = _DelayedTasksApi();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TasksScreen(onBack: () {}, tasksApi: delayedApi),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Tasks'), findsOneWidget);
+
+    delayedApi.complete();
+    await tester.pumpAndSettle();
+
+    await _pumpTasksScreen(tester, _FailingTasksApi());
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load tasks'), findsOneWidget);
+    expect(find.text('Try Again'), findsOneWidget);
+
+    await _pumpTasksScreen(
+      tester,
+      _ProjectFirstTasksApi(projects: const [], tasks: const []),
+    );
+
+    expect(find.text('No projects yet'), findsOneWidget);
+    expect(find.text('Try Again'), findsOneWidget);
   });
 
   test('ProjectCreateRequest only serializes backend fields', () {
@@ -366,14 +450,11 @@ class _SlowAiChatApi extends AiChatApi {
   }
 }
 
-Future<void> _pumpTasksScreen(
-  WidgetTester tester,
-  _ProjectFirstTasksApi tasksApi,
-) async {
+Future<void> _pumpTasksScreen(WidgetTester tester, TasksApi tasksApi) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: TasksScreen(onBack: () {}, tasksApi: tasksApi),
+        body: TasksScreen(key: UniqueKey(), onBack: () {}, tasksApi: tasksApi),
       ),
     ),
   );
@@ -394,6 +475,7 @@ TaskListItem _taskItem({
   required int taskId,
   required String title,
   required TaskStatus status,
+  String? description,
 }) {
   return TaskListItem(
     project: project,
@@ -410,7 +492,7 @@ TaskListItem _taskItem({
       tags: const [],
       createdBy: 1,
       title: title,
-      description: null,
+      description: description,
       sectionName: null,
       priority: TaskPriority.medium,
       estimatedHours: null,
@@ -460,5 +542,34 @@ class _ProjectFirstTasksApi extends TasksApi {
     _tasks.add(task);
 
     return task;
+  }
+}
+
+class _DelayedTasksApi extends TasksApi {
+  final Completer<TaskBoardData> _completer = Completer<TaskBoardData>();
+
+  void complete() {
+    if (_completer.isCompleted) {
+      return;
+    }
+
+    _completer.complete(
+      TaskBoardData(
+        projects: [_taskProject(31, 'Delayed Plan')],
+        tasks: const [],
+      ),
+    );
+  }
+
+  @override
+  Future<TaskBoardData> getTasks({TaskStatus? status}) {
+    return _completer.future;
+  }
+}
+
+class _FailingTasksApi extends TasksApi {
+  @override
+  Future<TaskBoardData> getTasks({TaskStatus? status}) async {
+    throw const ApiException(message: 'Task board failed', statusCode: 500);
   }
 }

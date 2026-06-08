@@ -1896,6 +1896,9 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           },
           onTasksChanged: loadDashboardData,
+          onCreateAiPlan: () {
+            openAiPlanningFlow();
+          },
           onBack: () {
             setState(() {
               selectedIndex = 0;

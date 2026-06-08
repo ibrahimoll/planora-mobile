@@ -15,6 +15,7 @@ class TasksScreen extends StatefulWidget {
   final String userInitials;
   final VoidCallback? onCreateRequestConsumed;
   final VoidCallback? onTasksChanged;
+  final VoidCallback? onCreateAiPlan;
   final TasksApi tasksApi;
   final ProjectsApi projectsApi;
 
@@ -27,6 +28,7 @@ class TasksScreen extends StatefulWidget {
     this.userInitials = 'P',
     this.onCreateRequestConsumed,
     this.onTasksChanged,
+    this.onCreateAiPlan,
     this.tasksApi = const TasksApi(),
     this.projectsApi = const ProjectsApi(),
   });
@@ -40,6 +42,7 @@ class _TasksScreenState extends State<TasksScreen> {
   late final ProjectsApi _projectsApi;
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+  final TextEditingController searchController = TextEditingController();
 
   static const List<TaskStatus?> _filters = [
     null,
@@ -65,6 +68,7 @@ class _TasksScreenState extends State<TasksScreen> {
   bool addAnotherTask = false;
 
   String? errorMessage;
+  String searchQuery = '';
   DateTime? selectedDueDate;
   TaskPriority selectedPriority = TaskPriority.medium;
 
@@ -125,6 +129,7 @@ class _TasksScreenState extends State<TasksScreen> {
   void dispose() {
     titleController.dispose();
     descriptionController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
@@ -134,7 +139,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
   List<TaskListItem> get filteredTasks {
     final status = selectedStatus;
-    final scopedTasks = projectScopedTasks;
+    final scopedTasks = searchedTaskItems;
 
     if (status == null) {
       return sortedTaskItems(scopedTasks);
@@ -155,6 +160,26 @@ class _TasksScreenState extends State<TasksScreen> {
     return tasks.where((item) => item.project.projectId == projectId).toList();
   }
 
+  List<TaskListItem> get searchedTaskItems {
+    final query = searchQuery.trim().toLowerCase();
+    final scopedTasks = projectScopedTasks;
+
+    if (query.isEmpty) {
+      return scopedTasks;
+    }
+
+    return scopedTasks.where((item) {
+      final task = item.task;
+      final searchableText = [
+        task.title,
+        task.description ?? '',
+        item.project.title,
+      ].join(' ').toLowerCase();
+
+      return searchableText.contains(query);
+    }).toList();
+  }
+
   int get todoCount {
     return countByStatus(TaskStatus.todo);
   }
@@ -165,6 +190,10 @@ class _TasksScreenState extends State<TasksScreen> {
 
   int get completedCount {
     return countByStatus(TaskStatus.completed);
+  }
+
+  int get overdueCount {
+    return projectScopedTasks.where((item) => item.task.isOverdue).length;
   }
 
   int countByStatus(TaskStatus status) {
@@ -543,16 +572,6 @@ class _TasksScreenState extends State<TasksScreen> {
         const SizedBox(width: 10),
         buildCircleIconButton(
           context,
-          icon: Icons.search_rounded,
-          onTap: () {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Search is next.')));
-          },
-        ),
-        const SizedBox(width: 10),
-        buildCircleIconButton(
-          context,
           icon: Icons.tune_rounded,
           onTap: showTaskFilterSheet,
         ),
@@ -611,8 +630,8 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
             Text(
               selectedProjectId == null
-                  ? '${tasks.length} total'
-                  : '${projectScopedTasks.length} in plan',
+                  ? '${tasks.length} total • $overdueCount overdue'
+                  : '${projectScopedTasks.length} in plan • $overdueCount overdue',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w900,
@@ -664,6 +683,75 @@ class _TasksScreenState extends State<TasksScreen> {
         ),
       ],
     );
+  }
+
+  Widget buildTaskSearchField(BuildContext context) {
+    if (isLoading || projects.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final isDark = PlanoraTheme.isDark(context);
+
+    return TextField(
+      controller: searchController,
+      onChanged: (value) {
+        setState(() {
+          searchQuery = value;
+        });
+      },
+      textInputAction: TextInputAction.search,
+      style: TextStyle(
+        color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+        fontWeight: FontWeight.w700,
+      ),
+      decoration: InputDecoration(
+        hintText: selectedProjectId == null
+            ? 'Search tasks across all plans'
+            : 'Search tasks in this plan',
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        suffixIcon: searchQuery.trim().isEmpty
+            ? null
+            : IconButton(
+                onPressed: clearTaskSearch,
+                icon: const Icon(Icons.close_rounded),
+              ),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF121A2A) : PlanoraTheme.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void clearTaskSearch() {
+    searchController.clear();
+    setState(() {
+      searchQuery = '';
+    });
   }
 
   int taskCountForProject(int projectId) {
@@ -798,6 +886,10 @@ class _TasksScreenState extends State<TasksScreen> {
           ],
         ),
       );
+    }
+
+    if (projects.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     final stats = [
@@ -1203,35 +1295,47 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     if (projects.isEmpty) {
+      final createAiPlan = widget.onCreateAiPlan;
+
       return buildMessageState(
         context,
-        icon: Icons.folder_open_rounded,
+        icon: Icons.auto_awesome_rounded,
         title: 'No projects yet',
-        message: 'Create a project first, then Planora can attach tasks to it.',
-        buttonText: 'Refresh',
-        onPressed: loadTasks,
+        message:
+            'Create your first AI plan so Planora can turn an idea into practical tasks.',
+        buttonText: createAiPlan == null
+            ? 'Try Again'
+            : 'Create your first AI plan',
+        onPressed: createAiPlan ?? loadTasks,
       );
     }
 
     final visibleTasks = filteredTasks;
     final hasSelectedProject = selectedProjectId != null;
+    final hasSearchQuery = searchQuery.trim().isNotEmpty;
 
     if (visibleTasks.isEmpty) {
       return buildMessageState(
         context,
-        icon: Icons.check_box_outlined,
-        title: hasSelectedProject && selectedStatus == null
+        icon: hasSearchQuery
+            ? Icons.manage_search_rounded
+            : Icons.check_box_outlined,
+        title: hasSearchQuery
+            ? 'No tasks matching search'
+            : hasSelectedProject && selectedStatus == null
             ? 'No tasks for this project yet.'
             : selectedStatus == null
             ? 'No tasks yet'
             : 'No ${filterLabel(selectedStatus).toLowerCase()} tasks',
-        message: hasSelectedProject
+        message: hasSearchQuery
+            ? 'Try a different title, detail, or plan name.'
+            : hasSelectedProject
             ? 'Create a task here or switch plans to see other work.'
             : selectedStatus == null
             ? 'Choose a plan or create your first task across all plans.'
             : 'Try another status or create a task in one of your plans.',
-        buttonText: 'New Task',
-        onPressed: showCreateTaskSheet,
+        buttonText: hasSearchQuery ? 'Clear Search' : 'New Task',
+        onPressed: hasSearchQuery ? clearTaskSearch : showCreateTaskSheet,
       );
     }
 
@@ -1623,15 +1727,13 @@ class _TasksScreenState extends State<TasksScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: taskStatusColor,
-                          shape: BoxShape.circle,
-                        ),
+                      buildBadge(
+                        context,
+                        label: filterLabel(task.status),
+                        color: taskStatusColor,
+                        isSubtle: true,
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           item.project.title,
@@ -2746,6 +2848,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final title = titleController.text.trim();
     final description = descriptionController.text.trim();
     final projectId = selectedCreateProjectId;
+    final scopeProjectIdBeforeCreate = selectedProjectId;
 
     if (title.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2792,7 +2895,7 @@ class _TasksScreenState extends State<TasksScreen> {
       }
 
       setState(() {
-        selectedProjectId = project.projectId;
+        selectedProjectId = scopeProjectIdBeforeCreate;
         selectedCreateProjectId = project.projectId;
         _hasInitializedProjectFilter = true;
       });
@@ -2885,6 +2988,8 @@ class _TasksScreenState extends State<TasksScreen> {
                 buildTasksHeader(context),
                 const SizedBox(height: 24),
                 buildProjectSelector(context),
+                const SizedBox(height: 14),
+                buildTaskSearchField(context),
                 const SizedBox(height: 18),
                 buildTaskStatsFilterRow(context),
                 const SizedBox(height: 20),
