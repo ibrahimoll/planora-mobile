@@ -98,6 +98,24 @@ class ApiClient {
     }
   }
 
+  static Future<dynamic> postMultipart(
+    String path, {
+    required FormData data,
+    bool requiresAuth = true,
+  }) async {
+    try {
+      final response = await _dio.post(
+        path,
+        data: data,
+        options: Options(extra: {'requiresAuth': requiresAuth}),
+      );
+
+      return _handleResponse(response);
+    } on DioException catch (error) {
+      throw _handleDioException(error);
+    }
+  }
+
   static Future<dynamic> patchJson(
     String path, {
     Map<String, dynamic>? data,

@@ -1,0 +1,759 @@
+import 'package:flutter/material.dart';
+
+import '../../core/theme/planora_theme.dart';
+import '../auth/models/project_models.dart';
+import '../tasks/models/task_models.dart';
+import 'data/teams_api.dart';
+
+class TeamsScreen extends StatefulWidget {
+  const TeamsScreen({super.key});
+
+  @override
+  State<TeamsScreen> createState() => _TeamsScreenState();
+}
+
+class _TeamsScreenState extends State<TeamsScreen> {
+  final TeamsApi _teamsApi = const TeamsApi();
+  final TextEditingController _teamNameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+
+  bool isLoading = true;
+  bool isCreatingTeam = false;
+  bool isInviting = false;
+  int? updatingInvitationId;
+  String? errorMessage;
+  List<TeamModel> teams = [];
+  List<TeamInvitationModel> invitations = [];
+  List<TeamMemberModel> members = [];
+  TeamModel? selectedTeam;
+
+  @override
+  void initState() {
+    super.initState();
+    loadTeams();
+  }
+
+  @override
+  void dispose() {
+    _teamNameController.dispose();
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> loadTeams() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final loadedTeams = await _teamsApi.getTeams();
+      final loadedInvitations = await _teamsApi.getMyInvitations();
+      final nextSelectedTeam = loadedTeams.isEmpty
+          ? null
+          : selectedTeam == null
+          ? loadedTeams.first
+          : loadedTeams.firstWhere(
+              (team) => team.teamId == selectedTeam!.teamId,
+              orElse: () => loadedTeams.first,
+            );
+      final loadedMembers = nextSelectedTeam == null
+          ? <TeamMemberModel>[]
+          : await _teamsApi.getTeamMembers(nextSelectedTeam.teamId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        teams = loadedTeams;
+        invitations = loadedInvitations
+            .where((invitation) => invitation.isPending)
+            .toList();
+        selectedTeam = nextSelectedTeam;
+        members = loadedMembers;
+        isLoading = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Teams load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Could not load teams and invitations.';
+      });
+    }
+  }
+
+  Future<void> selectTeam(TeamModel team) async {
+    setState(() {
+      selectedTeam = team;
+      members = [];
+    });
+
+    try {
+      final loadedMembers = await _teamsApi.getTeamMembers(team.teamId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        members = loadedMembers;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Team members load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load team members.')),
+      );
+    }
+  }
+
+  Future<void> createTeam() async {
+    final name = _teamNameController.text.trim();
+
+    if (name.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Team name must be at least 2 letters.')),
+      );
+      return;
+    }
+
+    setState(() {
+      isCreatingTeam = true;
+    });
+
+    try {
+      final team = await _teamsApi.createTeam(name);
+
+      if (!mounted) {
+        return;
+      }
+
+      _teamNameController.clear();
+      setState(() {
+        teams = [team, ...teams];
+        selectedTeam = team;
+        members = [];
+        isCreatingTeam = false;
+      });
+
+      await selectTeam(team);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Team created.')));
+    } catch (error, stackTrace) {
+      debugPrint('Team creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isCreatingTeam = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not create team. Try again.')),
+      );
+    }
+  }
+
+  Future<void> inviteUser() async {
+    final team = selectedTeam;
+    final username = _usernameController.text.trim();
+
+    if (team == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create or select a team first.')),
+      );
+      return;
+    }
+
+    if (username.length < 3) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a valid username.')));
+      return;
+    }
+
+    setState(() {
+      isInviting = true;
+    });
+
+    try {
+      await _teamsApi.inviteUser(teamId: team.teamId, username: username);
+
+      if (!mounted) {
+        return;
+      }
+
+      _usernameController.clear();
+      setState(() {
+        isInviting = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invitation sent.')));
+    } catch (error, stackTrace) {
+      debugPrint('Team invitation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isInviting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not send invitation.')),
+      );
+    }
+  }
+
+  Future<void> respondToInvitation(
+    TeamInvitationModel invitation, {
+    required bool accept,
+  }) async {
+    setState(() {
+      updatingInvitationId = invitation.invitationId;
+    });
+
+    try {
+      if (accept) {
+        await _teamsApi.acceptInvitation(invitation.invitationId);
+      } else {
+        await _teamsApi.rejectInvitation(invitation.invitationId);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      await loadTeams();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        updatingInvitationId = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            accept ? 'Invitation accepted.' : 'Invitation rejected.',
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Invitation response failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        updatingInvitationId = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update invitation.')),
+      );
+    }
+  }
+
+  Color mutedColor(BuildContext context) {
+    return PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkTextSecondary
+        : PlanoraTheme.textSecondary;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(context),
+                    const SizedBox(height: 18),
+                    Expanded(child: _buildBody(context)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_rounded),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Teams',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return _buildState(
+        context,
+        icon: Icons.wifi_off_rounded,
+        title: errorMessage!,
+        action: 'Try Again',
+        onAction: loadTeams,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: loadTeams,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 28),
+        children: [
+          if (teams.isEmpty)
+            _buildStateCard(
+              context,
+              icon: Icons.groups_2_outlined,
+              title: 'Create or join a team',
+              message:
+                  'Teams let you create shared projects and invite members.',
+            ),
+          _buildCreateTeamCard(context),
+          const SizedBox(height: 16),
+          if (teams.isNotEmpty) ...[
+            _buildTeamSelector(context),
+            const SizedBox(height: 16),
+            _buildInviteCard(context),
+            const SizedBox(height: 16),
+            _buildMembersCard(context),
+            const SizedBox(height: 16),
+          ],
+          _buildInvitationsCard(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCreateTeamCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Create Team',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _teamNameController,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => createTeam(),
+            decoration: const InputDecoration(
+              hintText: 'Team name',
+              prefixIcon: Icon(Icons.groups_2_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: isCreatingTeam ? null : createTeam,
+              icon: isCreatingTeam
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_rounded),
+              label: const Text('Create Team'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamSelector(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDecoration(context),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: selectedTeam?.teamId,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(16),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          items: [
+            for (final team in teams)
+              DropdownMenuItem<int>(
+                value: team.teamId,
+                child: Text(
+                  team.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (teamId) {
+            if (teamId == null) {
+              return;
+            }
+
+            final team = teams.firstWhere(
+              (item) => item.teamId == teamId,
+              orElse: () => teams.first,
+            );
+
+            selectTeam(team);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInviteCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Invite User',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _usernameController,
+            textInputAction: TextInputAction.send,
+            onSubmitted: (_) => inviteUser(),
+            decoration: const InputDecoration(
+              hintText: 'Username',
+              prefixIcon: Icon(Icons.person_add_alt_1_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: isInviting ? null : inviteUser,
+              icon: isInviting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send_rounded),
+              label: const Text('Send Invitation'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMembersCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Members',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          if (members.isEmpty)
+            Text(
+              'No team members returned yet.',
+              style: TextStyle(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            for (final member in members)
+              _buildMemberRow(
+                context,
+                initials: member.initials,
+                title: member.displayName,
+                subtitle: member.roleLabel,
+              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvitationsCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pending Invitations',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          if (invitations.isEmpty)
+            Text(
+              'No pending invitations.',
+              style: TextStyle(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            for (final invitation in invitations)
+              _buildInvitationRow(context, invitation),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInvitationRow(
+    BuildContext context,
+    TeamInvitationModel invitation,
+  ) {
+    final isUpdating = updatingInvitationId == invitation.invitationId;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Team #${invitation.teamId}',
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Role: ${invitation.role} • ${formatShortDate(invitation.createdAt)}',
+            style: TextStyle(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: isUpdating
+                      ? null
+                      : () => respondToInvitation(invitation, accept: false),
+                  child: const Text('Reject'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: isUpdating
+                      ? null
+                      : () => respondToInvitation(invitation, accept: true),
+                  child: isUpdating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Accept'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberRow(
+    BuildContext context, {
+    required String initials,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.12),
+            child: Text(
+              initials,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStateCard(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(context),
+      child: Column(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 38),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildState(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? action,
+    VoidCallback? onAction,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 40),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          if (action != null && onAction != null) ...[
+            const SizedBox(height: 12),
+            TextButton(onPressed: onAction, child: Text(action)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  BoxDecoration _cardDecoration(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return BoxDecoration(
+      color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+      ),
+      boxShadow: PlanoraTheme.cardShadowFor(context),
+    );
+  }
+}

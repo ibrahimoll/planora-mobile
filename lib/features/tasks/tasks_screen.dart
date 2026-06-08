@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/project_api.dart';
+import '../auth/models/project_models.dart';
 import 'data/tasks_api.dart';
 import 'models/task_models.dart';
 import 'task_detail_screen.dart';
@@ -31,6 +33,7 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   final TasksApi _tasksApi = const TasksApi();
+  final ProjectsApi _projectsApi = const ProjectsApi();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
 
@@ -43,11 +46,13 @@ class _TasksScreenState extends State<TasksScreen> {
 
   int selectedFilterIndex = 0;
   int? selectedProjectId;
+  int? selectedAssignedUserId;
   int? completingTaskId;
   TaskSortOrder selectedSortOrder = TaskSortOrder.overdueFirst;
 
   bool isLoading = true;
   bool isCreatingTask = false;
+  bool isLoadingAssignees = false;
   bool _openCreateAfterLoad = false;
   bool _isCreateSheetOpen = false;
   bool addAnotherTask = true;
@@ -58,6 +63,20 @@ class _TasksScreenState extends State<TasksScreen> {
 
   List<TaskProjectSummary> projects = [];
   List<TaskListItem> tasks = [];
+  List<ProjectMemberModel> createTaskMembers = [];
+
+  TaskProjectSummary? get selectedCreateProject {
+    final projectId = selectedProjectId;
+
+    if (projectId == null || projects.isEmpty) {
+      return null;
+    }
+
+    return projects.firstWhere(
+      (item) => item.projectId == projectId,
+      orElse: () => projects.first,
+    );
+  }
 
   @override
   void initState() {
@@ -154,7 +173,10 @@ class _TasksScreenState extends State<TasksScreen> {
         selectedProjectId = _resolveSelectedProjectId(data.projects);
         isLoading = false;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Task board load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
@@ -190,6 +212,144 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     return loadedProjects.first.projectId;
+  }
+
+  Future<void> loadCreateTaskMembers({
+    required StateSetter setSheetState,
+    required BuildContext sheetContext,
+    TaskProjectSummary? project,
+  }) async {
+    final selectedProject = project ?? selectedCreateProject;
+
+    if (selectedProject == null || !selectedProject.isTeamProject) {
+      setSheetState(() {
+        createTaskMembers = [];
+        selectedAssignedUserId = null;
+        isLoadingAssignees = false;
+      });
+      setState(() {
+        createTaskMembers = [];
+        selectedAssignedUserId = null;
+        isLoadingAssignees = false;
+      });
+      return;
+    }
+
+    final teamId = selectedProject.teamId;
+
+    if (teamId == null) {
+      return;
+    }
+
+    setSheetState(() {
+      isLoadingAssignees = true;
+      createTaskMembers = [];
+      selectedAssignedUserId = null;
+    });
+    setState(() {
+      isLoadingAssignees = true;
+      createTaskMembers = [];
+      selectedAssignedUserId = null;
+    });
+
+    try {
+      final members = await _projectsApi.getProjectMembersByIds(
+        teamId: teamId,
+        projectId: selectedProject.projectId,
+      );
+
+      if (!mounted || !sheetContext.mounted) {
+        return;
+      }
+
+      setSheetState(() {
+        createTaskMembers = members;
+        selectedAssignedUserId = members.isEmpty ? null : members.first.userId;
+        isLoadingAssignees = false;
+      });
+      setState(() {
+        createTaskMembers = members;
+        selectedAssignedUserId = members.isEmpty ? null : members.first.userId;
+        isLoadingAssignees = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Task assignee load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted || !sheetContext.mounted) {
+        return;
+      }
+
+      setSheetState(() {
+        createTaskMembers = [];
+        selectedAssignedUserId = null;
+        isLoadingAssignees = false;
+      });
+      setState(() {
+        createTaskMembers = [];
+        selectedAssignedUserId = null;
+        isLoadingAssignees = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not load project members.')),
+      );
+    }
+  }
+
+  Future<void> prepareCreateTaskMembersForSelectedProject() async {
+    final selectedProject = selectedCreateProject;
+
+    if (selectedProject == null || !selectedProject.isTeamProject) {
+      setState(() {
+        createTaskMembers = [];
+        selectedAssignedUserId = null;
+        isLoadingAssignees = false;
+      });
+      return;
+    }
+
+    final teamId = selectedProject.teamId;
+
+    if (teamId == null) {
+      return;
+    }
+
+    setState(() {
+      isLoadingAssignees = true;
+      createTaskMembers = [];
+      selectedAssignedUserId = null;
+    });
+
+    try {
+      final members = await _projectsApi.getProjectMembersByIds(
+        teamId: teamId,
+        projectId: selectedProject.projectId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        createTaskMembers = members;
+        selectedAssignedUserId = members.isEmpty ? null : members.first.userId;
+        isLoadingAssignees = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Initial task assignee load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        createTaskMembers = [];
+        selectedAssignedUserId = null;
+        isLoadingAssignees = false;
+      });
+    }
   }
 
   void requestCreateTaskSheet() {
@@ -1345,6 +1505,12 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     selectedProjectId ??= projects.first.projectId;
+    await prepareCreateTaskMembersForSelectedProject();
+
+    if (!mounted) {
+      return;
+    }
+
     _isCreateSheetOpen = true;
 
     await showModalBottomSheet<void>(
@@ -1457,18 +1623,18 @@ class _TasksScreenState extends State<TasksScreen> {
                           'Assignee (Optional)',
                         ),
                         const SizedBox(height: 8),
-                        buildCreateStaticSelect(
+                        buildAssigneeField(
                           sheetContext,
-                          icon: Icons.person_outline_rounded,
-                          label: 'Assign to someone',
+                          setSheetState: setSheetState,
                         ),
                         const SizedBox(height: 18),
                         buildCreateFieldLabel(sheetContext, 'Tags (Optional)'),
                         const SizedBox(height: 8),
-                        buildCreateStaticSelect(
+                        buildCreateInfoField(
                           sheetContext,
                           icon: Icons.sell_outlined,
-                          label: 'Add tags...',
+                          label: 'Tags are not enabled yet.',
+                          helper: 'No tags endpoint exists in the backend.',
                         ),
                         const SizedBox(height: 24),
                         Row(
@@ -1659,6 +1825,11 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
       ],
       onChanged: (value) {
+        final nextProject = projects.firstWhere(
+          (project) => project.projectId == value,
+          orElse: () => projects.first,
+        );
+
         setSheetState(() {
           selectedProjectId = value;
         });
@@ -1666,6 +1837,12 @@ class _TasksScreenState extends State<TasksScreen> {
         setState(() {
           selectedProjectId = value;
         });
+
+        loadCreateTaskMembers(
+          setSheetState: setSheetState,
+          sheetContext: context,
+          project: nextProject,
+        );
       },
     );
   }
@@ -1884,6 +2061,125 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  Widget buildAssigneeField(
+    BuildContext context, {
+    required StateSetter setSheetState,
+  }) {
+    final selectedProject = selectedCreateProject;
+
+    if (selectedProject?.isTeamProject != true) {
+      return buildCreateInfoField(
+        context,
+        icon: Icons.person_outline_rounded,
+        label: 'Assigned to me',
+        helper: 'Personal tasks stay assigned to your account.',
+      );
+    }
+
+    if (isLoadingAssignees) {
+      return buildCreateInfoField(
+        context,
+        icon: Icons.sync_rounded,
+        label: 'Loading members...',
+        helper: 'Checking project members for assignment.',
+      );
+    }
+
+    if (createTaskMembers.isEmpty) {
+      return buildCreateInfoField(
+        context,
+        icon: Icons.group_off_outlined,
+        label: 'No project members found.',
+        helper: 'Invite members to this team project before assigning tasks.',
+      );
+    }
+
+    return DropdownButtonFormField<int>(
+      initialValue: selectedAssignedUserId,
+      isExpanded: true,
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
+      decoration: createInputDecoration(
+        context,
+        hintText: 'Assign to a project member',
+        icon: Icons.person_outline_rounded,
+      ),
+      items: [
+        for (final member in createTaskMembers)
+          DropdownMenuItem<int>(
+            value: member.userId,
+            child: Text(
+              member.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: (value) {
+        setSheetState(() {
+          selectedAssignedUserId = value;
+        });
+        setState(() {
+          selectedAssignedUserId = value;
+        });
+      },
+    );
+  }
+
+  Widget buildCreateInfoField(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String helper,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: mutedColor(context), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? PlanoraTheme.darkTextPrimary
+                        : PlanoraTheme.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  helper,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget buildAddAnotherTaskToggle(
     BuildContext context, {
     required StateSetter setSheetState,
@@ -2041,6 +2337,7 @@ class _TasksScreenState extends State<TasksScreen> {
           description: description.isEmpty ? null : description,
           priority: selectedPriority,
           dueDate: selectedDueDate,
+          assignedTo: project.isTeamProject ? selectedAssignedUserId : null,
         ),
         project: project,
       );
@@ -2107,6 +2404,9 @@ class _TasksScreenState extends State<TasksScreen> {
     descriptionController.clear();
     selectedDueDate = null;
     selectedPriority = TaskPriority.medium;
+    selectedAssignedUserId = null;
+    createTaskMembers = [];
+    isLoadingAssignees = false;
 
     if (!keepProject) {
       selectedProjectId = projects.isEmpty ? null : projects.first.projectId;

@@ -11,6 +11,16 @@ Last updated: 2026-06-08
 
 ## Latest Mobile State - 2026-06-08
 
+- Home is now wired beyond the AI crash pass: the search icon opens backend-backed grouped project/task search, the Project Overview date pill opens This Week/This Month/All Time filters, Invite Team opens Teams/Invitations, View Reports opens Reports, and the Calendar tab shows a real task due-date calendar.
+- `ProjectsApi.getProjects()` now combines personal projects from `/projects` with team projects from `/teams/{team_id}/projects`; personal project creation still uses `/projects`, and team project creation uses `/teams/{team_id}/projects`.
+- Create Project now has a Personal/Team selector. Personal disables member invites with `Members are available for team projects.` Team requires selecting/creating a team before creating or inviting.
+- Create Task no longer shows dead `Assign to someone` or `Add tags...` controls. Personal tasks show `Assigned to me`; team projects load project members and send `assigned_to`; tags are disabled because no backend tags route exists.
+- Task Details hides the unsupported Subtasks tab, supports backend task attachment upload/delete via multipart image picker, and supports backend comment create/delete in the Activity tab.
+- Added `ReportsScreen`, `TeamsScreen`, `CalendarScreen`, and `SearchScreen` without redesigning the Planora light purple direction.
+- Profile placeholder rows now open real read-only pages; Team Members opens the Teams screen.
+- Latest verification for this wiring pass: `dart format lib test`, `flutter analyze`, `flutter test`, and `flutter pub get` passed from `C:\Users\Ibrahim\Documents\Planora\mobile`.
+- Remaining caveats: arbitrary file picking for attachments is not added yet, report export download/open is not implemented, team invite permissions are still enforced by backend responses, and no emulator screenshot sweep was run in this pass.
+
 - AI Chat no longer crashes when opened from the center bottom nav on the Pixel 9 emulator against the Render backend.
 - Home tab pages now receive full `AnimatedSwitcher` stack constraints, which protects AI Chat and other tab pages from loose animated layout constraints.
 - AI Chat uses a burger-menu `Project Chats` drawer instead of a dropdown. The drawer lists personal projects from `/projects`, and each selection loads project-scoped chat history.

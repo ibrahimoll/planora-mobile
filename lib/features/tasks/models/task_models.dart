@@ -981,6 +981,7 @@ class TaskCreateRequest {
   final String? description;
   final TaskPriority priority;
   final DateTime? dueDate;
+  final int? assignedTo;
 
   const TaskCreateRequest({
     required this.projectId,
@@ -988,6 +989,7 @@ class TaskCreateRequest {
     required this.description,
     required this.priority,
     required this.dueDate,
+    this.assignedTo,
   });
 
   Map<String, dynamic> toJson() {
@@ -999,6 +1001,10 @@ class TaskCreateRequest {
 
     if (dueDate != null) {
       data['due_date'] = dueDate!.toIso8601String();
+    }
+
+    if (assignedTo != null) {
+      data['assigned_to'] = assignedTo;
     }
 
     return data;

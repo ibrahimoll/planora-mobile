@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/theme/planora_theme.dart';
@@ -22,6 +23,7 @@ class TaskDetailScreen extends StatefulWidget {
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
   final TasksApi _tasksApi = const TasksApi();
+  final ImagePicker _imagePicker = ImagePicker();
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -41,6 +43,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool isCompleting = false;
   bool isDeleting = false;
   bool isSendingComment = false;
+  bool isUploadingAttachment = false;
+  int? deletingAttachmentId;
+  int? deletingCommentId;
 
   String? errorMessage;
   String? attachmentMessage;
@@ -83,7 +88,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         project: taskItem.project,
         taskId: taskItem.task.taskId,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Task refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       taskError = 'Could not refresh this task.';
     }
 
@@ -94,8 +101,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         project: taskForRelatedData.project,
         taskId: taskForRelatedData.task.taskId,
       );
-    } catch (error) {
-      attachmentsError = 'Attachments will be connected next.';
+    } catch (error, stackTrace) {
+      debugPrint('Task attachments load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      attachmentsError = 'Could not load attachments.';
     }
 
     try {
@@ -103,8 +112,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         project: taskForRelatedData.project,
         taskId: taskForRelatedData.task.taskId,
       );
-    } catch (error) {
-      commentsError = 'Activity will be connected next.';
+    } catch (error, stackTrace) {
+      debugPrint('Task comments load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      commentsError = 'Could not load activity.';
     }
 
     if (!mounted) {
@@ -384,7 +395,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Widget buildTabRow(BuildContext context) {
-    final labels = ['Overview', 'Subtasks', 'Attachments', 'Activity'];
+    final labels = ['Overview', 'Attachments', 'Activity'];
 
     return Row(
       children: [
@@ -404,10 +415,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   int tabCountFor(int index) {
     switch (index) {
       case 1:
-        return taskItem.task.subtasks.length;
-      case 2:
         return attachments.length;
-      case 3:
+      case 2:
         return comments.length;
       default:
         return 0;
@@ -1059,6 +1068,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   String? resolveProfileImageUrl(String? rawUrl) {
+    return resolveBackendUrl(rawUrl);
+  }
+
+  String? resolveBackendUrl(String? rawUrl) {
     final trimmed = rawUrl?.trim();
 
     if (trimmed == null || trimmed.isEmpty) {
@@ -1142,12 +1155,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       return buildEmptyStateCard(
         context,
         icon: Icons.checklist_rounded,
-        message: 'Subtasks will be connected next.',
-        trailing: buildDisabledAddRow(
-          context,
-          icon: Icons.add_rounded,
-          label: 'Add subtask',
-        ),
+        message:
+            'Subtasks are hidden until the backend exposes a subtasks API.',
       );
     }
 
@@ -1228,7 +1237,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         context,
         icon: Icons.attach_file_rounded,
         message: attachmentMessage!,
-        trailing: buildUploadCard(context, enabled: false),
+        trailing: buildUploadCard(context),
       );
     }
 
@@ -1237,7 +1246,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         context,
         icon: Icons.attach_file_rounded,
         message: 'No attachments yet.',
-        trailing: buildUploadCard(context, enabled: false),
+        trailing: buildUploadCard(context),
       );
     }
 
@@ -1267,70 +1276,108 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   ) {
     final isDark = PlanoraTheme.isDark(context);
     final subtitle = attachment.sizeLabel ?? attachment.fileType ?? 'File';
+    final isDeletingThis = deletingAttachmentId == attachment.attachmentId;
 
-    return Container(
-      height: 148,
-      padding: const EdgeInsets.all(12),
-      decoration: cardDecoration(context, radius: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 64,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: attachment.isImage
-                  ? PlanoraTheme.secondaryPurple.withValues(alpha: 0.12)
-                  : PlanoraTheme.warning.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+    return InkWell(
+      onTap: () => showAttachmentDetails(attachment),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 148,
+        padding: const EdgeInsets.all(12),
+        decoration: cardDecoration(context, radius: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                Container(
+                  height: 64,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: attachment.isImage
+                        ? PlanoraTheme.secondaryPurple.withValues(alpha: 0.12)
+                        : PlanoraTheme.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    attachment.isImage
+                        ? Icons.image_outlined
+                        : Icons.insert_drive_file_outlined,
+                    color: attachment.isImage
+                        ? PlanoraTheme.secondaryPurple
+                        : PlanoraTheme.warning,
+                    size: 28,
+                  ),
+                ),
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: InkWell(
+                    onTap: isDeletingThis
+                        ? null
+                        : () => confirmDeleteAttachment(attachment),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.black.withValues(alpha: 0.35)
+                            : Colors.white.withValues(alpha: 0.86),
+                        shape: BoxShape.circle,
+                      ),
+                      child: isDeletingThis
+                          ? const Padding(
+                              padding: EdgeInsets.all(7),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              Icons.delete_outline_rounded,
+                              size: 17,
+                              color: PlanoraTheme.error,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            child: Icon(
-              attachment.isImage
-                  ? Icons.image_outlined
-                  : Icons.insert_drive_file_outlined,
-              color: attachment.isImage
-                  ? PlanoraTheme.secondaryPurple
-                  : PlanoraTheme.warning,
-              size: 28,
+            const SizedBox(height: 10),
+            Text(
+              attachment.fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            attachment.fileName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : PlanoraTheme.textPrimary,
-              fontWeight: FontWeight.w900,
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget buildUploadCard(BuildContext context, {bool enabled = false}) {
+  Widget buildUploadCard(BuildContext context, {bool enabled = true}) {
     final isDark = PlanoraTheme.isDark(context);
-    final color = enabled ? PlanoraTheme.secondaryPurple : mutedColor(context);
+    final isEnabled = enabled && !isUploadingAttachment;
+    final color = isEnabled
+        ? PlanoraTheme.secondaryPurple
+        : mutedColor(context);
 
     return InkWell(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Attachment upload is coming soon.')),
-        );
-      },
+      onTap: isEnabled ? pickAndUploadAttachment : null,
       borderRadius: BorderRadius.circular(18),
       child: Container(
         height: 148,
@@ -1339,7 +1386,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: enabled
+            color: isEnabled
                 ? PlanoraTheme.secondaryPurple.withValues(alpha: 0.36)
                 : isDark
                 ? PlanoraTheme.darkBorder
@@ -1351,10 +1398,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_upload_outlined, color: color, size: 30),
+            isUploadingAttachment
+                ? const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                : Icon(Icons.cloud_upload_outlined, color: color, size: 30),
             const SizedBox(height: 10),
             Text(
-              enabled ? 'Upload File' : 'Upload will be connected next.',
+              isUploadingAttachment ? 'Uploading...' : 'Upload Image',
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -1365,6 +1418,239 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> pickAndUploadAttachment() async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
+
+      if (pickedFile == null) {
+        return;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isUploadingAttachment = true;
+        attachmentMessage = null;
+      });
+
+      final attachment = await _tasksApi.uploadTaskAttachment(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        filePath: pickedFile.path,
+        fileName: pickedFile.name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        attachments = [...attachments, attachment];
+        isUploadingAttachment = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Attachment uploaded.')));
+    } catch (error, stackTrace) {
+      debugPrint('Attachment upload failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isUploadingAttachment = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not upload attachment.')),
+      );
+    }
+  }
+
+  Future<void> confirmDeleteAttachment(TaskAttachmentModel attachment) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete attachment?'),
+          content: Text('Remove ${attachment.fileName} from this task?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                'Delete',
+                style: TextStyle(
+                  color: PlanoraTheme.error,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true || !mounted) {
+      return;
+    }
+
+    await deleteAttachment(attachment);
+  }
+
+  Future<void> deleteAttachment(TaskAttachmentModel attachment) async {
+    setState(() {
+      deletingAttachmentId = attachment.attachmentId;
+    });
+
+    try {
+      await _tasksApi.deleteTaskAttachment(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        attachmentId: attachment.attachmentId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        attachments = attachments
+            .where((item) => item.attachmentId != attachment.attachmentId)
+            .toList();
+        deletingAttachmentId = null;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Attachment deleted.')));
+    } catch (error, stackTrace) {
+      debugPrint('Attachment delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        deletingAttachmentId = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete attachment.')),
+      );
+    }
+  }
+
+  void showAttachmentDetails(TaskAttachmentModel attachment) {
+    final url = resolveBackendUrl(attachment.fileUrl);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final isDark = PlanoraTheme.isDark(sheetContext);
+
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  attachment.fileName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (attachment.isImage && url != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      url,
+                      height: 180,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint('Attachment image preview failed: $error');
+                        debugPrintStack(stackTrace: stackTrace);
+
+                        return _buildAttachmentPreviewFallback(sheetContext);
+                      },
+                    ),
+                  )
+                else
+                  _buildAttachmentPreviewFallback(sheetContext),
+                const SizedBox(height: 12),
+                Text(
+                  url ?? 'No file URL returned.',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: mutedColor(sheetContext),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    confirmDeleteAttachment(attachment);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: PlanoraTheme.error,
+                    side: BorderSide(
+                      color: PlanoraTheme.error.withValues(alpha: 0.42),
+                    ),
+                  ),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Delete Attachment'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAttachmentPreviewFallback(BuildContext context) {
+    return Container(
+      height: 128,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(
+        Icons.insert_drive_file_outlined,
+        color: Theme.of(context).colorScheme.primary,
+        size: 38,
       ),
     );
   }
@@ -1460,6 +1746,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget buildCommentRow(BuildContext context, TaskCommentModel comment) {
     final isDark = PlanoraTheme.isDark(context);
     final author = comment.authorPreview;
+    final isDeletingThis = deletingCommentId == comment.commentId;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1494,6 +1781,28 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                         color: mutedColor(context),
                         fontWeight: FontWeight.w700,
                       ),
+                    ),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      constraints: const BoxConstraints(
+                        minWidth: 30,
+                        minHeight: 30,
+                      ),
+                      padding: EdgeInsets.zero,
+                      onPressed: isDeletingThis
+                          ? null
+                          : () => confirmDeleteComment(comment),
+                      icon: isDeletingThis
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: PlanoraTheme.error,
+                            ),
                     ),
                   ],
                 ),
@@ -1680,7 +1989,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Task marked completed.')));
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Task completion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
@@ -1723,7 +2035,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       });
 
       commentController.clear();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('Comment creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
@@ -1734,6 +2049,77 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not add comment. Try again.')),
+      );
+    }
+  }
+
+  Future<void> confirmDeleteComment(TaskCommentModel comment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete comment?'),
+          content: const Text('Remove this comment from the task activity?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: PlanoraTheme.error),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await deleteComment(comment);
+    }
+  }
+
+  Future<void> deleteComment(TaskCommentModel comment) async {
+    setState(() {
+      deletingCommentId = comment.commentId;
+    });
+
+    try {
+      await _tasksApi.deleteTaskComment(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        commentId: comment.commentId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        comments = comments
+            .where((item) => item.commentId != comment.commentId)
+            .toList();
+        deletingCommentId = null;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Comment deleted.')));
+    } catch (error, stackTrace) {
+      debugPrint('Comment delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        deletingCommentId = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete this comment.')),
       );
     }
   }
@@ -2398,10 +2784,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget buildSelectedTabContent(BuildContext context) {
     switch (selectedTabIndex) {
       case 1:
-        return buildSubtasksTab(context);
-      case 2:
         return buildAttachmentsTab(context);
-      case 3:
+      case 2:
         return buildActivityTab(context);
       default:
         return buildOverviewTab(context);

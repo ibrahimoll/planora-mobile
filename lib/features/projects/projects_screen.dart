@@ -4,6 +4,7 @@ import '../../core/network/api_exception.dart';
 import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../teams/teams_screen.dart';
 import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
 import 'project_detail_screen.dart';
@@ -33,9 +34,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   int selectedFilterIndex = 0;
   int selectedProjectColorIndex = 0;
+  int? selectedTeamId;
 
   bool isLoading = true;
   bool isCreatingProject = false;
+  bool isLoadingTeams = false;
   bool generateTasksWithAi = false;
 
   String? errorMessage;
@@ -44,6 +47,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   List<ProjectModel> projects = [];
   List<TaskListItem> projectTasks = [];
+  List<TeamModel> teams = [];
+  String selectedProjectType = 'personal';
   int handledCreateRequestId = 0;
 
   final TextEditingController titleController = TextEditingController();
@@ -120,6 +125,45 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         taskSummaryWarning = null;
         projectTasks = [];
         isLoading = false;
+      });
+    }
+  }
+
+  Future<void> loadTeamsForCreateSheet() async {
+    setState(() {
+      isLoadingTeams = true;
+    });
+
+    try {
+      final loadedTeams = await _projectsApi.getTeams();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        teams = loadedTeams;
+        selectedTeamId = loadedTeams.isEmpty
+            ? null
+            : selectedTeamId == null
+            ? loadedTeams.first.teamId
+            : loadedTeams.any((team) => team.teamId == selectedTeamId)
+            ? selectedTeamId
+            : loadedTeams.first.teamId;
+        isLoadingTeams = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Team load for project creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        teams = [];
+        selectedTeamId = null;
+        isLoadingTeams = false;
       });
     }
   }
@@ -981,16 +1025,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  void showCreateProjectSheet() {
+  Future<void> showCreateProjectSheet() async {
     titleController.clear();
     descriptionController.clear();
 
     setState(() {
       selectedDeadline = null;
       selectedProjectColorIndex = 0;
+      selectedProjectType = 'personal';
       generateTasksWithAi = false;
       isCreatingProject = false;
     });
+
+    await loadTeamsForCreateSheet();
+
+    if (!mounted) {
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -1130,6 +1181,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           );
                         },
                       ),
+                      const SizedBox(height: 20),
+
+                      buildCreateFieldLabel(context, 'Project Type'),
+                      const SizedBox(height: 8),
+                      buildProjectTypeSelector(
+                        context,
+                        setSheetState: setSheetState,
+                      ),
+                      if (selectedProjectType == 'team') ...[
+                        const SizedBox(height: 14),
+                        buildCreateFieldLabel(context, 'Team'),
+                        const SizedBox(height: 8),
+                        buildTeamSelectorCard(
+                          context,
+                          setSheetState: setSheetState,
+                        ),
+                      ],
                       const SizedBox(height: 20),
 
                       buildCreateFieldLabel(context, 'Team Members (Optional)'),
@@ -1489,6 +1557,215 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  Widget buildProjectTypeSelector(
+    BuildContext context, {
+    required StateSetter setSheetState,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: buildProjectTypeOption(
+            context,
+            label: 'Personal',
+            icon: Icons.person_outline_rounded,
+            value: 'personal',
+            setSheetState: setSheetState,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: buildProjectTypeOption(
+            context,
+            label: 'Team',
+            icon: Icons.groups_2_outlined,
+            value: 'team',
+            setSheetState: setSheetState,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildProjectTypeOption(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required String value,
+    required StateSetter setSheetState,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSelected = selectedProjectType == value;
+
+    return InkWell(
+      onTap: () {
+        setSheetState(() {
+          selectedProjectType = value;
+        });
+        setState(() {
+          selectedProjectType = value;
+        });
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+              : isDark
+              ? const Color(0xFF0F172A)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF7C3AED)
+                : isDark
+                ? const Color(0xFF1E293B)
+                : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 19,
+              color: isSelected
+                  ? const Color(0xFF7C3AED)
+                  : isDark
+                  ? Colors.white70
+                  : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isSelected
+                      ? const Color(0xFF7C3AED)
+                      : isDark
+                      ? Colors.white70
+                      : const Color(0xFF334155),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildTeamSelectorCard(
+    BuildContext context, {
+    required StateSetter setSheetState,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (isLoadingTeams) {
+      return Container(
+        height: 58,
+        alignment: Alignment.center,
+        decoration: buildCreateCardDecoration(context),
+        child: const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
+        ),
+      );
+    }
+
+    if (teams.isEmpty) {
+      return InkWell(
+        onTap: openTeamsFromProjectSheet,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: buildCreateCardDecoration(context),
+          child: Row(
+            children: [
+              const Icon(Icons.group_add_outlined, color: Color(0xFF7C3AED)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Create or join a team before making a team project.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isDark ? Colors.white70 : const Color(0xFF334155),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: buildCreateCardDecoration(context),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: selectedTeamId,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(16),
+          icon: Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: isDark ? Colors.white54 : const Color(0xFF64748B),
+          ),
+          items: [
+            for (final team in teams)
+              DropdownMenuItem<int>(
+                value: team.teamId,
+                child: Text(
+                  team.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (teamId) {
+            setSheetState(() {
+              selectedTeamId = teamId;
+            });
+            setState(() {
+              selectedTeamId = teamId;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  BoxDecoration buildCreateCardDecoration(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return BoxDecoration(
+      color: isDark ? const Color(0xFF0F172A) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+      ),
+    );
+  }
+
+  Future<void> openTeamsFromProjectSheet() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen()));
+
+    if (!mounted) {
+      return;
+    }
+
+    await loadTeamsForCreateSheet();
+  }
+
   Widget buildPrivacyCard(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1525,7 +1802,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Private',
+                  selectedProjectType == 'team' ? 'Team' : 'Private',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                     color: isDark ? Colors.white : const Color(0xFF111827),
@@ -1533,7 +1810,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Only you can access this project',
+                  selectedProjectType == 'team'
+                      ? 'Members of the selected team can access it'
+                      : 'Only you can access this project',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white54 : const Color(0xFF64748B),
@@ -1593,6 +1872,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return;
     }
 
+    if (selectedProjectType == 'team' && selectedTeamId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select or create a team first.')),
+      );
+      return;
+    }
+
     setSheetState(() {
       isCreatingProject = true;
     });
@@ -1603,13 +1889,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     try {
       final shouldGenerateTasks = generateTasksWithAi;
-      final createdProject = await _projectsApi.createProject(
-        ProjectCreateRequest(
-          title: title,
-          description: description.isEmpty ? null : description,
-          deadline: selectedDeadline!,
-        ),
+      final request = ProjectCreateRequest(
+        title: title,
+        description: description.isEmpty ? null : description,
+        deadline: selectedDeadline!,
       );
+      final createdProject = selectedProjectType == 'team'
+          ? await _projectsApi.createTeamProject(
+              teamId: selectedTeamId!,
+              request: request,
+            )
+          : await _projectsApi.createProject(request);
       var generatedTaskCount = 0;
       var aiGenerationFailed = false;
 
@@ -1693,6 +1983,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget buildTeamMembersInviteCard(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTeamProject = selectedProjectType == 'team';
+    final hasTeam = selectedTeamId != null;
+    final canManageInvites = isTeamProject && hasTeam;
+    final text = !isTeamProject
+        ? 'Members are available for team projects.'
+        : hasTeam
+        ? 'Invite members from Teams'
+        : 'Select or create a team before inviting members.';
+    final iconColor = canManageInvites
+        ? const Color(0xFF7C3AED)
+        : (isDark ? Colors.white38 : const Color(0xFF94A3B8));
 
     return Container(
       width: double.infinity,
@@ -1708,33 +2009,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       child: Row(
         children: [
           InkWell(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Invite members flow is next.')),
-              );
-            },
+            onTap: canManageInvites ? openTeamsFromProjectSheet : null,
             borderRadius: BorderRadius.circular(999),
             child: Container(
               width: 38,
               height: 38,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
-                border: Border.all(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
-                ),
+                color: iconColor.withValues(alpha: 0.10),
+                border: Border.all(color: iconColor.withValues(alpha: 0.25)),
               ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: Color(0xFF7C3AED),
-                size: 22,
-              ),
+              child: Icon(Icons.add_rounded, color: iconColor, size: 22),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'No members invited yet',
+              text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1744,16 +2035,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Invite members flow is next.')),
-              );
-            },
-            child: const Text(
-              'Invite Members',
+            onPressed: canManageInvites ? openTeamsFromProjectSheet : null,
+            child: Text(
+              canManageInvites ? 'Invite' : 'Disabled',
               style: TextStyle(
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF7C3AED),
+                color: canManageInvites
+                    ? const Color(0xFF7C3AED)
+                    : (isDark ? Colors.white38 : const Color(0xFF94A3B8)),
               ),
             ),
           ),

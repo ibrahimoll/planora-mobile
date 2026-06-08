@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../core/network/api_client.dart';
 import '../models/project_models.dart';
 
@@ -8,8 +10,31 @@ class ProjectsApi {
     final personalProjects = await _parseProjectListResponse(
       ApiClient.get('/projects'),
     );
+    List<TeamModel> teams = [];
 
-    return personalProjects
+    try {
+      teams = await getTeams();
+    } catch (error, stackTrace) {
+      debugPrint('Team list load failed while loading projects: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    final teamProjectGroups = await Future.wait(
+      teams.map((team) async {
+        try {
+          return await getTeamProjects(team.teamId);
+        } catch (error, stackTrace) {
+          debugPrint(
+            'Team project load failed for team ${team.teamId}: $error',
+          );
+          debugPrintStack(stackTrace: stackTrace);
+          return <ProjectModel>[];
+        }
+      }),
+    );
+    final teamProjects = teamProjectGroups.expand((group) => group).toList();
+
+    return [...personalProjects, ...teamProjects]
       ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
   }
 
@@ -89,6 +114,25 @@ class ProjectsApi {
         .toList();
   }
 
+  Future<List<ProjectMemberModel>> getProjectMembersByIds({
+    required int teamId,
+    required int projectId,
+  }) async {
+    final response = await ApiClient.get(
+      '/teams/$teamId/projects/$projectId/members',
+    );
+
+    if (response is! List) {
+      return [];
+    }
+
+    return response
+        .map(
+          (item) => ProjectMemberModel.fromJson(item as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
   Future<ProjectMemberModel> inviteProjectMember({
     required ProjectModel project,
     required String emailOrUsername,
@@ -109,6 +153,18 @@ class ProjectsApi {
   Future<ProjectModel> createProject(ProjectCreateRequest request) async {
     final response = await ApiClient.postJson(
       '/projects',
+      data: request.toJson(),
+    );
+
+    return ProjectModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<ProjectModel> createTeamProject({
+    required int teamId,
+    required ProjectCreateRequest request,
+  }) async {
+    final response = await ApiClient.postJson(
+      '/teams/$teamId/projects',
       data: request.toJson(),
     );
 

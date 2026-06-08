@@ -5,6 +5,9 @@ import 'package:mobile/features/notifications/notifications_screen.dart';
 import 'package:mobile/features/profile/profile_screen.dart';
 import 'package:mobile/features/projects/project_detail_screen.dart';
 import 'package:mobile/features/projects/projects_screen.dart';
+import 'package:mobile/features/reports/reports_screen.dart';
+import 'package:mobile/features/search/search_screen.dart';
+import 'package:mobile/features/teams/teams_screen.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
 import 'package:mobile/features/tasks/task_detail_screen.dart';
@@ -16,7 +19,18 @@ import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/auth_models.dart';
 import '../auth/models/project_models.dart';
+import '../calendar/calendar_screen.dart';
 import 'widgets/home_bottom_nav.dart';
+
+enum DashboardRange {
+  week('This Week'),
+  month('This Month'),
+  all('All Time');
+
+  const DashboardRange(this.label);
+
+  final String label;
+}
 
 class HomeScreen extends StatefulWidget {
   final UserResponse user;
@@ -44,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   int projectCreateRequestId = 0;
   int taskCreateRequestId = 0;
+  DashboardRange dashboardRange = DashboardRange.month;
 
   bool hasUnreadNotifications = false;
   bool isLoadingDashboard = true;
@@ -247,6 +262,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> openSearch() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SearchScreen()));
+
+    if (!mounted) {
+      return;
+    }
+
+    loadDashboardData();
+  }
+
   Future<void> openNotifications() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -259,6 +286,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     loadUnreadNotificationCount();
+  }
+
+  Future<void> openReports() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ReportsScreen()));
+
+    if (!mounted) {
+      return;
+    }
+
+    loadDashboardData();
+  }
+
+  Future<void> openTeams() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen()));
+
+    if (!mounted) {
+      return;
+    }
+
+    loadDashboardData();
   }
 
   Future<void> openProfile() async {
@@ -285,6 +336,120 @@ class _HomeScreenState extends State<HomeScreen> {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
         : PlanoraTheme.textSecondary;
+  }
+
+  DateTime? get dashboardRangeStart {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (dashboardRange) {
+      case DashboardRange.week:
+        return today.subtract(Duration(days: today.weekday - 1));
+      case DashboardRange.month:
+        return DateTime(today.year, today.month);
+      case DashboardRange.all:
+        return null;
+    }
+  }
+
+  bool isDateInDashboardRange(DateTime? date) {
+    if (dashboardRange == DashboardRange.all) {
+      return true;
+    }
+
+    if (date == null) {
+      return false;
+    }
+
+    final start = dashboardRangeStart;
+
+    if (start == null) {
+      return true;
+    }
+
+    final nextStart = switch (dashboardRange) {
+      DashboardRange.week => start.add(const Duration(days: 7)),
+      DashboardRange.month => DateTime(start.year, start.month + 1),
+      DashboardRange.all => null,
+    };
+
+    return !date.isBefore(start) &&
+        (nextStart == null || date.isBefore(nextStart));
+  }
+
+  bool projectMatchesDashboardRange(ProjectModel project) {
+    if (dashboardRange == DashboardRange.all) {
+      return true;
+    }
+
+    return isDateInDashboardRange(project.createdAt) ||
+        isDateInDashboardRange(project.deadline);
+  }
+
+  bool taskMatchesDashboardRange(TaskListItem item) {
+    if (dashboardRange == DashboardRange.all) {
+      return true;
+    }
+
+    return isDateInDashboardRange(item.task.createdAt) ||
+        isDateInDashboardRange(item.task.dueDate);
+  }
+
+  List<ProjectModel> get filteredDashboardProjects {
+    return dashboardProjects.where(projectMatchesDashboardRange).toList();
+  }
+
+  List<TaskListItem> get filteredDashboardTasks {
+    return dashboardTasks.where(taskMatchesDashboardRange).toList();
+  }
+
+  void showDashboardRangeSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final isDark = PlanoraTheme.isDark(sheetContext);
+
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final range in DashboardRange.values)
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  leading: Icon(
+                    dashboardRange == range
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: dashboardRange == range
+                        ? Theme.of(sheetContext).colorScheme.primary
+                        : mutedColor(sheetContext),
+                  ),
+                  title: Text(
+                    range.label,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    setState(() {
+                      dashboardRange = range;
+                    });
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   BoxDecoration cardDecoration(BuildContext context, {double radius = 18}) {
@@ -423,7 +588,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(width: 10),
-        buildHeaderButton(context, Icons.search_rounded),
+        GestureDetector(
+          onTap: openSearch,
+          child: buildHeaderButton(context, Icons.search_rounded),
+        ),
         const SizedBox(width: 10),
         GestureDetector(
           onTap: openNotifications,
@@ -467,29 +635,33 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   int get activeProjectCount {
-    return dashboardProjects.where((project) => project.isActive).length;
+    return filteredDashboardProjects
+        .where((project) => project.isActive)
+        .length;
   }
 
   int get completedProjectCount {
-    return dashboardProjects.where((project) => project.isCompleted).length;
+    return filteredDashboardProjects
+        .where((project) => project.isCompleted)
+        .length;
   }
 
   int get overdueProjectCount {
-    return dashboardProjects
+    return filteredDashboardProjects
         .where((project) => !project.isCompleted && project.daysLeft < 0)
         .length;
   }
 
   int get completedTaskCount {
-    return dashboardTasks.where((item) => item.task.isCompleted).length;
+    return filteredDashboardTasks.where((item) => item.task.isCompleted).length;
   }
 
   int get overdueTaskCount {
-    return dashboardTasks.where((item) => item.task.isOverdue).length;
+    return filteredDashboardTasks.where((item) => item.task.isOverdue).length;
   }
 
   int get blockedTaskCount {
-    return dashboardTasks.where((item) => item.task.isBlocked).length;
+    return filteredDashboardTasks.where((item) => item.task.isBlocked).length;
   }
 
   int get atRiskCount {
@@ -497,23 +669,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   double get dashboardProgress {
-    if (dashboardTasks.isNotEmpty) {
-      return completedTaskCount / dashboardTasks.length;
+    if (filteredDashboardTasks.isNotEmpty) {
+      return completedTaskCount / filteredDashboardTasks.length;
     }
 
-    if (dashboardProjects.isNotEmpty) {
-      return completedProjectCount / dashboardProjects.length;
+    if (filteredDashboardProjects.isNotEmpty) {
+      return completedProjectCount / filteredDashboardProjects.length;
     }
 
     return 0;
   }
 
   String get dashboardProgressLabel {
-    if (dashboardTasks.isNotEmpty) {
+    if (filteredDashboardTasks.isNotEmpty) {
       return 'Tasks Done';
     }
 
-    if (dashboardProjects.isNotEmpty) {
+    if (filteredDashboardProjects.isNotEmpty) {
       return 'Projects Done';
     }
 
@@ -561,34 +733,38 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: isDark ? 0.12 : 0.08),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'This Month',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        fontWeight: FontWeight.w700,
+              InkWell(
+                onTap: showDashboardRangeSheet,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(
+                      alpha: isDark ? 0.12 : 0.08,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        dashboardRange.label,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      size: 16,
-                      color: mutedColor(context),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: mutedColor(context),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -643,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     buildLegendRow(
                       context,
                       'Projects',
-                      dashboardProjects.length.toString(),
+                      filteredDashboardProjects.length.toString(),
                       Theme.of(context).colorScheme.primary,
                     ),
                     buildLegendRow(
@@ -758,21 +934,13 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.groups_2_outlined,
         label: 'Invite Team',
         isFilled: false,
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invite team flow is next.')),
-          );
-        },
+        onTap: openTeams,
       ),
       _HomeQuickAction(
         icon: Icons.description_outlined,
         label: 'View Reports',
         isFilled: false,
-        onTap: () {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Reports are next.')));
-        },
+        onTap: openReports,
       ),
     ];
 
@@ -1448,12 +1616,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
       case 4:
-        return buildComingSoonPage(
-          context,
-          icon: Icons.calendar_month_rounded,
-          title: 'Calendar',
-          message: 'Calendar planning will be connected later.',
-        );
+        return const CalendarScreen();
 
       default:
         return buildHomeDashboard(context);

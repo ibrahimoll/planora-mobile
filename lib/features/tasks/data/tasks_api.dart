@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_client.dart';
@@ -146,6 +147,32 @@ class TasksApi {
         .toList();
   }
 
+  Future<TaskAttachmentModel> uploadTaskAttachment({
+    required TaskProjectSummary project,
+    required int taskId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    final response = await ApiClient.postMultipart(
+      '${_tasksPath(project)}/$taskId/attachments',
+      data: FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      }),
+    );
+
+    return TaskAttachmentModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<void> deleteTaskAttachment({
+    required TaskProjectSummary project,
+    required int taskId,
+    required int attachmentId,
+  }) async {
+    await ApiClient.delete(
+      '${_tasksPath(project)}/$taskId/attachments/$attachmentId',
+    );
+  }
+
   Future<List<TaskCommentModel>> getTaskComments({
     required TaskProjectSummary project,
     required int taskId,
@@ -174,5 +201,15 @@ class TasksApi {
     );
 
     return TaskCommentModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<void> deleteTaskComment({
+    required TaskProjectSummary project,
+    required int taskId,
+    required int commentId,
+  }) async {
+    await ApiClient.delete(
+      '${_tasksPath(project)}/$taskId/comments/$commentId',
+    );
   }
 }

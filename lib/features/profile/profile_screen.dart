@@ -4,6 +4,7 @@ import '../../core/config/app_config.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
+import '../teams/teams_screen.dart';
 import '../tasks/data/tasks_api.dart';
 import 'data/profile_api.dart';
 
@@ -172,6 +173,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> openProfileInfoPage({
+    required String title,
+    required IconData icon,
+    required String body,
+  }) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileInfoScreen(title: title, icon: icon, body: body),
+      ),
+    );
   }
 
   Widget buildHeader(BuildContext context) {
@@ -523,14 +536,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.mail_outline_rounded,
           title: 'Email Preferences',
           subtitle: 'Manage your email notifications',
-          onTap: () => showMessage('Email preferences are not connected yet.'),
+          onTap: () => openProfileInfoPage(
+            title: 'Email Preferences',
+            icon: Icons.mail_outline_rounded,
+            body:
+                'Email preferences are handled by Planora notifications. Backend preference endpoints are not available yet, so this page is read-only.',
+          ),
         ),
         _ProfileActionItem(
           icon: Icons.notifications_none_rounded,
           title: 'Notification Settings',
           subtitle: 'Customize your notifications',
-          onTap: () =>
-              showMessage('Notification settings are not connected yet.'),
+          onTap: () => openProfileInfoPage(
+            title: 'Notification Settings',
+            icon: Icons.notifications_none_rounded,
+            body:
+                'In-app notifications are loaded from the backend Notifications API. Per-channel notification settings are disabled until the backend exposes preferences.',
+          ),
         ),
       ],
     );
@@ -545,19 +567,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.groups_2_outlined,
           title: 'Team Members',
           subtitle: 'Manage team projects and permissions',
-          onTap: () => showMessage('Open a team project to manage members.'),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen())),
         ),
         _ProfileActionItem(
           icon: Icons.workspace_premium_outlined,
           title: 'Subscription',
-          subtitle: 'Planora billing is not connected yet',
-          onTap: () => showMessage('Subscription is not connected yet.'),
+          subtitle: 'View current plan information',
+          onTap: () => openProfileInfoPage(
+            title: 'Subscription',
+            icon: Icons.workspace_premium_outlined,
+            body:
+                'Your current Planora mobile account is using the standard workspace experience. Subscription management is read-only because billing endpoints are not available to the mobile app.',
+          ),
         ),
         _ProfileActionItem(
           icon: Icons.credit_card_outlined,
           title: 'Billing & Invoices',
-          subtitle: 'Billing is not connected yet',
-          onTap: () => showMessage('Billing is not connected yet.'),
+          subtitle: 'View billing availability',
+          onTap: () => openProfileInfoPage(
+            title: 'Billing & Invoices',
+            icon: Icons.credit_card_outlined,
+            body:
+                'Billing and invoice history are not exposed by the current backend API. This page is intentionally informational instead of calling an unsupported endpoint.',
+          ),
         ),
       ],
     );
@@ -572,19 +606,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.help_outline_rounded,
           title: 'Help & Support',
           subtitle: 'Get help and contact support',
-          onTap: () => showMessage('Help & Support is not connected yet.'),
+          onTap: () => openProfileInfoPage(
+            title: 'Help & Support',
+            icon: Icons.help_outline_rounded,
+            body:
+                'For support, include your account email, the project or task name, and the exact action that failed. The mobile app now logs API failures with debugPrint to make reports easier to diagnose.',
+          ),
         ),
         _ProfileActionItem(
           icon: Icons.shield_outlined,
           title: 'Privacy Policy',
           subtitle: 'Read our privacy policy',
-          onTap: () => showMessage('Privacy Policy is not connected yet.'),
+          onTap: () => openProfileInfoPage(
+            title: 'Privacy Policy',
+            icon: Icons.shield_outlined,
+            body:
+                'Planora stores account, project, task, team, comment, attachment, and notification data through the configured backend API. Do not share secrets in project descriptions, tasks, or AI chat messages.',
+          ),
         ),
         _ProfileActionItem(
           icon: Icons.description_outlined,
           title: 'Terms of Service',
           subtitle: 'Read our terms of service',
-          onTap: () => showMessage('Terms of Service is not connected yet.'),
+          onTap: () => openProfileInfoPage(
+            title: 'Terms of Service',
+            icon: Icons.description_outlined,
+            body:
+                'Use Planora for lawful project planning and team collaboration. Team invitations, comments, attachments, and AI chat should only include content you have permission to share.',
+          ),
         ),
       ],
     );
@@ -1183,6 +1232,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     buildMoreSection(context),
                     const SizedBox(height: 16),
                     buildLogoutButton(context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ProfileInfoScreen extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final String body;
+
+  const ProfileInfoScreen({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.body,
+  });
+
+  Color mutedColor(BuildContext context) {
+    return PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkTextMuted
+        : PlanoraTheme.textSecondary;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Scaffold(
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? PlanoraTheme.darkSurface
+                            : PlanoraTheme.surface,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: isDark
+                              ? PlanoraTheme.darkBorder
+                              : PlanoraTheme.border,
+                        ),
+                        boxShadow: PlanoraTheme.cardShadowFor(context),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.11),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            body,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: mutedColor(context),
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.45,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

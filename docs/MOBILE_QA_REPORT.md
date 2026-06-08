@@ -7,6 +7,144 @@ Date: 2026-06-07
 Checked the Flutter mobile app against the local backend reference in `../backend`.
 The pass focused on setup, routing, auth/API contracts, core screen reachability, loading/error/empty states, and targeted stability fixes without redesigning the existing light purple Planora direction.
 
+## Follow-up: Home, Projects, Tasks, Reports, Teams, Calendar Wiring
+
+Date: 2026-06-08
+
+### Commands Run
+
+From `C:\Users\Ibrahim\Documents\Planora\mobile`:
+
+```powershell
+dart format lib test
+```
+
+Result: succeeded.
+
+```powershell
+flutter analyze
+```
+
+Result: succeeded with `No issues found!`.
+
+```powershell
+flutter test
+```
+
+Result: succeeded with `All tests passed!` across 7 tests.
+
+```powershell
+flutter pub get
+```
+
+Result: succeeded. Pub reported 7 newer package versions outside current constraints.
+
+### Pages / Flows Checked
+
+- Home dashboard search, project overview filter, quick actions, bottom navigation, and Calendar tab.
+- Projects list, Create Project sheet, personal vs team project paths, team selector, and member invite gating.
+- Tasks list, Create Task sheet, personal assignee state, team member assignee loading, disabled tags, and task creation request body.
+- Task Details overview, attachments, activity/comments, edit/delete/complete actions, and unsupported subtasks.
+- Reports screen using `/reports/projects/{project_id}` and project export history.
+- Teams screen using `/teams`, `/teams/{team_id}/invitations`, `/invitations/me`, accept, and reject routes.
+- Profile rows for email preferences, notification settings, team members, subscription, billing, help, privacy, and terms.
+
+### Issues Found
+
+- Home search icon had no useful destination.
+- Home `This Month` pill was static and did not affect dashboard counts.
+- Home `Invite Team`, `View Reports`, and Calendar were placeholder actions.
+- `ProjectsApi.getProjects()` only returned personal projects, so team projects from the backend were not visible in dashboard/task surfaces.
+- Create Project allowed a personal/private project to show clickable member invites.
+- Create Project had no Personal/Team selector and no team-project creation path.
+- Create Task showed dead `Assign to someone` and `Add tags...` controls.
+- Task Details showed an unsupported Subtasks tab and a fake attachment upload state.
+- Task Details could list/create comments, but delete was not wired.
+- Profile workspace/more rows used placeholder SnackBars.
+
+### Issues Fixed
+
+- Added `SearchScreen` with grouped backend-backed Projects and Tasks results; tapping rows opens `ProjectDetailScreen` or `TaskDetailScreen`.
+- Added dashboard range state and bottom sheet filters: This Week, This Month, All Time. Counts/progress now filter local project/task dates where available.
+- Added `ReportsApi` and `ReportsScreen` for project reports and export history with safe fallback parsing.
+- Added `TeamsApi` and `TeamsScreen` for my teams, pending invitations, create team, invite by username, and accept/reject.
+- Home quick actions now open real Search/Teams/Reports flows, and Calendar tab opens a real task calendar.
+- `ProjectsApi.getProjects()` now merges personal `/projects` with team projects loaded from `/teams/{team_id}/projects`, while keeping personal projects on `/projects`.
+- Create Project now has a Personal/Team selector. Personal disables invites with `Members are available for team projects.` Team creation requires a selected team and posts to `/teams/{team_id}/projects`.
+- Create Task now hides the dead personal assignee dropdown, shows `Assigned to me` for personal projects, disables tags with a backend-missing explanation, and loads team project members for `assigned_to` when a team project is selected.
+- Task Details hides Subtasks because the backend has no subtasks route.
+- Added multipart attachment upload/delete through the backend task attachment routes, with image picker upload and attachment details.
+- Added comment delete support through task comment routes.
+- Added `CalendarScreen` with month grid, task indicators, selected-day tasks, and overdue tasks from loaded task due dates.
+- Profile placeholder rows now open real informational pages; Team Members opens the Teams screen.
+
+### Button Checklist
+
+| Screen | Button | Expected behavior | Status |
+| --- | --- | --- | --- |
+| Home | Search icon | Opens SearchScreen and searches backend projects/tasks | working |
+| Home | This Month pill | Opens range filter sheet and updates dashboard counts | working |
+| Home | Invite Team | Opens Teams/Invitations flow | working |
+| Home | View Reports | Opens ReportsScreen | working |
+| Home | Calendar tab | Opens task calendar | working |
+| Projects | New Project | Opens create sheet | working |
+| Create Project | Project Type | Selects Personal or Team | working |
+| Create Project | Invite Members | Disabled for Personal; opens Teams for Team | working/disabled by project type |
+| Create Project | Create Project | Uses `/projects` for Personal and `/teams/{team_id}/projects` for Team | working |
+| Tasks | Tasks tab | Opens task list, not Create Task | working |
+| Create Task | Assignee | Shows Assigned to me for Personal; member picker for Team | working |
+| Create Task | Tags | Non-clickable info because backend has no tags route | disabled because backend missing |
+| Task Details | Subtasks | Hidden because backend has no subtasks route | hidden because backend missing |
+| Task Details | Attachments upload | Picks image and uploads multipart to backend | working |
+| Task Details | Attachment delete | Confirms and deletes via backend | working |
+| Task Details | Activity comment | Adds comments via backend | working |
+| Task Details | Comment delete | Confirms and deletes via backend when allowed | working |
+| Profile | Team Members | Opens Teams screen | working |
+| Profile | Email/Notifications/Billing/Subscription/Help/Privacy/Terms | Opens read-only real page | working |
+
+### Files Changed
+
+- `lib/core/network/api_client.dart`
+- `lib/features/auth/data/project_api.dart`
+- `lib/features/calendar/calendar_screen.dart`
+- `lib/features/home/home_screen.dart`
+- `lib/features/profile/profile_screen.dart`
+- `lib/features/projects/projects_screen.dart`
+- `lib/features/reports/data/reports_api.dart`
+- `lib/features/reports/reports_screen.dart`
+- `lib/features/search/search_screen.dart`
+- `lib/features/tasks/data/tasks_api.dart`
+- `lib/features/tasks/models/task_models.dart`
+- `lib/features/tasks/task_detail_screen.dart`
+- `lib/features/tasks/tasks_screen.dart`
+- `lib/features/teams/data/teams_api.dart`
+- `lib/features/teams/teams_screen.dart`
+- `docs/MOBILE_QA_REPORT.md`
+- `docs/PLANORA_CONTEXT.md`
+
+### Remaining Issues / Assumptions
+
+- Attachment upload currently uses `image_picker`, so arbitrary document picking is still not added.
+- Team invite permissions are enforced by the backend; the mobile screen shows a friendly error if the user cannot invite for a selected team.
+- Team member assignee picker depends on team projects being returned by `/teams/{team_id}/projects` and project members being returned by the backend.
+- Reports export download/open behavior is not implemented; the mobile screen displays report metrics and export history returned by the backend.
+- No emulator screenshot sweep was run in this pass.
+
+### Manual Test Steps
+
+1. Run the app with `--dart-define=PLANORA_API_URL=https://planora-api-dqmv.onrender.com`.
+2. Log in, tap Home search, search for an existing project/task, and open each detail page.
+3. Tap `This Month`, choose `This Week` and `All Time`, and confirm dashboard counts update.
+4. Tap `View Reports`, select a project, and confirm report metrics/export history load or show a friendly error.
+5. Tap `Invite Team`, create/select a team, invite a username, and accept/reject any pending invitation.
+6. Create a Personal project and confirm member invites are disabled.
+7. Create a Team project only after selecting a team.
+8. Open Create Task for a personal project and confirm assignee says `Assigned to me` and tags are disabled.
+9. Open a team project in Create Task and confirm members load in the assignee picker.
+10. Open Task Details, upload an image attachment, open its details, delete it, add a comment, then delete the comment.
+11. Open Calendar and confirm due-date tasks appear on the month grid and selected-day list.
+12. Open Profile rows and confirm they navigate to real pages rather than placeholder SnackBars.
+
 ## Follow-up: AI Chat Crash, Project Drawer, and Navigation Polish
 
 Date: 2026-06-08
