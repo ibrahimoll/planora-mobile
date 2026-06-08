@@ -104,9 +104,17 @@ class _HomeScreenState extends State<HomeScreen> {
           .map(TaskProjectSummary.fromProject)
           .toList();
       final taskGroups = await Future.wait(
-        projectSummaries.map(
-          (project) => _tasksApi.getProjectTasks(project: project),
-        ),
+        projectSummaries.map((project) async {
+          try {
+            return await _tasksApi.getProjectTasks(project: project);
+          } catch (error, stackTrace) {
+            debugPrint(
+              'Dashboard task load failed for project ${project.projectId}: $error',
+            );
+            debugPrintStack(stackTrace: stackTrace);
+            return <TaskListItem>[];
+          }
+        }),
       );
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);

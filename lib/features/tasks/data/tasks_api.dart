@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../core/network/api_client.dart';
 import '../../auth/data/project_api.dart';
 import '../models/task_models.dart';
@@ -22,9 +24,17 @@ class TasksApi {
         .toList();
 
     final taskGroups = await Future.wait(
-      projectSummaries.map(
-        (project) => getProjectTasks(project: project, status: status),
-      ),
+      projectSummaries.map((project) async {
+        try {
+          return await getProjectTasks(project: project, status: status);
+        } catch (error, stackTrace) {
+          debugPrint(
+            'Task load failed for project ${project.projectId}: $error',
+          );
+          debugPrintStack(stackTrace: stackTrace);
+          return <TaskListItem>[];
+        }
+      }),
     );
 
     final tasks = taskGroups.expand((group) => group).toList()
