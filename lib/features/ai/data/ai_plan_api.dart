@@ -4,10 +4,6 @@ import '../../auth/models/project_models.dart';
 class AiPlanApi {
   const AiPlanApi();
 
-  // TODO: Switch the idea-first mobile wizard to true preview/accept endpoints
-  // when the backend exposes them, for example POST /ai-plans/preview-from-idea
-  // and POST /ai-plans/accept-preview. The current backend contract generates
-  // tasks on an already-created project.
   String _path(ProjectModel project) {
     if (project.isTeamProject && project.teamId != null) {
       return '/teams/${project.teamId}/projects/${project.projectId}/ai-plan/generate';
@@ -36,6 +32,55 @@ class AiPlanApi {
     );
 
     return AiPlanGenerateResponse.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<AiPlanPreviewResponse> previewFromIdea({
+    required String projectIdea,
+    required DateTime deadline,
+    required String projectType,
+    int? teamId,
+    int availableHoursPerWeek = 8,
+    int preferredTaskCount = 8,
+    String? requirements,
+    bool includeMilestones = true,
+  }) async {
+    final trimmedRequirements = requirements?.trim();
+    final data = <String, dynamic>{
+      'project_idea': projectIdea,
+      'deadline': deadline.toIso8601String(),
+      'project_type': projectType,
+      'available_hours_per_week': availableHoursPerWeek,
+      'preferred_task_count': preferredTaskCount,
+      'include_milestones': includeMilestones,
+    };
+
+    if (teamId != null) {
+      data['team_id'] = teamId;
+    }
+
+    if (trimmedRequirements != null && trimmedRequirements.isNotEmpty) {
+      data['requirements'] = trimmedRequirements;
+    }
+
+    final response = await ApiClient.postJson(
+      '/ai-plans/preview-from-idea',
+      data: data,
+    );
+
+    return AiPlanPreviewResponse.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<AiPlanAcceptPreviewResponse> acceptPreview(
+    AiPlanPreviewResponse preview,
+  ) async {
+    final response = await ApiClient.postJson(
+      '/ai-plans/accept-preview',
+      data: {'preview': preview.toJson()},
+    );
+
+    return AiPlanAcceptPreviewResponse.fromJson(
+      response as Map<String, dynamic>,
+    );
   }
 }
 
@@ -108,6 +153,19 @@ class AiGeneratedTask {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'suggested_order': taskId == 0 ? null : taskId,
+      'task_id': taskId,
+      'title': title,
+      'description': description,
+      'priority': priority,
+      'estimated_hours': estimatedHours,
+      'status': status,
+      'due_date': dueDate?.toIso8601String(),
+    };
+  }
+
   static int _parseInt(dynamic value, {int fallback = 0}) {
     if (value is int) {
       return value;
@@ -134,5 +192,186 @@ class AiGeneratedTask {
     }
 
     return null;
+  }
+}
+
+class AiPlanPreviewResponse {
+  final String source;
+  final String domain;
+  final String projectTitle;
+  final String? description;
+  final String projectType;
+  final int? teamId;
+  final DateTime deadline;
+  final String summary;
+  final List<AiGeneratedTask> tasks;
+  final List<Map<String, dynamic>> milestones;
+  final List<Map<String, String>> risks;
+  final List<String> recommendations;
+  final String projectIdea;
+  final String? requirements;
+  final int availableHoursPerWeek;
+  final int preferredTaskCount;
+
+  const AiPlanPreviewResponse({
+    required this.source,
+    required this.domain,
+    required this.projectTitle,
+    required this.description,
+    required this.projectType,
+    required this.teamId,
+    required this.deadline,
+    required this.summary,
+    required this.tasks,
+    required this.milestones,
+    required this.risks,
+    required this.recommendations,
+    required this.projectIdea,
+    required this.requirements,
+    required this.availableHoursPerWeek,
+    required this.preferredTaskCount,
+  });
+
+  factory AiPlanPreviewResponse.fromJson(Map<String, dynamic> json) {
+    final tasks = json['tasks'] as List? ?? [];
+    final milestones = json['milestones'] as List? ?? [];
+    final risks = json['risks'] as List? ?? [];
+    final recommendations = json['recommendations'] as List? ?? [];
+
+    return AiPlanPreviewResponse(
+      source: json['source'] as String? ?? 'local_rule_based_v1',
+      domain: json['domain'] as String? ?? 'general',
+      projectTitle: json['project_title'] as String? ?? 'AI Generated Plan',
+      description: json['description'] as String?,
+      projectType: json['project_type'] as String? ?? 'personal',
+      teamId: _parseOptionalInt(json['team_id']),
+      deadline: DateTime.parse(json['deadline'] as String).toLocal(),
+      summary: json['summary'] as String? ?? '',
+      tasks: tasks
+          .map((item) => AiGeneratedTask.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      milestones: milestones
+          .whereType<Map<String, dynamic>>()
+          .map(Map<String, dynamic>.from)
+          .toList(),
+      risks: risks
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (item) => item.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            ),
+          )
+          .toList(),
+      recommendations: recommendations
+          .map((item) => item.toString())
+          .where((item) => item.trim().isNotEmpty)
+          .toList(),
+      projectIdea: json['project_idea'] as String? ?? '',
+      requirements: json['requirements'] as String?,
+      availableHoursPerWeek: _parseInt(
+        json['available_hours_per_week'],
+        fallback: 8,
+      ),
+      preferredTaskCount: _parseInt(
+        json['preferred_task_count'],
+        fallback: tasks.length,
+      ),
+    );
+  }
+
+  ProjectModel toPreviewProject() {
+    final now = DateTime.now();
+
+    return ProjectModel(
+      projectId: 0,
+      createdBy: 0,
+      teamId: teamId,
+      title: projectTitle,
+      description: description,
+      deadline: deadline,
+      status: 'not_started',
+      projectType: projectType,
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
+  AiPlanGenerateResponse toGenerateResponse() {
+    return AiPlanGenerateResponse(
+      projectId: 0,
+      planId: 0,
+      summary: summary,
+      tasksCreated: tasks.length,
+      tasks: tasks,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'source': source,
+      'domain': domain,
+      'project_title': projectTitle,
+      'description': description,
+      'project_type': projectType,
+      'team_id': teamId,
+      'deadline': deadline.toIso8601String(),
+      'summary': summary,
+      'tasks': [
+        for (var index = 0; index < tasks.length; index++)
+          {
+            'suggested_order': index + 1,
+            'title': tasks[index].title,
+            'description': tasks[index].description,
+            'priority': tasks[index].priority,
+            'estimated_hours': tasks[index].estimatedHours,
+            'status': tasks[index].status,
+            'due_date': tasks[index].dueDate?.toIso8601String(),
+          },
+      ],
+      'milestones': milestones,
+      'risks': risks,
+      'recommendations': recommendations,
+      'project_idea': projectIdea,
+      'requirements': requirements,
+      'available_hours_per_week': availableHoursPerWeek,
+      'preferred_task_count': preferredTaskCount,
+    };
+  }
+
+  static int _parseInt(dynamic value, {int fallback = 0}) {
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static int? _parseOptionalInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value.toString());
+  }
+}
+
+class AiPlanAcceptPreviewResponse {
+  final ProjectModel project;
+  final AiPlanGenerateResponse plan;
+
+  const AiPlanAcceptPreviewResponse({
+    required this.project,
+    required this.plan,
+  });
+
+  factory AiPlanAcceptPreviewResponse.fromJson(Map<String, dynamic> json) {
+    return AiPlanAcceptPreviewResponse(
+      project: ProjectModel.fromJson(json['project'] as Map<String, dynamic>),
+      plan: AiPlanGenerateResponse.fromJson(json),
+    );
   }
 }

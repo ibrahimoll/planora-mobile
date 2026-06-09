@@ -43,6 +43,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   bool isPreviewingSchedule = false;
   bool isApplyingSchedule = false;
   bool isGeneratingAiPlan = false;
+  bool isDeletingProject = false;
   String? errorMessage;
   String? membersErrorMessage;
   String? tasksErrorMessage;
@@ -64,7 +65,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Future<void> loadProjectDetails() async {
     setState(() {
       isLoadingProject = true;
-      isLoadingMembers = project.isTeamProject;
+      isLoadingMembers = true;
       isLoadingTasks = true;
       isLoadingRisk = true;
       errorMessage = null;
@@ -100,9 +101,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         isLoadingTasks = false;
         isLoadingRisk = false;
         errorMessage = 'Could not refresh project details.';
-        membersErrorMessage = project.isTeamProject
-            ? 'Could not load project members.'
-            : null;
+        membersErrorMessage = 'Could not load project collaborators.';
         tasksErrorMessage = 'Could not load project tasks.';
         riskErrorMessage =
             'Risk analysis will appear after enough project activity.';
@@ -112,17 +111,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Future<void> loadProjectMembers([ProjectModel? source]) async {
     final targetProject = source ?? project;
-
-    if (!targetProject.isTeamProject) {
-      if (!mounted) return;
-
-      setState(() {
-        members = [];
-        isLoadingMembers = false;
-        membersErrorMessage = null;
-      });
-      return;
-    }
 
     setState(() {
       isLoadingMembers = true;
@@ -146,7 +134,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
       setState(() {
         isLoadingMembers = false;
-        membersErrorMessage = 'Could not load project members.';
+        membersErrorMessage = targetProject.isTeamProject
+            ? 'Could not load project members.'
+            : 'Could not load project collaborators.';
       });
     }
   }
@@ -365,6 +355,27 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               color: isDark ? Colors.white : PlanoraTheme.textPrimary,
             ),
           ),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'Project actions',
+          onSelected: (value) {
+            if (value == 'delete') {
+              showDeleteProjectDialog();
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline_rounded, color: PlanoraTheme.error),
+                  SizedBox(width: 10),
+                  Text('Delete project'),
+                ],
+              ),
+            ),
+          ],
+          icon: const Icon(Icons.more_vert_rounded),
         ),
         IconButton(
           tooltip: 'Refresh project',
@@ -1637,22 +1648,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   Widget buildMembersCard(BuildContext context) {
-    if (!project.isTeamProject) {
-      return buildSectionCard(
-        context,
-        title: 'Members',
-        icon: Icons.person_rounded,
-        child: Text(
-          'This is a personal project.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
-    }
-
     Widget child;
+    final title = project.isTeamProject ? 'Project Members' : 'Collaborators';
+    final emptyMessage = project.isTeamProject
+        ? 'No project members returned by the API.'
+        : 'Only you are on this personal project right now.';
 
     if (isLoadingMembers) {
       child = const Center(
@@ -1676,7 +1676,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           buildInlineMessage(
             context,
             icon: Icons.group_off_rounded,
-            message: 'No project members returned by the API.',
+            message: emptyMessage,
           ),
         ],
       );
@@ -1695,8 +1695,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     return buildSectionCard(
       context,
-      title: 'Project Members',
-      icon: Icons.groups_2_rounded,
+      title: title,
+      icon: project.isTeamProject
+          ? Icons.groups_2_rounded
+          : Icons.person_add_alt_1_rounded,
       child: child,
     );
   }
@@ -1707,7 +1709,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       child: OutlinedButton.icon(
         onPressed: showInviteMemberSheet,
         icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Invite Member'),
+        label: Text(
+          project.isTeamProject ? 'Invite Member' : 'Invite collaborator',
+        ),
       ),
     );
   }
@@ -1741,150 +1745,168 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ),
                   boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 42,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? PlanoraTheme.darkBorder
-                              : PlanoraTheme.border,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_add_alt_1_rounded,
-                          color: Theme.of(sheetContext).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Invite Project Member',
-                            style: Theme.of(sheetContext).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? PlanoraTheme.darkBorder
+                                : PlanoraTheme.border,
+                            borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                        IconButton(
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.person_add_alt_1_rounded,
+                            color: Theme.of(sheetContext).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              project.isTeamProject
+                                  ? 'Invite Project Member'
+                                  : 'Invite collaborator',
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: isInviting
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: emailController,
+                        enabled: !isInviting,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email or username',
+                          prefixIcon: Icon(Icons.alternate_email_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedRole,
+                        decoration: const InputDecoration(
+                          labelText: 'Role',
+                          prefixIcon: Icon(Icons.verified_user_outlined),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'member',
+                            child: Text('Member'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'manager',
+                            child: Text('Manager'),
+                          ),
+                        ],
+                        onChanged: isInviting
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+                                setSheetState(() {
+                                  selectedRole = value;
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
                           onPressed: isInviting
                               ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      controller: emailController,
-                      enabled: !isInviting,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email or username',
-                        prefixIcon: Icon(Icons.alternate_email_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        prefixIcon: Icon(Icons.verified_user_outlined),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'member',
-                          child: Text('Member'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'manager',
-                          child: Text('Manager'),
-                        ),
-                      ],
-                      onChanged: isInviting
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-                              setSheetState(() {
-                                selectedRole = value;
-                              });
-                            },
-                    ),
-                    const SizedBox(height: 22),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: isInviting
-                            ? null
-                            : () async {
-                                final emailOrUsername = emailController.text
-                                    .trim();
+                              : () async {
+                                  final emailOrUsername = emailController.text
+                                      .trim();
 
-                                if (emailOrUsername.isEmpty) {
-                                  showMessage('Enter an email or username.');
-                                  return;
-                                }
-
-                                setSheetState(() {
-                                  isInviting = true;
-                                });
-
-                                try {
-                                  await _projectsApi.inviteProjectMember(
-                                    project: project,
-                                    emailOrUsername: emailOrUsername,
-                                    role: selectedRole,
-                                  );
-
-                                  if (!mounted || !sheetContext.mounted) {
+                                  if (emailOrUsername.isEmpty) {
+                                    showMessage('Enter an email or username.');
                                     return;
                                   }
 
-                                  Navigator.of(sheetContext).pop();
-                                  await loadProjectMembers(project);
+                                  setSheetState(() {
+                                    isInviting = true;
+                                  });
 
-                                  if (!mounted) return;
+                                  var shouldCloseSheet = false;
 
-                                  showMessage('Project member added.');
-                                } on ApiException catch (error) {
-                                  if (!mounted) return;
-                                  showMessage(error.message);
-                                } catch (error) {
-                                  debugPrint(
-                                    'Project member invite failed: $error',
-                                  );
-                                  if (!mounted) return;
-                                  showMessage(
-                                    'Could not invite project member.',
-                                  );
-                                } finally {
-                                  if (sheetContext.mounted) {
-                                    setSheetState(() {
-                                      isInviting = false;
-                                    });
+                                  try {
+                                    await _projectsApi.inviteProjectMember(
+                                      project: project,
+                                      emailOrUsername: emailOrUsername,
+                                      role: selectedRole,
+                                    );
+
+                                    if (!mounted || !sheetContext.mounted) {
+                                      return;
+                                    }
+
+                                    await loadProjectMembers(project);
+
+                                    if (!mounted) return;
+
+                                    showMessage('Project member added.');
+                                    shouldCloseSheet = true;
+                                  } on ApiException catch (error) {
+                                    if (!mounted) return;
+                                    showMessage(error.message);
+                                  } catch (error) {
+                                    debugPrint(
+                                      'Project member invite failed: $error',
+                                    );
+                                    if (!mounted) return;
+                                    showMessage(
+                                      'Could not invite project member.',
+                                    );
+                                  } finally {
+                                    if (sheetContext.mounted &&
+                                        !shouldCloseSheet) {
+                                      setSheetState(() {
+                                        isInviting = false;
+                                      });
+                                    }
                                   }
-                                }
-                              },
-                        child: isInviting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.4,
-                                  color: Colors.white,
+
+                                  if (shouldCloseSheet &&
+                                      sheetContext.mounted) {
+                                    Navigator.of(sheetContext).pop();
+                                  }
+                                },
+                          child: isInviting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  project.isTeamProject
+                                      ? 'Invite Member'
+                                      : 'Invite collaborator',
                                 ),
-                              )
-                            : const Text('Invite Member'),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1892,8 +1914,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         );
       },
     );
-
-    emailController.dispose();
   }
 
   Widget buildSectionCard(
@@ -1917,16 +1937,160 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 14),
           child,
+        ],
+      ),
+    );
+  }
+
+  Future<void> showDeleteProjectDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete project?'),
+          content: const Text(
+            'This will permanently delete the project and its tasks. This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: PlanoraTheme.error,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await deleteProject();
+  }
+
+  Future<void> deleteProject() async {
+    setState(() {
+      isDeletingProject = true;
+    });
+
+    try {
+      await _projectsApi.deleteProject(project);
+
+      if (!mounted) {
+        return;
+      }
+
+      showMessage('Project deleted.');
+      Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isDeletingProject = false;
+      });
+      showMessage(
+        error.statusCode == 403 || error.statusCode == 404
+            ? 'You do not have permission to delete this project.'
+            : error.message,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Project delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isDeletingProject = false;
+      });
+      showMessage('Could not delete project. Please try again.');
+    }
+  }
+
+  Widget buildDangerZoneCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: cardDecoration(context).copyWith(
+        border: Border.all(color: PlanoraTheme.error.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: PlanoraTheme.error,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Danger Zone',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: PlanoraTheme.error,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Delete this project and all of its tasks permanently.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: mutedColor(context),
+              height: 1.4,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: PlanoraTheme.error,
+                side: BorderSide(
+                  color: PlanoraTheme.error.withValues(alpha: 0.5),
+                ),
+              ),
+              onPressed: isDeletingProject ? null : showDeleteProjectDialog,
+              icon: isDeletingProject
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_outline_rounded),
+              label: Text(
+                isDeletingProject ? 'Deleting project...' : 'Delete project',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2123,6 +2287,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     buildMilestonesCard(context),
                     const SizedBox(height: 16),
                     buildMembersCard(context),
+                    const SizedBox(height: 16),
+                    buildDangerZoneCard(context),
                   ],
                 ),
               ),

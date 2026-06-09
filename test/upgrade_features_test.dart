@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/ai/data/ai_plan_api.dart';
 import 'package:mobile/features/auth/data/project_api.dart';
+import 'package:mobile/features/auth/models/auth_models.dart';
 import 'package:mobile/features/auth/models/project_models.dart';
+import 'package:mobile/features/home/home_screen.dart';
 import 'package:mobile/features/notifications/data/notifications_api.dart';
 import 'package:mobile/features/notifications/notifications_screen.dart';
 import 'package:mobile/features/projects/ai_project_wizard_screen.dart';
@@ -55,6 +57,59 @@ void main() {
     expect(find.text('AI Plan Preview'), findsOneWidget);
     expect(find.text('Research suppliers'), findsOneWidget);
     expect(find.text('Accept plan'), findsOneWidget);
+  });
+
+  testWidgets('Clothing business preview avoids software prompt leakage', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AiPlanPreviewContent(
+              project: _project(7, 'Clothing Business Online'),
+              plan: _aiPlan([
+                const AiGeneratedTask(
+                  taskId: 1,
+                  title: 'Define clothing niche and target customer',
+                  description:
+                      'Identify the clothing category, customer profile, style, price range, and reason buyers would choose the brand.',
+                  priority: 'high',
+                  estimatedHours: 2,
+                  status: 'todo',
+                  dueDate: null,
+                ),
+                const AiGeneratedTask(
+                  taskId: 2,
+                  title: 'Create social media content plan',
+                  description:
+                      'Plan Instagram/TikTok posts, product photos, launch messages, offers, and how customers will contact or order.',
+                  priority: 'medium',
+                  estimatedHours: 3,
+                  status: 'todo',
+                  dueDate: null,
+                ),
+              ]),
+              onAccept: () {},
+              onRegenerate: () {},
+              onEditManually: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Define clothing niche and target customer'),
+      findsOneWidget,
+    );
+    expect(find.text('Create social media content plan'), findsOneWidget);
+    expect(find.textContaining('Design the app architecture'), findsNothing);
+    expect(
+      find.textContaining('Create a complete Planora project plan'),
+      findsNothing,
+    );
+    expect(find.textContaining('Available hours per week'), findsNothing);
   });
 
   testWidgets('Accepting a preview calls the accept action', (tester) async {
@@ -108,6 +163,135 @@ void main() {
     expect(find.text('50%'), findsWidgets);
     expect(find.text('1'), findsWidgets);
   });
+
+  testWidgets('Project delete confirmation cancel does not call API', (
+    tester,
+  ) async {
+    final project = _project(12, 'Delete Cancel Plan');
+    final projectsApi = _MutableProjectDetailProjectsApi(project);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProjectDetailScreen(
+          project: project,
+          projectsApi: projectsApi,
+          tasksApi: const _ProjectTasksApi([]),
+          insightsApi: const _RiskPreviewApi(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.scrollUntilVisible(
+      find.text('Danger Zone'),
+      700,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Danger Zone'), findsOneWidget);
+    await tester.tap(find.text('Delete project').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete project?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(projectsApi.deleteCalls, 0);
+  });
+
+  testWidgets('Project delete success calls API', (tester) async {
+    final project = _project(13, 'Delete Success Plan');
+    final projectsApi = _MutableProjectDetailProjectsApi(project);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProjectDetailScreen(
+                          project: project,
+                          projectsApi: projectsApi,
+                          tasksApi: const _ProjectTasksApi([]),
+                          insightsApi: const _RiskPreviewApi(),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Open project'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open project'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Danger Zone'),
+      700,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete project').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    expect(projectsApi.deleteCalls, 1);
+    expect(find.text('Open project'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Personal project invite collaborator dialog validates and sends',
+    (tester) async {
+      final project = _project(14, 'Shared Personal Plan');
+      final projectsApi = _MutableProjectDetailProjectsApi(project);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ProjectDetailScreen(
+            project: project,
+            projectsApi: projectsApi,
+            tasksApi: const _ProjectTasksApi([]),
+            insightsApi: const _RiskPreviewApi(),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.scrollUntilVisible(
+        find.text('Collaborators'),
+        700,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Collaborators'), findsOneWidget);
+      await tester.tap(find.text('Invite collaborator').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Invite collaborator').last);
+      await tester.pump();
+
+      expect(find.text('Enter an email or username.'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).last, 'friend@example.com');
+      await tester.tap(find.text('Invite collaborator').last);
+      await tester.pumpAndSettle();
+
+      expect(projectsApi.inviteCalls, 1);
+      expect(projectsApi.lastInvite, 'friend@example.com');
+    },
+  );
 
   testWidgets('Notification tap resolves task route from type and IDs', (
     tester,
@@ -206,6 +390,29 @@ void main() {
     expect(find.text('2'), findsWidgets);
   });
 
+  testWidgets('Home Teams quick action opens Teams screen', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomeScreen(
+          user: _user(),
+          onThemeToggle: () {},
+          onLoggedOut: () {},
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Teams'), findsWidgets);
+    await tester.ensureVisible(find.text('Teams').first);
+    await tester.tap(find.text('Teams').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Teams'), findsWidgets);
+    expect(find.byType(TeamsScreen), findsOneWidget);
+  });
+
   testWidgets('Reports screen shows task and project summary', (tester) async {
     final project = _project(41, 'Report Plan');
 
@@ -294,6 +501,20 @@ ProjectModel _project(int id, String title) {
     projectType: 'personal',
     createdAt: DateTime(2026, 6, 1),
     updatedAt: null,
+  );
+}
+
+UserResponse _user() {
+  return UserResponse(
+    userId: 1,
+    username: 'planora_user',
+    email: 'planora@example.com',
+    fullName: 'Planora User',
+    role: 'user',
+    isActive: true,
+    isEmailVerified: true,
+    profilePic: null,
+    createdAt: DateTime(2026, 6, 1),
   );
 }
 
@@ -395,6 +616,59 @@ class _ProjectDetailProjectsApi extends ProjectsApi {
     ProjectModel project,
   ) async {
     return [];
+  }
+}
+
+class _MutableProjectDetailProjectsApi extends ProjectsApi {
+  final ProjectModel project;
+  final List<ProjectMemberModel> members = [];
+  int deleteCalls = 0;
+  int inviteCalls = 0;
+  String? lastInvite;
+
+  _MutableProjectDetailProjectsApi(this.project);
+
+  @override
+  Future<ProjectModel> getProject(ProjectModel project) async {
+    return this.project;
+  }
+
+  @override
+  Future<List<ProjectMemberModel>> getProjectMembers(
+    ProjectModel project,
+  ) async {
+    return members;
+  }
+
+  @override
+  Future<ProjectMemberModel> inviteProjectMember({
+    required ProjectModel project,
+    required String emailOrUsername,
+    String role = 'member',
+  }) async {
+    inviteCalls += 1;
+    lastInvite = emailOrUsername;
+    final member = ProjectMemberModel(
+      memberId: inviteCalls,
+      projectId: project.projectId,
+      userId: 100 + inviteCalls,
+      role: role,
+      joinedAt: DateTime(2026, 6, 1),
+      user: UserSummaryModel(
+        userId: 100 + inviteCalls,
+        username: emailOrUsername.split('@').first,
+        email: emailOrUsername,
+        fullName: 'Invited Collaborator',
+        profilePic: null,
+      ),
+    );
+    members.add(member);
+    return member;
+  }
+
+  @override
+  Future<void> deleteProject(ProjectModel project) async {
+    deleteCalls += 1;
   }
 }
 

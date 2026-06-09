@@ -275,13 +275,9 @@ class AiPlanPreviewContent extends StatelessWidget {
           if (task.description != null && task.description!.trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8, left: 30),
-              child: Text(
-                task.description!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: _mutedColor(context),
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: _ExpandableTaskDescription(
+                description: task.description!,
+                color: _mutedColor(context),
               ),
             ),
           const SizedBox(height: 10),
@@ -341,6 +337,63 @@ class AiPlanPreviewContent extends StatelessWidget {
   }
 }
 
+class _ExpandableTaskDescription extends StatefulWidget {
+  final String description;
+  final Color color;
+
+  const _ExpandableTaskDescription({
+    required this.description,
+    required this.color,
+  });
+
+  @override
+  State<_ExpandableTaskDescription> createState() =>
+      _ExpandableTaskDescriptionState();
+}
+
+class _ExpandableTaskDescriptionState
+    extends State<_ExpandableTaskDescription> {
+  bool isExpanded = false;
+
+  bool get shouldShowToggle {
+    return widget.description.trim().length > 180 ||
+        widget.description.trim().split(RegExp(r'\s+')).length > 26;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.description,
+          maxLines: isExpanded ? null : 4,
+          overflow: isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: widget.color,
+            height: 1.4,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (shouldShowToggle)
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 30),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () {
+              setState(() {
+                isExpanded = !isExpanded;
+              });
+            },
+            child: Text(isExpanded ? 'View less' : 'View more'),
+          ),
+      ],
+    );
+  }
+}
+
 class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   late final ProjectsApi _projectsApi;
   late final AiPlanApi _aiPlanApi;
@@ -366,6 +419,8 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   bool isGeneratingPlan = false;
   DateTime? selectedDeadline;
   ProjectModel? createdProject;
+  ProjectModel? previewProject;
+  AiPlanPreviewResponse? generatedPreview;
   AiPlanGenerateResponse? generatedPlan;
   String? generationError;
   Timer? generationMessageTimer;
@@ -534,30 +589,21 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       generationMessageIndex = 0;
       generationError = null;
       createdProject = null;
+      previewProject = null;
+      generatedPreview = null;
       generatedPlan = null;
     });
     startGenerationLoadingSequence();
 
     try {
-      final request = ProjectCreateRequest(
-        title: deriveProjectTitle(idea),
-        description: buildProjectDescription(),
+      final preview = await _aiPlanApi.previewFromIdea(
+        projectIdea: idea,
         deadline: deadline,
-      );
-
-      final project = selectedProjectType == 'team'
-          ? await _projectsApi.createTeamProject(
-              teamId: selectedTeamId!,
-              request: request,
-            )
-          : await _projectsApi.createProject(request);
-
-      final plan = await _aiPlanApi.generatePlan(
-        project: project,
-        prompt: buildAiPlanningPrompt(project.title),
-        generateTasks: true,
-        overwriteExistingTasks: false,
+        projectType: selectedProjectType,
+        teamId: selectedProjectType == 'team' ? selectedTeamId : null,
+        availableHoursPerWeek: availableHoursPerWeek,
         preferredTaskCount: preferredTaskCount,
+        requirements: requirementsController.text.trim(),
         includeMilestones: true,
       );
 
@@ -566,13 +612,12 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       }
 
       setState(() {
-        createdProject = project;
-        generatedPlan = plan;
+        previewProject = preview.toPreviewProject();
+        generatedPreview = preview;
+        generatedPlan = preview.toGenerateResponse();
         isGeneratingPlan = false;
       });
       stopGenerationLoadingSequence();
-
-      widget.onPlanCreated?.call();
     } catch (error, stackTrace) {
       debugPrint('AI project generation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -592,9 +637,15 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   }
 
   Future<void> regenerateCreatedPlan() async {
-    final project = createdProject;
+    await generatePlanFromContext();
+    showMessage('Preview regenerated.');
+  }
 
-    if (project == null) {
+  Future<void> acceptGeneratedPreview() async {
+    final preview = generatedPreview;
+
+    if (preview == null) {
+      showMessage('Generate a preview first.');
       return;
     }
 
@@ -606,28 +657,26 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     startGenerationLoadingSequence();
 
     try {
-      final plan = await _aiPlanApi.generatePlan(
-        project: project,
-        prompt: buildAiPlanningPrompt(project.title),
-        generateTasks: true,
-        overwriteExistingTasks: true,
-        preferredTaskCount: preferredTaskCount,
-        includeMilestones: true,
-      );
+      final accepted = await _aiPlanApi.acceptPreview(preview);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        generatedPlan = plan;
+        createdProject = accepted.project;
+        previewProject = null;
+        generatedPreview = null;
+        generatedPlan = accepted.plan;
         isGeneratingPlan = false;
       });
       stopGenerationLoadingSequence();
       widget.onPlanCreated?.call();
-      showMessage('Plan regenerated.');
+      showMessage('Project created with AI tasks.');
+
+      await openCreatedProject();
     } catch (error, stackTrace) {
-      debugPrint('AI project regeneration failed: $error');
+      debugPrint('AI preview accept failed: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       if (!mounted) {
@@ -638,7 +687,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         isGeneratingPlan = false;
         generationError = error is ApiException
             ? error.message
-            : 'Could not regenerate this plan. Please try again.';
+            : 'Could not create this project. Please try again.';
       });
       stopGenerationLoadingSequence();
     }
@@ -1409,7 +1458,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Planora will create the project now and generate tasks from this full brief.',
+                  'Planora will preview the plan first. The project and tasks are created only after you accept.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: mutedColor(context),
                     height: 1.45,
@@ -1481,6 +1530,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
 
   Widget buildResultStep(BuildContext context) {
     final project = createdProject;
+    final preview = previewProject;
     final plan = generatedPlan;
     final error = generationError;
 
@@ -1520,7 +1570,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       );
     }
 
-    if (project == null || plan == null) {
+    if ((project == null && preview == null) || plan == null) {
       return buildResultState(
         context,
         icon: Icons.auto_awesome_rounded,
@@ -1530,11 +1580,15 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     }
 
     return AiPlanPreviewContent(
-      project: project,
+      project: project ?? preview!,
       plan: plan,
-      onAccept: openCreatedProject,
+      onAccept: acceptGeneratedPreview,
       onRegenerate: regenerateCreatedPlan,
-      onEditManually: openCreatedProject,
+      onEditManually: () {
+        setState(() {
+          currentStep = 1;
+        });
+      },
     );
   }
 

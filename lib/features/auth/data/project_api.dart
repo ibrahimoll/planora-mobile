@@ -158,13 +158,7 @@ class ProjectsApi {
   Future<List<ProjectMemberModel>> getProjectMembers(
     ProjectModel project,
   ) async {
-    if (!project.isTeamProject || project.teamId == null) {
-      return [];
-    }
-
-    final response = await ApiClient.get(
-      '/teams/${project.teamId}/projects/${project.projectId}/members',
-    );
+    final response = await ApiClient.get(_projectMembersPath(project));
 
     if (response is! List) {
       return [];
@@ -201,16 +195,20 @@ class ProjectsApi {
     required String emailOrUsername,
     String role = 'member',
   }) async {
-    if (!project.isTeamProject || project.teamId == null) {
-      throw StateError('Project member invites require a team project.');
-    }
-
     final response = await ApiClient.postJson(
-      '/teams/${project.teamId}/projects/${project.projectId}/members/invite',
+      '${_projectMembersPath(project)}/invite',
       data: {'email_or_username': emailOrUsername, 'role': role},
     );
 
     return ProjectMemberModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  String _projectMembersPath(ProjectModel project) {
+    if (project.isTeamProject && project.teamId != null) {
+      return '/teams/${project.teamId}/projects/${project.projectId}/members';
+    }
+
+    return '/projects/${project.projectId}/members';
   }
 
   Future<ProjectModel> createProject(ProjectCreateRequest request) async {
@@ -246,7 +244,11 @@ class ProjectsApi {
     return ProjectModel.fromJson(response as Map<String, dynamic>);
   }
 
-  Future<void> deleteProject(int projectId) async {
-    await ApiClient.delete('/projects/$projectId');
+  Future<void> deleteProject(ProjectModel project) async {
+    final path = project.isTeamProject && project.teamId != null
+        ? '/teams/${project.teamId}/projects/${project.projectId}'
+        : '/projects/${project.projectId}';
+
+    await ApiClient.delete(path);
   }
 }

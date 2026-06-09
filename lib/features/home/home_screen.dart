@@ -514,6 +514,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.groups_2_outlined),
+                  title: const Text('Teams'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    openTeams();
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.logout_rounded),
                   title: const Text('Logout'),
                   onTap: () {
@@ -1223,6 +1231,12 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: openAiPlannerTab,
       ),
       _HomeQuickAction(
+        icon: Icons.groups_2_outlined,
+        label: 'Teams',
+        isFilled: false,
+        onTap: openTeams,
+      ),
+      _HomeQuickAction(
         icon: Icons.check_box_outlined,
         label: 'View Tasks',
         isFilled: false,
@@ -1235,24 +1249,28 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         buildSectionTitle(context, 'Quick Actions'),
         const SizedBox(height: 10),
-        Row(
-          children: List.generate(actions.length, (index) {
-            final action = actions[index];
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  right: index == actions.length - 1 ? 0 : 10,
-                ),
-                child: buildQuickActionTile(
-                  context,
-                  icon: action.icon,
-                  label: action.label,
-                  isFilled: action.isFilled,
-                  onTap: action.onTap,
-                ),
-              ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final tileWidth = (constraints.maxWidth - 10) / 2;
+
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final action in actions)
+                  SizedBox(
+                    width: tileWidth,
+                    child: buildQuickActionTile(
+                      context,
+                      icon: action.icon,
+                      label: action.label,
+                      isFilled: action.isFilled,
+                      onTap: action.onTap,
+                    ),
+                  ),
+              ],
             );
-          }),
+          },
         ),
       ],
     );

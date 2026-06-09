@@ -9,9 +9,19 @@ Last updated: 2026-06-09
 - Main entry file: `lib/main.dart`
 - Current start screen: `OnboardingScreen`
 
+## Latest Mobile/Backend Fix Pass - 2026-06-09
+
+- AI project generation now uses true preview/accept endpoints. `AiProjectWizardScreen` calls `POST /ai-plans/preview-from-idea` to show generated tasks without creating a project, then calls `POST /ai-plans/accept-preview` only after the user taps `Accept plan`.
+- Clothing/business ideas now receive practical business tasks from the backend, such as niche/customer definition, competitor research, budget/pricing, brand identity, suppliers/production, first collection, social content, sales channel, delivery/returns, and launch planning. Explicit app/software ideas still generate software-oriented tasks.
+- AI task descriptions are compact and task-specific; the mobile preview caps long descriptions behind a `View more` toggle instead of showing prompt dumps.
+- Project Details now has visible delete controls in the header menu and a Danger Zone. The confirmation copy warns that deleting a project permanently deletes its tasks.
+- Personal projects now support collaborator invites from Project Details. The same member sheet works for personal and team projects, while the backend enforces owner/manager permissions.
+- Home quick actions now include Teams, and the avatar action sheet also links to Teams so the Teams page is easier to discover.
+- Verification for this pass should include `flutter pub get`, `dart format lib test --set-exit-if-changed`, `flutter analyze`, `flutter test`, and backend compile/pytest with `TEST_DATABASE_URL` when a test database is available.
+
 ## Latest Mobile Upgrade State - 2026-06-09
 
-- AI project generation now ends on an explicit `AI Plan Preview` view with generated task cards, deadline, task count, `Accept plan`, `Regenerate`, and `Edit manually` actions. The backend still saves the project/tasks during generation because no true preview/accept endpoints exist yet; the API-layer TODO documents the future endpoint contract.
+- AI project generation now ends on an explicit `AI Plan Preview` view with generated task cards, deadline, task count, `Accept plan`, `Regenerate`, and `Edit manually` actions. Project and task rows are created only after accepting the preview.
 - The AI planning prompt and example now steer generic business ideas such as a clothing business toward practical tasks like suppliers, budget, collection planning, online store/social content, launch, delivery, and operations instead of unrealistic physical-asset tasks.
 - Project Details now behaves more like a project control center: progress percentage, completed/remaining/overdue counts, next deadline, task status breakdown, timeline/section fallback, risk preview, and recommendation card are shown from real task data and backend risk endpoints when available.
 - Project Details includes `Ask AI to improve this plan` and `Reschedule remaining tasks`. Smart scheduling opens a backend preview first, then can apply the schedule and reload project tasks.
