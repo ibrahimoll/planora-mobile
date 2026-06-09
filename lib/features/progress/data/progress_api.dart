@@ -12,6 +12,4 @@ class ProgressApi {
 class ProjectProgressModel {
   final int projectId;
   final int tasksCompleted;
-  final int tasksTotal;
-  final double completionPercentage;
-
+ 
