@@ -431,7 +431,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Future<void> sendSuggestion(String suggestion) async {
-    if (isSending) {
+    if (isSending || messageController.text.trim().isNotEmpty) {
       return;
     }
 
@@ -776,14 +776,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        buildSuggestionChips(context),
-        const SizedBox(height: 14),
         for (var index = 0; index < messages.length; index++) ...[
           buildMessageBubble(context, messages[index], index: index),
           const SizedBox(height: 10),
         ],
-        if (errorMessage != null) buildInlineError(context, errorMessage!),
-        if (isSending) ...[
+        if (errorMessage != null && !isSending)
+          buildInlineError(context, errorMessage!),
+        if (isSending && errorMessage == null) ...[
           const SizedBox(height: 8),
           buildTypingIndicator(context),
         ],
@@ -896,27 +895,33 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final primary = Theme.of(context).colorScheme.primary;
     final isDark = PlanoraTheme.isDark(context);
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: suggestions.map((suggestion) {
-        return ActionChip(
-          onPressed: isSending ? null : () => sendSuggestion(suggestion),
-          label: Text(suggestion),
-          avatar: Icon(Icons.auto_awesome_rounded, size: 16, color: primary),
-          backgroundColor: isDark
-              ? primary.withValues(alpha: 0.14)
-              : primary.withValues(alpha: 0.08),
-          side: BorderSide(color: primary.withValues(alpha: 0.18)),
-          labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: isDark ? PlanoraTheme.darkTextPrimary : primary,
-            fontWeight: FontWeight.w800,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-      }).toList(),
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: suggestions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final suggestion = suggestions[index];
+
+          return ActionChip(
+            onPressed: isSending ? null : () => sendSuggestion(suggestion),
+            label: Text(suggestion, overflow: TextOverflow.ellipsis),
+            avatar: Icon(Icons.auto_awesome_rounded, size: 16, color: primary),
+            backgroundColor: isDark
+                ? primary.withValues(alpha: 0.14)
+                : primary.withValues(alpha: 0.08),
+            side: BorderSide(color: primary.withValues(alpha: 0.18)),
+            labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: isDark ? PlanoraTheme.darkTextPrimary : primary,
+              fontWeight: FontWeight.w800,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1052,18 +1057,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget buildInlineError(BuildContext context, String message) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: PlanoraTheme.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.red.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.withValues(alpha: 0.16)),
       ),
-      child: Text(
-        message,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: PlanoraTheme.error,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: Colors.red, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.red,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
