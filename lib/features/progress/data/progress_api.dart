@@ -4,8 +4,8 @@ class ProgressApi {
   const ProgressApi();
 
   Future<ProjectProgressModel> getProjectProgress(int projectId) async {
-    final response = await ApiClient.get('/projects/$projectId/progress');
-    return ProjectProgressModel.fromJson(response as Map<String, dynamic>);
+    final data = await ApiClient.get('/projects/$projectId/progress');
+    return ProjectProgressModel.fromJson(data as Map<String, dynamic>);
   }
 }
 
@@ -14,4 +14,4 @@ class ProjectProgressModel {
   final int tasksCompleted;
   final int tasksTotal;
   final double completionPercentage;
-  final DateTime? updated
+
