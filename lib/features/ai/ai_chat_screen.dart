@@ -383,9 +383,12 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   String cleanChatText(String value) {
     return value
-        .replaceAll(RegExp(r'\*\*(.*?)\*\*'), r'$1')
-        .replaceAll(RegExp(r'__(.*?)__'), r'$1')
-        .replaceAll(RegExp(r'`([^`]*)`'), r'$1')
+        .replaceAllMapped(
+          RegExp(r'\*\*(.*?)\*\*'),
+          (match) => match.group(1) ?? '',
+        )
+        .replaceAllMapped(RegExp(r'__(.*?)__'), (match) => match.group(1) ?? '')
+        .replaceAllMapped(RegExp(r'`([^`]*)`'), (match) => match.group(1) ?? '')
         .replaceAll(RegExp(r'\n{3,}'), '\n\n')
         .trim();
   }
@@ -396,13 +399,17 @@ class _AiChatScreenState extends State<AiChatScreen> {
         selectedProjectModel?.description?.toLowerCase() ?? '';
     final text = '$title $modelDescription';
 
-    return text.contains('business') ||
-        text.contains('store') ||
-        text.contains('shop') ||
-        text.contains('brand') ||
-        text.contains('sell') ||
-        text.contains('selling') ||
-        text.contains('online');
+    final looksSoftware = RegExp(
+      r'\b(flutter|mobile app|web app|app|website|software|game|backend|frontend|api|platform|clicking game)\b',
+    ).hasMatch(text);
+
+    if (looksSoftware) {
+      return false;
+    }
+
+    return RegExp(
+      r'\b(business|store|shop|brand|sell|selling|sales|product|products|supplier|suppliers|customer|customers|pricing|ecommerce|e-commerce|online store|online shop)\b',
+    ).hasMatch(text);
   }
 
   List<String> chatSuggestions() {
