@@ -313,8 +313,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
           fallback: 'Could not send your message. Please try again.',
         );
       });
-
-      showFriendlySnackBar(errorMessage!);
     }
   }
 
