@@ -10,4 +10,14 @@ class NotificationsApi {
     bool unreadOnly = false,
   }) async {
     try {
-      final response = await
+      final response = await ApiClient.get(
+        '/notifications',
+        queryParameters: {'unread_only': unreadOnly},
+      );
+
+      final notifications = _parseNotificationList(response);
+      await LocalCacheStore.writeJson(_notificationsCacheKey, response);
+      return notifications;
+    } catch (_) {
+      final cached = await LocalCacheStore.readJson(_notificationsCacheKey);
+      final cachedData = cached?.data;
