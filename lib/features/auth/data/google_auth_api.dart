@@ -15,5 +15,4 @@ class GoogleAuthApi {
       payload['username'] = username.trim();
     }
 
-    if (fullName != null && fullName.trim().isNotEmpty) {
-      payload['full_name'] =
+    if
