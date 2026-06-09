@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../network/api_client.dart';
-
 class PushNotificationService {
   PushNotificationService._();
 
@@ -11,5 +9,4 @@ class PushNotificationService {
     // Add Firebase Core and Messaging after Android/iOS app config exists.
     debugPrint('Push notifications are not initialized yet.');
   }
-
-  Future<void> registerDeviceToken({
+}
