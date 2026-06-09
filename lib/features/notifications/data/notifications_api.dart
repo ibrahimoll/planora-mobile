@@ -1,23 +1,18 @@
 import '../../../core/network/api_client.dart';
-import '../../../core/storage/local_cache_store.dart';
 
-class NotificationsApi {
-  static const String _notificationsCacheKey = 'notifications';
+enum NotificationRouteKind { project, task, team, ai, risk, none }
 
-  const NotificationsApi();
+class NotificationNavigationTarget {
+  final NotificationRouteKind kind;
+  final int? projectId;
+  final int? taskId;
+  final int? teamId;
 
-  Future<List<NotificationModel>> getNotifications({
-    bool unreadOnly = false,
-  }) async {
-    try {
-      final response = await ApiClient.get(
-        '/notifications',
-        queryParameters: {'unread_only': unreadOnly},
-      );
+  const NotificationNavigationTarget({
+    required this.kind,
+    this.projectId,
+    this.taskId,
+    this.teamId,
+  });
 
-      final notifications = _parseNotificationList(response);
-      await LocalCacheStore.writeJson(_notificationsCacheKey, response);
-      return notifications;
-    } catch (_) {
-      final cached = await LocalCacheStore.readJson(_notificationsCacheKey);
-      final cachedData = cached?.data;
+  factory
