@@ -383,6 +383,62 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
+  String cleanChatText(String value) {
+    return value
+        .replaceAll(RegExp(r'\*\*(.*?)\*\*'), r'$1')
+        .replaceAll(RegExp(r'__(.*?)__'), r'$1')
+        .replaceAll(RegExp(r'`([^`]*)`'), r'$1')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+  }
+
+  bool get selectedProjectLooksBusiness {
+    final title = selectedProject?.title.toLowerCase() ?? '';
+    final modelDescription =
+        selectedProjectModel?.description?.toLowerCase() ?? '';
+    final text = '$title $modelDescription';
+
+    return text.contains('business') ||
+        text.contains('store') ||
+        text.contains('shop') ||
+        text.contains('brand') ||
+        text.contains('sell') ||
+        text.contains('selling') ||
+        text.contains('online');
+  }
+
+  List<String> chatSuggestions() {
+    final baseSuggestions = <String>[
+      'What should I do first?',
+      'Explain this task',
+      'Break it down',
+      'I’m stuck',
+      'What is team workload?',
+      'Why is this project risky?',
+    ];
+
+    if (selectedProjectLooksBusiness) {
+      return <String>[
+        'What should I sell first?',
+        'How do I find suppliers?',
+        'How should I price it?',
+        'What should I post first?',
+        ...baseSuggestions.take(4),
+      ];
+    }
+
+    return baseSuggestions;
+  }
+
+  Future<void> sendSuggestion(String suggestion) async {
+    if (isSending) {
+      return;
+    }
+
+    messageController.text = suggestion;
+    await sendMessage();
+  }
+
   Color mutedColor(BuildContext context) {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
