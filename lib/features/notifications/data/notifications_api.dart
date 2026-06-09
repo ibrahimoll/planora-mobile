@@ -1,6 +1,6 @@
 import '../../../core/network/api_client.dart';
 
-enum NotificationRouteKind { project, task, team, ai, risk, none }
+enum NotificationRouteKind { task, project, team, detail, missingIds }
 
 class NotificationNavigationTarget {
   final NotificationRouteKind kind;
@@ -14,105 +14,192 @@ class NotificationNavigationTarget {
     this.taskId,
     this.teamId,
   });
-
-  factory NotificationNavigationTarget.none() {
-    return const NotificationNavigationTarget(kind: NotificationRouteKind.none);
-  }
 }
 
 class NotificationModel {
   final int notificationId;
+  final int? userId;
   final String title;
   final String message;
   final bool isRead;
   final String type;
   final DateTime? createdAt;
-  final NotificationNavigationTarget navigationTarget;
+  final int? projectId;
+  final int? taskId;
+  final int? teamId;
 
   const NotificationModel({
     required this.notificationId,
+    this.userId,
     required this.title,
     required this.message,
     required this.isRead,
     required this.type,
     required this.createdAt,
-    required this.navigationTarget,
+    this.projectId,
+    this.taskId,
+    this.teamId,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    final type = (json['type'] ?? 'system').toString();
-
     return NotificationModel(
       notificationId: _asInt(
-        json['notification_id'] ?? json['id'] ?? json['notificationId'] ?? 0,
+        json['notification_id'] ?? json['notificationId'] ?? json['id'] ?? 0,
       ),
+      userId: _nullableInt(json['user_id'] ?? json['userId']),
       title: (json['title'] ?? 'Notification').toString(),
       message: (json['message'] ?? '').toString(),
       isRead: _asBool(json['is_read'] ?? json['isRead'] ?? false),
-      type: type,
+      type: (json['type'] ?? 'system').toString(),
       createdAt: _asDateTime(json['created_at'] ?? json['createdAt']),
-      navigationTarget: _navigationTargetFromJson(json, type),
+      projectId: _nullableInt(json['project_id'] ?? json['projectId']),
+      taskId: _nullableInt(json['task_id'] ?? json['taskId']),
+      teamId: _nullableInt(json['team_id'] ?? json['teamId']),
     );
   }
 
-  NotificationModel copyWith({
-    int? notificationId,
-    String? title,
-    String? message,
-    bool? isRead,
-    String? type,
-    DateTime? createdAt,
-    NotificationNavigationTarget? navigationTarget,
-  }) {
-    return NotificationModel(
-      notificationId: notificationId ?? this.notificationId,
-      title: title ?? this.title,
-      message: message ?? this.message,
-      isRead: isRead ?? this.isRead,
-      type: type ?? this.type,
-      createdAt: createdAt ?? this.createdAt,
-      navigationTarget: navigationTarget ?? this.navigationTarget,
-    );
-  }
-
-  static NotificationNavigationTarget _navigationTargetFromJson(
-    Map<String, dynamic> json,
-    String type,
-  ) {
-    final projectId = _nullableInt(json['project_id'] ?? json['projectId']);
-    final taskId = _nullableInt(json['task_id'] ?? json['taskId']);
-    final teamId = _nullableInt(json['team_id'] ?? json['teamId']);
-
+  NotificationNavigationTarget get navigationTarget {
     switch (type) {
-      case 'project':
-        return NotificationNavigationTarget(
-          kind: NotificationRouteKind.project,
-          projectId: projectId,
-        );
       case 'task':
+        if (projectId == null || taskId == null) {
+          return const NotificationNavigationTarget(
+            kind: NotificationRouteKind.missingIds,
+          );
+        }
+
         return NotificationNavigationTarget(
           kind: NotificationRouteKind.task,
           projectId: projectId,
           taskId: taskId,
         );
+
+      case 'project':
+      case 'ai':
+      case 'risk':
+      case 'deadline':
+        if (projectId == null) {
+          return const NotificationNavigationTarget(
+            kind: NotificationRouteKind.missingIds,
+          );
+        }
+
+        return NotificationNavigationTarget(
+          kind: NotificationRouteKind.project,
+          projectId: projectId,
+        );
+
       case 'team':
+      case 'invite':
+      case 'invitation':
         return NotificationNavigationTarget(
           kind: NotificationRouteKind.team,
           teamId: teamId,
         );
-      case 'ai':
-        return NotificationNavigationTarget(
-          kind: NotificationRouteKind.ai,
-          projectId: projectId,
-        );
-      case 'risk':
-        return NotificationNavigationTarget(
-          kind: NotificationRouteKind.risk,
-          projectId: projectId,
-        );
+
       default:
-        return NotificationNavigationTarget.none();
+        return const NotificationNavigationTarget(
+          kind: NotificationRouteKind.detail,
+        );
     }
+  }
+
+  String get typeLabel {
+    switch (type) {
+      case 'task':
+        return 'Task';
+      case 'project':
+        return 'Project';
+      case 'team':
+        return 'Team';
+      case 'invite':
+      case 'invitation':
+        return 'Invite';
+      case 'comment':
+        return 'Comment';
+      case 'mention':
+        return 'Mention';
+      case 'deadline':
+        return 'Deadline';
+      case 'ai':
+        return 'AI';
+      case 'risk':
+        return 'Risk';
+      case 'system':
+        return 'System';
+      default:
+        if (type.trim().isEmpty) {
+          return 'Notification';
+        }
+
+        final normalized = type.replaceAll('_', ' ');
+        return normalized
+            .split(' ')
+            .where((part) => part.isNotEmpty)
+            .map((part) {
+              final lower = part.toLowerCase();
+              return '${lower[0].toUpperCase()}${lower.substring(1)}';
+            })
+            .join(' ');
+    }
+  }
+
+  String get createdLabel {
+    final value = createdAt;
+
+    if (value == null) {
+      return 'Just now';
+    }
+
+    final now = DateTime.now();
+    final difference = now.difference(value);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    }
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    }
+
+    if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    }
+
+    if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    }
+
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final year = value.year.toString();
+
+    return '$day/$month/$year';
+  }
+
+  NotificationModel copyWith({
+    int? notificationId,
+    int? userId,
+    String? title,
+    String? message,
+    bool? isRead,
+    String? type,
+    DateTime? createdAt,
+    int? projectId,
+    int? taskId,
+    int? teamId,
+  }) {
+    return NotificationModel(
+      notificationId: notificationId ?? this.notificationId,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      isRead: isRead ?? this.isRead,
+      type: type ?? this.type,
+      createdAt: createdAt ?? this.createdAt,
+      projectId: projectId ?? this.projectId,
+      taskId: taskId ?? this.taskId,
+      teamId: teamId ?? this.teamId,
+    );
   }
 
   static int _asInt(dynamic value) {
@@ -129,7 +216,8 @@ class NotificationModel {
   static bool _asBool(dynamic value) {
     if (value is bool) return value;
     if (value is num) return value != 0;
-    final text = value?.toString().toLowerCase();
+
+    final text = value?.toString().toLowerCase().trim();
     return text == 'true' || text == '1' || text == 'yes';
   }
 
@@ -158,12 +246,41 @@ class NotificationsApi {
     return notifications.where((notification) => !notification.isRead).length;
   }
 
-  Future<void> markAsRead(int notificationId) async {
-    await ApiClient.patch('/notifications/$notificationId/read');
+  Future<NotificationModel> markAsRead(int notificationId) async {
+    final response = await ApiClient.patchJson(
+      '/notifications/$notificationId/read',
+    );
+
+    if (response is Map) {
+      final map = Map<String, dynamic>.from(response);
+
+      final notificationData = map['notification'];
+      if (notificationData is Map) {
+        return NotificationModel.fromJson(
+          Map<String, dynamic>.from(notificationData),
+        );
+      }
+
+      final data = map['data'];
+      if (data is Map) {
+        return NotificationModel.fromJson(Map<String, dynamic>.from(data));
+      }
+
+      return NotificationModel.fromJson(map);
+    }
+
+    return NotificationModel(
+      notificationId: notificationId,
+      title: 'Notification',
+      message: '',
+      isRead: true,
+      type: 'system',
+      createdAt: null,
+    );
   }
 
   Future<void> markAllAsRead() async {
-    await ApiClient.patch('/notifications/read-all');
+    await ApiClient.patchJson('/notifications/read-all');
   }
 
   List<NotificationModel> _parseNotificationList(dynamic response) {
@@ -178,7 +295,9 @@ class NotificationsApi {
   }
 
   List<dynamic> _extractList(dynamic response) {
-    if (response is List) return response;
+    if (response is List) {
+      return response;
+    }
 
     if (response is Map) {
       final data = response['data'];
