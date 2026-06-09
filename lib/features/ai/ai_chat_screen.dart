@@ -334,7 +334,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return AiChatMessageModel.localAssistant(
       projectId: project?.projectId,
       message:
-          'Hi, I am Planora AI. Ask me what to do next, how to improve this plan, why it is risky, or how to break work into smaller tasks.',
+          'Hi, I’m Planora AI. Ask me to explain tasks, break work into smaller steps, help when you’re stuck, or suggest what to do next.',
     );
   }
 
@@ -763,22 +763,30 @@ class _AiChatScreenState extends State<AiChatScreen> {
     }
 
     if (messages.isEmpty) {
-      return buildStateCard(
-        context,
-        icon: Icons.chat_bubble_outline_rounded,
-        title: 'Start a planning chat',
-        message:
-            'Try "What should I do next?", "Rebuild my schedule", or "Break this milestone into smaller tasks."',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildChatIntroCard(context),
+          const SizedBox(height: 14),
+          buildSuggestionChips(context),
+        ],
       );
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final message in messages) ...[
-          buildMessageBubble(context, message),
+        buildSuggestionChips(context),
+        const SizedBox(height: 14),
+        for (var index = 0; index < messages.length; index++) ...[
+          buildMessageBubble(context, messages[index], index: index),
           const SizedBox(height: 10),
         ],
         if (errorMessage != null) buildInlineError(context, errorMessage!),
+        if (isSending) ...[
+          const SizedBox(height: 8),
+          buildTypingIndicator(context),
+        ],
       ],
     );
   }
@@ -835,43 +843,171 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  Widget buildMessageBubble(BuildContext context, AiChatMessageModel message) {
-    final isAssistant = message.isAssistant;
-    final primary = Theme.of(context).colorScheme.primary;
+  Widget buildChatIntroCard(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
 
-    return Align(
-      alignment: isAssistant ? Alignment.centerLeft : Alignment.centerRight,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 330),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isAssistant
-                ? isDark
-                      ? PlanoraTheme.darkSurface
-                      : PlanoraTheme.surface
-                : primary,
-            borderRadius: BorderRadius.circular(18),
-            border: isAssistant
-                ? Border.all(
-                    color: isDark
-                        ? PlanoraTheme.darkBorder
-                        : PlanoraTheme.border,
-                  )
-                : null,
-            boxShadow: PlanoraTheme.cardShadowFor(context),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: cardDecoration(context),
+      child: Column(
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              gradient: PlanoraTheme.primaryGradientFor(context),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: PlanoraTheme.floatingShadowFor(context),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
           ),
-          child: Text(
-            message.message,
+          const SizedBox(height: 14),
+          Text(
+            'Ask Planora anything about this project.',
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'I can explain tasks, break work into steps, help when you’re stuck, and suggest what to do next.',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isAssistant ? null : Colors.white,
+              color: isDark
+                  ? PlanoraTheme.darkTextMuted
+                  : PlanoraTheme.textSecondary,
               height: 1.45,
               fontWeight: FontWeight.w600,
             ),
           ),
-        ),
+        ],
       ),
+    );
+  }
+
+  Widget buildSuggestionChips(BuildContext context) {
+    final suggestions = chatSuggestions();
+    final primary = Theme.of(context).colorScheme.primary;
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: suggestions.map((suggestion) {
+        return ActionChip(
+          onPressed: isSending ? null : () => sendSuggestion(suggestion),
+          label: Text(suggestion),
+          avatar: Icon(Icons.auto_awesome_rounded, size: 16, color: primary),
+          backgroundColor: isDark
+              ? primary.withValues(alpha: 0.14)
+              : primary.withValues(alpha: 0.08),
+          side: BorderSide(color: primary.withValues(alpha: 0.18)),
+          labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: isDark ? PlanoraTheme.darkTextPrimary : primary,
+            fontWeight: FontWeight.w800,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget buildMessageBubble(
+    BuildContext context,
+    AiChatMessageModel message, {
+    int index = 0,
+  }) {
+    final isAssistant = message.isAssistant;
+    final isDark = PlanoraTheme.isDark(context);
+    final bubbleText = cleanChatText(message.message);
+
+    final bubble = Align(
+      alignment: isAssistant ? Alignment.centerLeft : Alignment.centerRight,
+      child: Row(
+        mainAxisAlignment: isAssistant
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (isAssistant) ...[
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                gradient: PlanoraTheme.primaryGradientFor(context),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: PlanoraTheme.cardShadowFor(context),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 330),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 15,
+                  vertical: 13,
+                ),
+                decoration: BoxDecoration(
+                  gradient: isAssistant
+                      ? null
+                      : PlanoraTheme.primaryGradientFor(context),
+                  color: isAssistant
+                      ? isDark
+                            ? PlanoraTheme.darkSurface
+                            : PlanoraTheme.surface
+                      : null,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(20),
+                    topRight: const Radius.circular(20),
+                    bottomLeft: Radius.circular(isAssistant ? 6 : 20),
+                    bottomRight: Radius.circular(isAssistant ? 20 : 6),
+                  ),
+                  border: isAssistant
+                      ? Border.all(
+                          color: isDark
+                              ? PlanoraTheme.darkBorder
+                              : PlanoraTheme.border,
+                        )
+                      : null,
+                  boxShadow: PlanoraTheme.cardShadowFor(context),
+                ),
+                child: Text(
+                  bubbleText,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isAssistant ? null : Colors.white,
+                    height: 1.45,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return _AnimatedChatMessageEntry(
+      key: ValueKey(
+        '${message.messageId}-${message.createdAt.toIso8601String()}',
+      ),
+      index: index,
+      isAssistant: isAssistant,
+      child: bubble,
     );
   }
 
@@ -1043,6 +1179,72 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AnimatedChatMessageEntry extends StatefulWidget {
+  final Widget child;
+  final int index;
+  final bool isAssistant;
+
+  const _AnimatedChatMessageEntry({
+    super.key,
+    required this.child,
+    required this.index,
+    required this.isAssistant,
+  });
+
+  @override
+  State<_AnimatedChatMessageEntry> createState() =>
+      _AnimatedChatMessageEntryState();
+}
+
+class _AnimatedChatMessageEntryState extends State<_AnimatedChatMessageEntry>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 220 + (widget.index % 4) * 35),
+    );
+
+    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+
+    _offset = Tween<Offset>(
+      begin: Offset(widget.isAssistant ? -0.05 : 0.05, 0.06),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _scale = Tween<double>(
+      begin: 0.98,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _offset,
+        child: ScaleTransition(scale: _scale, child: widget.child),
       ),
     );
   }
