@@ -10,5 +10,4 @@ class NotificationsApi {
     bool unreadOnly = false,
   }) async {
     try {
-      final response = await ApiClient.get(
-        '/notifications
+      final response = await
