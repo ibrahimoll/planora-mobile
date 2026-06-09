@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:mobile/core/notifications/push_notification_service.dart';
 import 'package:mobile/core/theme/planora_theme.dart';
 import 'package:mobile/features/auth/auth_gate.dart';
 import 'package:mobile/features/reset_password/reset_password_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  unawaited(PushNotificationService.instance.initialize());
   runApp(const PlanoraApp());
 }
 

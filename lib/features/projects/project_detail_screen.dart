@@ -7,35 +7,57 @@ import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
 import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
+import 'data/project_insights_api.dart';
 
 class ProjectDetailScreen extends StatefulWidget {
   final ProjectModel project;
+  final ProjectsApi projectsApi;
+  final TasksApi tasksApi;
+  final AiPlanApi aiPlanApi;
+  final ProjectInsightsApi insightsApi;
 
-  const ProjectDetailScreen({super.key, required this.project});
+  const ProjectDetailScreen({
+    super.key,
+    required this.project,
+    this.projectsApi = const ProjectsApi(),
+    this.tasksApi = const TasksApi(),
+    this.aiPlanApi = const AiPlanApi(),
+    this.insightsApi = const ProjectInsightsApi(),
+  });
 
   @override
   State<ProjectDetailScreen> createState() => _ProjectDetailScreenState();
 }
 
 class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
-  final ProjectsApi _projectsApi = const ProjectsApi();
-  final TasksApi _tasksApi = const TasksApi();
-  final AiPlanApi _aiPlanApi = const AiPlanApi();
+  late final ProjectsApi _projectsApi;
+  late final TasksApi _tasksApi;
+  late final AiPlanApi _aiPlanApi;
+  late final ProjectInsightsApi _insightsApi;
 
   late ProjectModel project = widget.project;
   bool isLoadingProject = false;
   bool isLoadingMembers = false;
   bool isLoadingTasks = false;
+  bool isLoadingRisk = false;
+  bool isPreviewingSchedule = false;
+  bool isApplyingSchedule = false;
   bool isGeneratingAiPlan = false;
   String? errorMessage;
   String? membersErrorMessage;
   String? tasksErrorMessage;
+  String? riskErrorMessage;
   List<ProjectMemberModel> members = [];
   List<TaskListItem> projectTasks = [];
+  RiskAnalysisPreviewModel? riskPreview;
 
   @override
   void initState() {
     super.initState();
+    _projectsApi = widget.projectsApi;
+    _tasksApi = widget.tasksApi;
+    _aiPlanApi = widget.aiPlanApi;
+    _insightsApi = widget.insightsApi;
     loadProjectDetails();
   }
 
@@ -44,9 +66,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       isLoadingProject = true;
       isLoadingMembers = project.isTeamProject;
       isLoadingTasks = true;
+      isLoadingRisk = true;
       errorMessage = null;
       membersErrorMessage = null;
       tasksErrorMessage = null;
+      riskErrorMessage = null;
     });
 
     try {
@@ -62,6 +86,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       await Future.wait([
         loadProjectMembers(loadedProject),
         loadProjectTasks(loadedProject),
+        loadRiskPreview(loadedProject),
       ]);
     } catch (error, stackTrace) {
       debugPrint('Project detail load failed: $error');
@@ -73,11 +98,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         isLoadingProject = false;
         isLoadingMembers = false;
         isLoadingTasks = false;
+        isLoadingRisk = false;
         errorMessage = 'Could not refresh project details.';
         membersErrorMessage = project.isTeamProject
             ? 'Could not load project members.'
             : null;
         tasksErrorMessage = 'Could not load project tasks.';
+        riskErrorMessage =
+            'Risk analysis will appear after enough project activity.';
       });
     }
   }
@@ -157,6 +185,38 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
+  Future<void> loadRiskPreview([ProjectModel? source]) async {
+    final targetProject = source ?? project;
+
+    setState(() {
+      isLoadingRisk = true;
+      riskErrorMessage = null;
+    });
+
+    try {
+      final preview = await _insightsApi.previewRisk(targetProject.projectId);
+
+      if (!mounted) return;
+
+      setState(() {
+        riskPreview = preview;
+        isLoadingRisk = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Risk preview load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        riskPreview = null;
+        isLoadingRisk = false;
+        riskErrorMessage =
+            'Risk analysis will appear after enough project activity.';
+      });
+    }
+  }
+
   Color mutedColor(BuildContext context) {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
@@ -216,6 +276,45 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   int get completedTaskCount {
     return projectTasks.where((item) => item.task.isCompleted).length;
+  }
+
+  int get totalTaskCount {
+    return projectTasks.length;
+  }
+
+  int get remainingTaskCount {
+    return projectTasks.where((item) => !item.task.isCompleted).length;
+  }
+
+  int get overdueTaskCount {
+    return projectTasks.where((item) => item.task.isOverdue).length;
+  }
+
+  int get blockedTaskCount {
+    return projectTasks.where((item) => item.task.isBlocked).length;
+  }
+
+  TaskListItem? get nextDueTask {
+    final openTasks =
+        projectTasks
+            .where(
+              (item) => !item.task.isCompleted && item.task.dueDate != null,
+            )
+            .toList()
+          ..sort(compareTaskItemsByDueDate);
+
+    if (openTasks.isEmpty) {
+      return null;
+    }
+
+    return openTasks.first;
+  }
+
+  Map<TaskStatus, int> get taskStatusCounts {
+    return {
+      for (final status in TaskStatus.values)
+        status: projectTasks.where((item) => item.task.status == status).length,
+    };
   }
 
   String get formattedDeadline {
@@ -429,6 +528,367 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
+  Widget buildProgressControlCard(BuildContext context) {
+    final percentage = (progress * 100).round();
+
+    return buildSectionCard(
+      context,
+      title: 'Project Control Center',
+      icon: Icons.speed_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: buildMetricTile(
+                  context,
+                  label: 'Progress',
+                  value: '$percentage%',
+                  color: statusColor(context),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: buildMetricTile(
+                  context,
+                  label: 'Remaining',
+                  value: '$remainingTaskCount',
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: buildMetricTile(
+                  context,
+                  label: 'Completed',
+                  value: '$completedTaskCount',
+                  color: PlanoraTheme.success,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: buildMetricTile(
+                  context,
+                  label: 'Overdue',
+                  value: '$overdueTaskCount',
+                  color: overdueTaskCount == 0
+                      ? PlanoraTheme.info
+                      : PlanoraTheme.error,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildMetricTile(
+    BuildContext context, {
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildNextDueCard(BuildContext context) {
+    final taskItem = nextDueTask;
+
+    return buildSectionCard(
+      context,
+      title: 'Next Deadline',
+      icon: Icons.event_note_rounded,
+      child: taskItem == null
+          ? buildInlineMessage(
+              context,
+              icon: Icons.event_available_rounded,
+              message: 'No upcoming task deadlines found.',
+            )
+          : buildTaskRow(context, taskItem),
+    );
+  }
+
+  Widget buildRiskAndRecommendationCard(BuildContext context) {
+    final preview = riskPreview;
+
+    if (isLoadingRisk) {
+      return buildSectionCard(
+        context,
+        title: 'Risk and Recommendations',
+        icon: Icons.warning_amber_rounded,
+        child: const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    if (preview == null) {
+      return buildSectionCard(
+        context,
+        title: 'Risk and Recommendations',
+        icon: Icons.warning_amber_rounded,
+        child: buildInlineMessage(
+          context,
+          icon: Icons.insights_rounded,
+          message:
+              riskErrorMessage ??
+              'Risk analysis will appear after enough project activity.',
+        ),
+      );
+    }
+
+    final riskColor = switch (preview.riskLevel) {
+      'high' => PlanoraTheme.error,
+      'medium' => PlanoraTheme.warning,
+      'low' => PlanoraTheme.success,
+      _ => Theme.of(context).colorScheme.primary,
+    };
+
+    return buildSectionCard(
+      context,
+      title: 'Risk and Recommendations',
+      icon: Icons.warning_amber_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: riskColor.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.shield_outlined, color: riskColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${preview.riskLevel.toUpperCase()} risk',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: riskColor,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${preview.predictedDelayDays}d delay',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: riskColor,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (preview.reason.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              preview.reason,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: mutedColor(context),
+                height: 1.45,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          if (preview.recommendation.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      preview.recommendation,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: mutedColor(context),
+                        height: 1.45,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget buildStatusBreakdownCard(BuildContext context) {
+    return buildSectionCard(
+      context,
+      title: 'Task Status Breakdown',
+      icon: Icons.donut_large_rounded,
+      child: Column(
+        children: [
+          for (final entry in taskStatusCounts.entries) ...[
+            buildBreakdownRow(
+              context,
+              label: entry.key.label,
+              count: entry.value,
+              total: totalTaskCount,
+              color: taskStatusColor(entry.key),
+            ),
+            if (entry.key != TaskStatus.values.last) const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget buildBreakdownRow(
+    BuildContext context, {
+    required String label,
+    required int count,
+    required int total,
+    required Color color,
+  }) {
+    final ratio = total == 0 ? 0.0 : count / total;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            Text(
+              '$count',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 7,
+            color: color,
+            backgroundColor: color.withValues(alpha: 0.12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color taskStatusColor(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.todo:
+        return PlanoraTheme.info;
+      case TaskStatus.inProgress:
+        return Theme.of(context).colorScheme.primary;
+      case TaskStatus.completed:
+        return PlanoraTheme.success;
+      case TaskStatus.blocked:
+        return PlanoraTheme.warning;
+    }
+  }
+
+  Widget buildMilestonesCard(BuildContext context) {
+    final sections = <String, int>{};
+
+    for (final item in projectTasks) {
+      final section = item.task.sectionName?.trim();
+
+      if (section == null || section.isEmpty) {
+        continue;
+      }
+
+      sections[section] = (sections[section] ?? 0) + 1;
+    }
+
+    if (sections.isEmpty) {
+      return buildSectionCard(
+        context,
+        title: 'Timeline and Milestones',
+        icon: Icons.timeline_rounded,
+        child: buildInlineMessage(
+          context,
+          icon: Icons.timeline_rounded,
+          message: 'Milestones will appear when task sections are available.',
+        ),
+      );
+    }
+
+    return buildSectionCard(
+      context,
+      title: 'Timeline and Milestones',
+      icon: Icons.timeline_rounded,
+      child: Column(
+        children: [
+          for (final entry in sections.entries) ...[
+            buildDetailRow(context, entry.key, '${entry.value} tasks'),
+            if (entry.key != sections.keys.last) const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget buildAiPlanCard(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -484,12 +944,275 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               label: Text(
                 isGeneratingAiPlan
                     ? 'Generating Plan...'
-                    : 'Improve Plan with AI',
+                    : 'Ask AI to improve this plan',
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: isPreviewingSchedule ? null : previewSmartSchedule,
+              icon: isPreviewingSchedule
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    )
+                  : const Icon(Icons.calendar_month_rounded),
+              label: Text(
+                isPreviewingSchedule
+                    ? 'Checking Schedule...'
+                    : 'Reschedule remaining tasks',
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> previewSmartSchedule() async {
+    setState(() {
+      isPreviewingSchedule = true;
+    });
+
+    try {
+      final preview = await _insightsApi.previewSmartSchedule(project: project);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isPreviewingSchedule = false;
+      });
+
+      await showSmartSchedulePreviewSheet(preview);
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isPreviewingSchedule = false;
+      });
+      showMessage(error.message);
+    } catch (error, stackTrace) {
+      debugPrint('Smart schedule preview failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isPreviewingSchedule = false;
+      });
+      showMessage('Could not preview a new schedule.');
+    }
+  }
+
+  Future<void> showSmartSchedulePreviewSheet(
+    SmartSchedulePreviewModel preview,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final isDark = PlanoraTheme.isDark(sheetContext);
+            final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+
+            Future<void> applySchedule() async {
+              setSheetState(() {
+                isApplyingSchedule = true;
+              });
+
+              try {
+                await _insightsApi.applySmartSchedule(project: project);
+
+                if (!mounted || !sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(sheetContext).pop();
+                await loadProjectTasks(project);
+                showMessage('Schedule updated.');
+              } on ApiException catch (error) {
+                if (!mounted) {
+                  return;
+                }
+
+                showMessage(error.message);
+              } catch (error, stackTrace) {
+                debugPrint('Smart schedule apply failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+
+                if (!mounted) {
+                  return;
+                }
+
+                showMessage('Could not apply the schedule.');
+              } finally {
+                if (sheetContext.mounted) {
+                  setSheetState(() {
+                    isApplyingSchedule = false;
+                  });
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.86,
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+                decoration: BoxDecoration(
+                  color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
+                  ),
+                  boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? PlanoraTheme.darkBorder
+                                : PlanoraTheme.border,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_month_rounded,
+                            color: Theme.of(sheetContext).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Smart Schedule Preview',
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      buildDetailRow(
+                        sheetContext,
+                        'Schedulable',
+                        '${preview.schedulableTaskCount} of ${preview.totalTasks} tasks',
+                      ),
+                      const SizedBox(height: 10),
+                      buildDetailRow(
+                        sheetContext,
+                        'Estimated hours',
+                        preview.estimatedTotalHours.toStringAsFixed(1),
+                      ),
+                      if (preview.warnings.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        for (final warning in preview.warnings)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: buildInlineMessage(
+                              sheetContext,
+                              icon: Icons.info_outline_rounded,
+                              message: warning,
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 14),
+                      for (final item in preview.tasks.take(8)) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              sheetContext,
+                            ).colorScheme.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Suggested: ${formatShortDate(item.suggestedDueDate)}',
+                                style: Theme.of(sheetContext)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: item.isAfterProjectDeadline
+                                          ? PlanoraTheme.error
+                                          : mutedColor(sheetContext),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: isApplyingSchedule ? null : applySchedule,
+                          icon: isApplyingSchedule
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.check_rounded),
+                          label: Text(
+                            isApplyingSchedule
+                                ? 'Applying...'
+                                : 'Apply schedule',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1381,6 +2104,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     ],
                     buildHeroCard(context),
                     const SizedBox(height: 16),
+                    buildProgressControlCard(context),
+                    const SizedBox(height: 16),
+                    buildNextDueCard(context),
+                    const SizedBox(height: 16),
+                    buildRiskAndRecommendationCard(context),
+                    const SizedBox(height: 16),
+                    buildStatusBreakdownCard(context),
+                    const SizedBox(height: 16),
                     buildDescriptionCard(context),
                     const SizedBox(height: 16),
                     buildScheduleCard(context),
@@ -1388,6 +2119,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     buildAiPlanCard(context),
                     const SizedBox(height: 16),
                     buildTasksCard(context),
+                    const SizedBox(height: 16),
+                    buildMilestonesCard(context),
                     const SizedBox(height: 16),
                     buildMembersCard(context),
                   ],

@@ -1,35 +1,54 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
 import 'data/teams_api.dart';
 
 class TeamsScreen extends StatefulWidget {
-  const TeamsScreen({super.key});
+  final TeamsApi teamsApi;
+  final ProjectsApi projectsApi;
+  final TasksApi tasksApi;
+
+  const TeamsScreen({
+    super.key,
+    this.teamsApi = const TeamsApi(),
+    this.projectsApi = const ProjectsApi(),
+    this.tasksApi = const TasksApi(),
+  });
 
   @override
   State<TeamsScreen> createState() => _TeamsScreenState();
 }
 
 class _TeamsScreenState extends State<TeamsScreen> {
-  final TeamsApi _teamsApi = const TeamsApi();
+  late final TeamsApi _teamsApi;
+  late final ProjectsApi _projectsApi;
+  late final TasksApi _tasksApi;
   final TextEditingController _teamNameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
 
   bool isLoading = true;
   bool isCreatingTeam = false;
   bool isInviting = false;
+  bool isLoadingWorkload = false;
   int? updatingInvitationId;
   String? errorMessage;
+  String? workloadMessage;
   List<TeamModel> teams = [];
   List<TeamInvitationModel> invitations = [];
   List<TeamMemberModel> members = [];
+  Map<int, TeamMemberWorkload> workloadByUserId = {};
   TeamModel? selectedTeam;
 
   @override
   void initState() {
     super.initState();
+    _teamsApi = widget.teamsApi;
+    _projectsApi = widget.projectsApi;
+    _tasksApi = widget.tasksApi;
     loadTeams();
   }
 
@@ -44,6 +63,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     setState(() {
       isLoading = true;
       errorMessage = null;
+      workloadMessage = null;
     });
 
     try {
@@ -60,6 +80,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
       final loadedMembers = nextSelectedTeam == null
           ? <TeamMemberModel>[]
           : await _teamsApi.getTeamMembers(nextSelectedTeam.teamId);
+      final loadedWorkload = nextSelectedTeam == null
+          ? <int, TeamMemberWorkload>{}
+          : await loadTeamWorkloadData(nextSelectedTeam);
 
       if (!mounted) {
         return;
@@ -72,6 +95,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
             .toList();
         selectedTeam = nextSelectedTeam;
         members = loadedMembers;
+        workloadByUserId = loadedWorkload;
         isLoading = false;
       });
     } catch (error, stackTrace) {
@@ -85,6 +109,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       setState(() {
         isLoading = false;
         errorMessage = 'Could not load teams and invitations.';
+        workloadByUserId = {};
       });
     }
   }
@@ -93,10 +118,14 @@ class _TeamsScreenState extends State<TeamsScreen> {
     setState(() {
       selectedTeam = team;
       members = [];
+      workloadByUserId = {};
+      workloadMessage = null;
+      isLoadingWorkload = true;
     });
 
     try {
       final loadedMembers = await _teamsApi.getTeamMembers(team.teamId);
+      final loadedWorkload = await loadTeamWorkloadData(team);
 
       if (!mounted) {
         return;
@@ -104,6 +133,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
       setState(() {
         members = loadedMembers;
+        workloadByUserId = loadedWorkload;
+        isLoadingWorkload = false;
       });
     } catch (error, stackTrace) {
       debugPrint('Team members load failed: $error');
@@ -113,9 +144,53 @@ class _TeamsScreenState extends State<TeamsScreen> {
         return;
       }
 
+      setState(() {
+        isLoadingWorkload = false;
+        workloadMessage = 'Could not load team workload.';
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not load team members.')),
       );
+    }
+  }
+
+  Future<Map<int, TeamMemberWorkload>> loadTeamWorkloadData(
+    TeamModel team,
+  ) async {
+    try {
+      final teamProjects = await _projectsApi.getTeamProjects(team.teamId);
+      final workloads = <int, TeamMemberWorkload>{};
+
+      for (final project in teamProjects) {
+        final tasks = await _tasksApi.getProjectTasks(
+          project: TaskProjectSummary.fromProject(project),
+        );
+
+        for (final item in tasks) {
+          final userId = item.task.assignedTo;
+
+          if (userId == null) {
+            continue;
+          }
+
+          final current = workloads[userId] ?? const TeamMemberWorkload();
+          workloads[userId] = current.addTask(item.task);
+        }
+      }
+
+      return workloads;
+    } catch (error, stackTrace) {
+      debugPrint('Team workload load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (mounted) {
+        setState(() {
+          workloadMessage = 'Could not load team workload.';
+        });
+      }
+
+      return {};
     }
   }
 
@@ -523,6 +598,25 @@ class _TeamsScreenState extends State<TeamsScreen> {
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
+          if (isLoadingWorkload)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          if (workloadMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                workloadMessage!,
+                style: TextStyle(
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           if (members.isEmpty)
             Text(
               'No team members returned yet.',
@@ -532,13 +626,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               ),
             )
           else
-            for (final member in members)
-              _buildMemberRow(
-                context,
-                initials: member.initials,
-                title: member.displayName,
-                subtitle: member.roleLabel,
-              ),
+            for (final member in members) _buildMemberRow(context, member),
         ],
       ),
     );
@@ -596,7 +684,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Role: ${invitation.role} • ${formatShortDate(invitation.createdAt)}',
+            'Role: ${invitation.role} - ${formatShortDate(invitation.createdAt)}',
             style: TextStyle(
               color: mutedColor(context),
               fontWeight: FontWeight.w700,
@@ -635,50 +723,134 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
   }
 
-  Widget _buildMemberRow(
-    BuildContext context, {
-    required String initials,
-    required String title,
-    required String subtitle,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+  Widget _buildMemberRow(BuildContext context, TeamMemberModel member) {
+    final workload =
+        workloadByUserId[member.userId] ?? const TeamMemberWorkload();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
         children: [
-          CircleAvatar(
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.12),
-            child: Text(
-              initials,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.12),
+                child: Text(
+                  member.initials,
                   style: TextStyle(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-              ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      member.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildRoleBadge(context, member.roleLabel),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _buildWorkloadPill(
+                  context,
+                  label: 'Assigned',
+                  value: workload.assignedTaskCount,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildWorkloadPill(
+                  context,
+                  label: 'Done',
+                  value: workload.completedTaskCount,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildWorkloadPill(
+                  context,
+                  label: 'Overdue',
+                  value: workload.overdueTaskCount,
+                  accent: workload.overdueTaskCount == 0
+                      ? null
+                      : PlanoraTheme.error,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleBadge(BuildContext context, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkloadPill(
+    BuildContext context, {
+    required String label,
+    required int value,
+    Color? accent,
+  }) {
+    final color = accent ?? mutedColor(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -754,6 +926,26 @@ class _TeamsScreenState extends State<TeamsScreen> {
         color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
       ),
       boxShadow: PlanoraTheme.cardShadowFor(context),
+    );
+  }
+}
+
+class TeamMemberWorkload {
+  final int assignedTaskCount;
+  final int completedTaskCount;
+  final int overdueTaskCount;
+
+  const TeamMemberWorkload({
+    this.assignedTaskCount = 0,
+    this.completedTaskCount = 0,
+    this.overdueTaskCount = 0,
+  });
+
+  TeamMemberWorkload addTask(TaskModel task) {
+    return TeamMemberWorkload(
+      assignedTaskCount: assignedTaskCount + 1,
+      completedTaskCount: completedTaskCount + (task.isCompleted ? 1 : 0),
+      overdueTaskCount: overdueTaskCount + (task.isOverdue ? 1 : 0),
     );
   }
 }

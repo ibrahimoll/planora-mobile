@@ -4,6 +4,10 @@ import '../../auth/models/project_models.dart';
 class AiPlanApi {
   const AiPlanApi();
 
+  // TODO: Switch the idea-first mobile wizard to true preview/accept endpoints
+  // when the backend exposes them, for example POST /ai-plans/preview-from-idea
+  // and POST /ai-plans/accept-preview. The current backend contract generates
+  // tasks on an already-created project.
   String _path(ProjectModel project) {
     if (project.isTeamProject && project.teamId != null) {
       return '/teams/${project.teamId}/projects/${project.projectId}/ai-plan/generate';

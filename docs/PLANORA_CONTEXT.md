@@ -1,6 +1,6 @@
 # Planora Mobile Context
 
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## Repository
 
@@ -8,6 +8,31 @@ Last updated: 2026-06-08
 - Framework: Flutter
 - Main entry file: `lib/main.dart`
 - Current start screen: `OnboardingScreen`
+
+## Latest Mobile Upgrade State - 2026-06-09
+
+- AI project generation now ends on an explicit `AI Plan Preview` view with generated task cards, deadline, task count, `Accept plan`, `Regenerate`, and `Edit manually` actions. The backend still saves the project/tasks during generation because no true preview/accept endpoints exist yet; the API-layer TODO documents the future endpoint contract.
+- The AI planning prompt and example now steer generic business ideas such as a clothing business toward practical tasks like suppliers, budget, collection planning, online store/social content, launch, delivery, and operations instead of unrealistic physical-asset tasks.
+- Project Details now behaves more like a project control center: progress percentage, completed/remaining/overdue counts, next deadline, task status breakdown, timeline/section fallback, risk preview, and recommendation card are shown from real task data and backend risk endpoints when available.
+- Project Details includes `Ask AI to improve this plan` and `Reschedule remaining tasks`. Smart scheduling opens a backend preview first, then can apply the schedule and reload project tasks.
+- Notifications now parse future-compatible `project_id`, `task_id`, `team_id`, and nested `data` fields. Tapping task/project/risk/comment/team notifications navigates to the related screen when IDs exist; missing IDs fall back to a safe message or detail sheet.
+- Push notification support is a safe foundation only. Firebase Messaging is not configured in the mobile repo, so startup does not crash or create fake tokens. `PushNotificationService` documents the later Firebase setup and can register a real token with `/push-notifications/device-tokens` once one exists.
+- Teams now show member cards with role badges and workload counts from real team project tasks: assigned, completed, and overdue. Missing assignment data remains zero rather than fake.
+- Reports now has portfolio insights above the backend project report: total/active/completed projects, total/completed/overdue tasks, completion summary, status breakdown, selected project report, and export snapshot action.
+- A small cache layer stores last loaded projects, tasks, and notifications using existing secure storage. Tasks can show cached content with `Could not connect. Showing last saved data.` and retry controls when API loading fails.
+- Demo metadata now says Planora instead of Flutter defaults in pubspec, Android label, iOS display name, and web metadata.
+
+## Demo QA Checklist
+
+- Login with a valid verified user and confirm no fallback session appears.
+- Create an AI plan from an idea such as `start a clothing business`.
+- Review generated tasks on the AI Plan Preview screen, then accept the plan.
+- Open Project Details and verify progress, task counts, next deadline, risk/recommendation, and status breakdown.
+- Create a task under the selected project and confirm it remains project-scoped.
+- Open a notification with related IDs and confirm it deep-links to the task, project, or team screen.
+- View Teams and confirm role badges plus assigned/completed/overdue workload counts.
+- View Reports and confirm portfolio insights plus selected project report/export history.
+- Simulate a failed task load after cached data exists and confirm cached data plus retry messaging appears.
 
 ## Latest Mobile State - 2026-06-08
 

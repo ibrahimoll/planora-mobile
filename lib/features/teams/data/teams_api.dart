@@ -122,6 +122,8 @@ class TeamMemberModel {
     switch (role) {
       case 'admin':
         return 'Admin';
+      case 'owner':
+        return 'Owner';
       case 'member':
         return 'Member';
       default:

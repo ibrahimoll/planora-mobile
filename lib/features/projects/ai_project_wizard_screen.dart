@@ -11,25 +11,348 @@ import 'project_detail_screen.dart';
 
 class AiProjectWizardScreen extends StatefulWidget {
   final VoidCallback? onPlanCreated;
+  final ProjectsApi projectsApi;
+  final AiPlanApi aiPlanApi;
 
-  const AiProjectWizardScreen({super.key, this.onPlanCreated});
+  const AiProjectWizardScreen({
+    super.key,
+    this.onPlanCreated,
+    this.projectsApi = const ProjectsApi(),
+    this.aiPlanApi = const AiPlanApi(),
+  });
 
   @override
   State<AiProjectWizardScreen> createState() => _AiProjectWizardScreenState();
 }
 
+class AiPlanPreviewContent extends StatelessWidget {
+  final ProjectModel project;
+  final AiPlanGenerateResponse plan;
+  final VoidCallback onAccept;
+  final VoidCallback onRegenerate;
+  final VoidCallback onEditManually;
+
+  const AiPlanPreviewContent({
+    super.key,
+    required this.project,
+    required this.plan,
+    required this.onAccept,
+    required this.onRegenerate,
+    required this.onEditManually,
+  });
+
+  Color _mutedColor(BuildContext context) {
+    return PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkTextMuted
+        : PlanoraTheme.textSecondary;
+  }
+
+  BoxDecoration _cardDecoration(BuildContext context, {double radius = 22}) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return BoxDecoration(
+      color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+      ),
+      boxShadow: PlanoraTheme.cardShadowFor(context),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = plan.summary.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: _cardDecoration(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'AI Plan Preview',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                project.title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                summary.isEmpty
+                    ? 'Review the generated tasks before moving into the project.'
+                    : summary,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _mutedColor(context),
+                  height: 1.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _buildSummaryChip(
+                    context,
+                    icon: Icons.checklist_rounded,
+                    label: '${plan.tasksCreated} tasks',
+                  ),
+                  const SizedBox(width: 8),
+                  _buildSummaryChip(
+                    context,
+                    icon: Icons.calendar_today_rounded,
+                    label: _formatDate(project.deadline),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Generated tasks',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 10),
+        if (plan.tasks.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: _cardDecoration(context, radius: 18),
+            child: Text(
+              'No generated task details were returned by the API.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        else
+          for (final task in plan.tasks) ...[
+            _buildGeneratedTaskCard(context, task),
+            const SizedBox(height: 10),
+          ],
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: onAccept,
+            icon: const Icon(Icons.check_circle_rounded),
+            label: const Text('Accept plan'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onRegenerate,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Regenerate'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onEditManually,
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('Edit manually'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeneratedTaskCard(BuildContext context, AiGeneratedTask task) {
+    final priorityColor = switch (task.priority) {
+      'high' => Theme.of(context).colorScheme.primary,
+      'low' => PlanoraTheme.success,
+      _ => PlanoraTheme.info,
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDecoration(context, radius: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.radio_button_unchecked_rounded,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  task.title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: priorityColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  task.priority,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: priorityColor,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (task.description != null && task.description!.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 30),
+              child: Text(
+                task.description!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _mutedColor(context),
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.only(left: 30),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (task.estimatedHours != null)
+                  _buildTaskMetaChip(
+                    context,
+                    Icons.schedule_rounded,
+                    '${task.estimatedHours!.toStringAsFixed(task.estimatedHours! >= 10 ? 0 : 1)}h',
+                  ),
+                if (task.dueDate != null)
+                  _buildTaskMetaChip(
+                    context,
+                    Icons.calendar_today_rounded,
+                    _formatDate(task.dueDate!),
+                  ),
+                _buildTaskMetaChip(
+                  context,
+                  Icons.flag_rounded,
+                  task.status.replaceAll('_', ' '),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskMetaChip(BuildContext context, IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: _mutedColor(context).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: _mutedColor(context)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: _mutedColor(context),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
-  final ProjectsApi _projectsApi = const ProjectsApi();
-  final AiPlanApi _aiPlanApi = const AiPlanApi();
+  late final ProjectsApi _projectsApi;
+  late final AiPlanApi _aiPlanApi;
   final TextEditingController ideaController = TextEditingController();
   final TextEditingController requirementsController = TextEditingController();
 
   static const List<String> _generationMessages = [
-    'Understanding your idea…',
-    'Creating milestones…',
-    'Generating tasks…',
-    'Checking risks…',
-    'Finalizing your plan…',
+    'Understanding your idea...',
+    'Creating milestones...',
+    'Generating tasks...',
+    'Checking risks...',
+    'Finalizing your plan...',
   ];
 
   int currentStep = 0;
@@ -52,6 +375,8 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   @override
   void initState() {
     super.initState();
+    _projectsApi = widget.projectsApi;
+    _aiPlanApi = widget.aiPlanApi;
     loadTeams();
   }
 
@@ -214,8 +539,6 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     startGenerationLoadingSequence();
 
     try {
-      // TODO: Replace this staged create-then-generate flow when the backend
-      // adds POST /ai-plans/preview-from-idea and POST /ai-plans/accept-preview.
       final request = ProjectCreateRequest(
         title: deriveProjectTitle(idea),
         description: buildProjectDescription(),
@@ -263,6 +586,59 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         generationError = error is ApiException
             ? error.message
             : 'Could not generate this AI plan. Please try again.';
+      });
+      stopGenerationLoadingSequence();
+    }
+  }
+
+  Future<void> regenerateCreatedPlan() async {
+    final project = createdProject;
+
+    if (project == null) {
+      return;
+    }
+
+    setState(() {
+      isGeneratingPlan = true;
+      generationMessageIndex = 0;
+      generationError = null;
+    });
+    startGenerationLoadingSequence();
+
+    try {
+      final plan = await _aiPlanApi.generatePlan(
+        project: project,
+        prompt: buildAiPlanningPrompt(project.title),
+        generateTasks: true,
+        overwriteExistingTasks: true,
+        preferredTaskCount: preferredTaskCount,
+        includeMilestones: true,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        generatedPlan = plan;
+        isGeneratingPlan = false;
+      });
+      stopGenerationLoadingSequence();
+      widget.onPlanCreated?.call();
+      showMessage('Plan regenerated.');
+    } catch (error, stackTrace) {
+      debugPrint('AI project regeneration failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isGeneratingPlan = false;
+        generationError = error is ApiException
+            ? error.message
+            : 'Could not regenerate this plan. Please try again.';
       });
       stopGenerationLoadingSequence();
     }
@@ -427,7 +803,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   }
 
   Widget buildStepHeader(BuildContext context) {
-    final labels = ['Idea', 'Review', 'Plan'];
+    final labels = ['Idea', 'Context', 'Preview'];
 
     return Row(
       children: [
@@ -647,7 +1023,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     return InkWell(
       onTap: () {
         ideaController.text =
-            'I want to build a Flutter mobile app for my FYP with login, projects, tasks, teams, and AI planning.';
+            'I want to start a clothing business with a small first collection, online sales, social media marketing, and delivery planning.';
         setState(() {});
       },
       borderRadius: BorderRadius.circular(18),
@@ -674,7 +1050,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Example: I want to build a Flutter mobile app for my FYP with login, projects, tasks, teams, and AI planning.',
+                'Example: I want to start a clothing business with a small first collection, online sales, social media marketing, and delivery planning.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: isDark
                       ? PlanoraTheme.darkTextPrimary
@@ -1153,65 +1529,12 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        buildAiInputCard(
-          context,
-          title: project.title,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                plan.summary.isEmpty
-                    ? 'Plan generated with ${plan.tasksCreated} tasks.'
-                    : plan.summary,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor(context),
-                  height: 1.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  buildResultChip(
-                    context,
-                    icon: Icons.checklist_rounded,
-                    label: '${plan.tasksCreated} tasks',
-                  ),
-                  const SizedBox(width: 8),
-                  buildResultChip(
-                    context,
-                    icon: project.isTeamProject
-                        ? Icons.groups_2_rounded
-                        : Icons.person_rounded,
-                    label: project.projectTypeLabel,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          'Generated tasks',
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 10),
-        for (final task in plan.tasks) ...[
-          buildGeneratedTaskCard(context, task),
-          const SizedBox(height: 10),
-        ],
-        const SizedBox(height: 10),
-        ElevatedButton.icon(
-          onPressed: openCreatedProject,
-          icon: const Icon(Icons.folder_open_rounded),
-          label: const Text('Open Project'),
-        ),
-      ],
+    return AiPlanPreviewContent(
+      project: project,
+      plan: plan,
+      onAccept: openCreatedProject,
+      onRegenerate: regenerateCreatedPlan,
+      onEditManually: openCreatedProject,
     );
   }
 
@@ -1394,155 +1717,6 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget buildResultChip(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 7),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildGeneratedTaskCard(BuildContext context, AiGeneratedTask task) {
-    final priorityColor = switch (task.priority) {
-      'high' => Theme.of(context).colorScheme.primary,
-      'low' => PlanoraTheme.success,
-      _ => PlanoraTheme.info,
-    };
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(context, radius: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.radio_button_unchecked_rounded,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  task.title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                decoration: BoxDecoration(
-                  color: priorityColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  task.priority,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: priorityColor,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (task.description != null && task.description!.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 30),
-              child: Text(
-                task.description!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor(context),
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.only(left: 30),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (task.estimatedHours != null)
-                  buildTaskMetaChip(
-                    context,
-                    Icons.schedule_rounded,
-                    '${task.estimatedHours!.toStringAsFixed(task.estimatedHours! >= 10 ? 0 : 1)}h',
-                  ),
-                if (task.dueDate != null)
-                  buildTaskMetaChip(
-                    context,
-                    Icons.calendar_today_rounded,
-                    formatDate(task.dueDate!),
-                  ),
-                buildTaskMetaChip(
-                  context,
-                  Icons.flag_rounded,
-                  task.status.replaceAll('_', ' '),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildTaskMetaChip(BuildContext context, IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: mutedColor(context).withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: mutedColor(context)),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -1,52 +1,115 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/storage/local_cache_store.dart';
 import '../models/project_models.dart';
 
 class ProjectsApi {
+  static const String _projectsCacheKey = 'projects';
+  static const String _teamsCacheKey = 'teams';
+
   const ProjectsApi();
 
   Future<List<ProjectModel>> getProjects() async {
-    final personalProjects = await _parseProjectListResponse(
-      ApiClient.get('/projects'),
-    );
-    List<TeamModel> teams = [];
-
     try {
-      teams = await getTeams();
-    } catch (error, stackTrace) {
-      debugPrint('Team list load failed while loading projects: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      final personalProjects = await _parseProjectListResponse(
+        ApiClient.get('/projects'),
+      );
+      List<TeamModel> teams = [];
+
+      try {
+        teams = await getTeams();
+      } catch (error, stackTrace) {
+        debugPrint('Team list load failed while loading projects: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+
+      final teamProjectGroups = await Future.wait(
+        teams.map((team) async {
+          try {
+            return await getTeamProjects(team.teamId);
+          } catch (error, stackTrace) {
+            debugPrint(
+              'Team project load failed for team ${team.teamId}: $error',
+            );
+            debugPrintStack(stackTrace: stackTrace);
+            return <ProjectModel>[];
+          }
+        }),
+      );
+      final teamProjects = teamProjectGroups.expand((group) => group).toList();
+      final projects = [...personalProjects, ...teamProjects]
+        ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
+
+      await LocalCacheStore.writeJson(
+        _projectsCacheKey,
+        projects.map((project) => project.toJson()).toList(),
+      );
+
+      return projects;
+    } catch (_) {
+      final cached = await getCachedProjects();
+
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+
+      rethrow;
     }
-
-    final teamProjectGroups = await Future.wait(
-      teams.map((team) async {
-        try {
-          return await getTeamProjects(team.teamId);
-        } catch (error, stackTrace) {
-          debugPrint(
-            'Team project load failed for team ${team.teamId}: $error',
-          );
-          debugPrintStack(stackTrace: stackTrace);
-          return <ProjectModel>[];
-        }
-      }),
-    );
-    final teamProjects = teamProjectGroups.expand((group) => group).toList();
-
-    return [...personalProjects, ...teamProjects]
-      ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
   }
 
-  Future<List<TeamModel>> getTeams() async {
-    final response = await ApiClient.get('/teams');
+  Future<List<ProjectModel>> getCachedProjects() async {
+    final cached = await LocalCacheStore.readJson(_projectsCacheKey);
 
-    if (response is! List) {
+    if (cached?.data is! List) {
       return [];
     }
 
-    return response
-        .map((item) => TeamModel.fromJson(item as Map<String, dynamic>))
+    return (cached!.data as List)
+        .whereType<Map<String, dynamic>>()
+        .map(ProjectModel.fromJson)
+        .toList();
+  }
+
+  Future<List<TeamModel>> getTeams() async {
+    try {
+      final response = await ApiClient.get('/teams');
+
+      if (response is! List) {
+        return [];
+      }
+
+      final teams = response
+          .map((item) => TeamModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+
+      await LocalCacheStore.writeJson(
+        _teamsCacheKey,
+        teams.map((team) => team.toJson()).toList(),
+      );
+
+      return teams;
+    } catch (_) {
+      final cached = await getCachedTeams();
+
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+
+      rethrow;
+    }
+  }
+
+  Future<List<TeamModel>> getCachedTeams() async {
+    final cached = await LocalCacheStore.readJson(_teamsCacheKey);
+
+    if (cached?.data is! List) {
+      return [];
+    }
+
+    return (cached!.data as List)
+        .whereType<Map<String, dynamic>>()
+        .map(TeamModel.fromJson)
         .toList();
   }
 

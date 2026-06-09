@@ -1,17 +1,37 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/project_api.dart';
+import '../auth/models/project_models.dart';
+import '../projects/project_detail_screen.dart';
+import '../tasks/data/tasks_api.dart';
+import '../tasks/models/task_models.dart';
+import '../tasks/task_detail_screen.dart';
+import '../teams/teams_screen.dart';
 import 'data/notifications_api.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final NotificationsApi notificationsApi;
+  final ProjectsApi projectsApi;
+  final TasksApi tasksApi;
+  final ValueChanged<NotificationNavigationTarget>? onNavigateForTest;
+
+  const NotificationsScreen({
+    super.key,
+    this.notificationsApi = const NotificationsApi(),
+    this.projectsApi = const ProjectsApi(),
+    this.tasksApi = const TasksApi(),
+    this.onNavigateForTest,
+  });
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final NotificationsApi _notificationsApi = const NotificationsApi();
+  late final NotificationsApi _notificationsApi;
+  late final ProjectsApi _projectsApi;
+  late final TasksApi _tasksApi;
 
   bool isLoading = true;
   bool isMarkingAllRead = false;
@@ -21,6 +41,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    _notificationsApi = widget.notificationsApi;
+    _projectsApi = widget.projectsApi;
+    _tasksApi = widget.tasksApi;
     loadNotifications();
   }
 
@@ -113,6 +136,187 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         const SnackBar(content: Text('Could not update notification.')),
       );
     }
+  }
+
+  Future<void> handleNotificationTap(NotificationModel notification) async {
+    await markNotificationAsRead(notification);
+
+    final target = notification.navigationTarget;
+    widget.onNavigateForTest?.call(target);
+
+    if (widget.onNavigateForTest != null) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    switch (target.kind) {
+      case NotificationRouteKind.task:
+        await openTaskTarget(target);
+        break;
+      case NotificationRouteKind.project:
+        await openProjectTarget(target);
+        break;
+      case NotificationRouteKind.team:
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen()));
+        break;
+      case NotificationRouteKind.detail:
+        showNotificationDetail(notification);
+        break;
+      case NotificationRouteKind.missingIds:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This notification does not include enough detail.'),
+          ),
+        );
+        break;
+    }
+  }
+
+  Future<ProjectModel?> findProjectById(int projectId) async {
+    try {
+      final projects = await _projectsApi.getProjects();
+
+      for (final project in projects) {
+        if (project.projectId == projectId) {
+          return project;
+        }
+      }
+
+      return await _projectsApi.getProjectById(projectId);
+    } catch (error, stackTrace) {
+      debugPrint('Notification target project load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+  Future<void> openProjectTarget(NotificationNavigationTarget target) async {
+    final projectId = target.projectId;
+
+    if (projectId == null) {
+      return;
+    }
+
+    final project = await findProjectById(projectId);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (project == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this project.')),
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectDetailScreen(project: project),
+      ),
+    );
+  }
+
+  Future<void> openTaskTarget(NotificationNavigationTarget target) async {
+    final projectId = target.projectId;
+    final taskId = target.taskId;
+
+    if (projectId == null || taskId == null) {
+      return;
+    }
+
+    final project = await findProjectById(projectId);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (project == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this task.')),
+      );
+      return;
+    }
+
+    try {
+      final task = await _tasksApi.getTask(
+        project: TaskProjectSummary.fromProject(project),
+        taskId: taskId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TaskDetailScreen(
+            initialTask: task,
+            onTaskChanged: loadNotifications,
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Notification target task load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open this task.')),
+      );
+    }
+  }
+
+  void showNotificationDetail(NotificationModel notification) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final isDark = PlanoraTheme.isDark(sheetContext);
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: BoxDecoration(
+            color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                notification.title,
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                notification.message,
+                style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                  color: mutedColor(sheetContext),
+                  height: 1.45,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 14),
+              buildMetaPill(sheetContext, notification.typeLabel),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Color mutedColor(BuildContext context) {
@@ -278,7 +482,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final primary = Theme.of(context).colorScheme.primary;
 
     return InkWell(
-      onTap: () => markNotificationAsRead(notification),
+      onTap: () => handleNotificationTap(notification),
       borderRadius: BorderRadius.circular(22),
       child: Container(
         padding: const EdgeInsets.all(16),

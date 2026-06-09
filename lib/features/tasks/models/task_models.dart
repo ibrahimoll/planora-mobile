@@ -119,6 +119,33 @@ class TaskModel {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'task_id': taskId,
+      'project_id': projectId,
+      'assigned_to': assignedTo,
+      'assigned_to_name': assignedToName,
+      'assigned_to_email': assignedToEmail,
+      'assigned_to_avatar_url': assignedToAvatarUrl,
+      'members': members.map((member) => member.toJson()).toList(),
+      'followers': followers.map((member) => member.toJson()).toList(),
+      'subtasks': subtasks.map((subtask) => subtask.toJson()).toList(),
+      'tags': tags,
+      'created_by': createdBy,
+      'title': title,
+      'description': description,
+      'section_name': sectionName,
+      'priority': priority.value,
+      'estimated_hours': estimatedHours,
+      'actual_hours': actualHours,
+      'status': status.value,
+      'start_date': startDate?.toIso8601String(),
+      'due_date': dueDate?.toIso8601String(),
+      'completed_at': completedAt?.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
   bool get isCompleted {
     return status == TaskStatus.completed;
   }
@@ -612,6 +639,10 @@ class TaskSubtaskPreview {
     return status == TaskStatus.completed;
   }
 
+  Map<String, dynamic> toJson() {
+    return {'subtask_id': subtaskId, 'title': title, 'status': status.value};
+  }
+
   static int? _parseOptionalInt(dynamic value) {
     if (value == null) {
       return null;
@@ -682,6 +713,7 @@ class TaskMemberPreview {
       value['name'],
       value['username'],
       value['display_name'],
+      value['fallback_label'],
     ]);
     final email = _firstNonEmptyString([
       source['email'],
@@ -773,6 +805,16 @@ class TaskMemberPreview {
     return '';
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'user_id': userId,
+      'name': name,
+      'email': email,
+      'avatar_url': avatarUrl,
+      'fallback_label': fallbackLabel,
+    };
+  }
+
   static int? _parseOptionalInt(dynamic value) {
     if (value == null) {
       return null;
@@ -809,6 +851,15 @@ class TaskProjectSummary {
     required this.projectType,
   });
 
+  factory TaskProjectSummary.fromJson(Map<String, dynamic> json) {
+    return TaskProjectSummary(
+      projectId: _parseInt(json['project_id']),
+      teamId: _parseOptionalInt(json['team_id']),
+      title: json['title'] as String? ?? 'Untitled project',
+      projectType: json['project_type'] as String? ?? 'personal',
+    );
+  }
+
   factory TaskProjectSummary.fromProject(ProjectModel project) {
     return TaskProjectSummary(
       projectId: project.projectId,
@@ -820,6 +871,35 @@ class TaskProjectSummary {
 
   bool get isTeamProject {
     return projectType == 'team';
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'project_id': projectId,
+      'team_id': teamId,
+      'title': title,
+      'project_type': projectType,
+    };
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static int? _parseOptionalInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(value.toString());
   }
 }
 
@@ -966,13 +1046,62 @@ class TaskListItem {
   final TaskProjectSummary project;
 
   const TaskListItem({required this.task, required this.project});
+
+  factory TaskListItem.fromJson(Map<String, dynamic> json) {
+    return TaskListItem(
+      task: TaskModel.fromJson(json['task'] as Map<String, dynamic>),
+      project: TaskProjectSummary.fromJson(
+        json['project'] as Map<String, dynamic>,
+      ),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'task': task.toJson(), 'project': project.toJson()};
+  }
 }
 
 class TaskBoardData {
   final List<TaskProjectSummary> projects;
   final List<TaskListItem> tasks;
+  final DateTime? lastSyncedAt;
+  final bool isFromCache;
 
-  const TaskBoardData({required this.projects, required this.tasks});
+  const TaskBoardData({
+    required this.projects,
+    required this.tasks,
+    this.lastSyncedAt,
+    this.isFromCache = false,
+  });
+
+  factory TaskBoardData.fromJson(
+    Map<String, dynamic> json, {
+    DateTime? lastSyncedAt,
+    bool isFromCache = false,
+  }) {
+    final projects = json['projects'] as List? ?? const [];
+    final tasks = json['tasks'] as List? ?? const [];
+
+    return TaskBoardData(
+      projects: projects
+          .whereType<Map<String, dynamic>>()
+          .map(TaskProjectSummary.fromJson)
+          .toList(),
+      tasks: tasks
+          .whereType<Map<String, dynamic>>()
+          .map(TaskListItem.fromJson)
+          .toList(),
+      lastSyncedAt: lastSyncedAt,
+      isFromCache: isFromCache,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'projects': projects.map((project) => project.toJson()).toList(),
+      'tasks': tasks.map((item) => item.toJson()).toList(),
+    };
+  }
 }
 
 class TaskCreateRequest {

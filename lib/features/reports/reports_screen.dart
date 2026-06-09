@@ -3,25 +3,39 @@ import 'package:flutter/material.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
 import 'data/reports_api.dart';
 
 class ReportsScreen extends StatefulWidget {
-  const ReportsScreen({super.key});
+  final ProjectsApi projectsApi;
+  final ReportsApi reportsApi;
+  final TasksApi tasksApi;
+
+  const ReportsScreen({
+    super.key,
+    this.projectsApi = const ProjectsApi(),
+    this.reportsApi = const ReportsApi(),
+    this.tasksApi = const TasksApi(),
+  });
 
   @override
   State<ReportsScreen> createState() => _ReportsScreenState();
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  final ProjectsApi _projectsApi = const ProjectsApi();
-  final ReportsApi _reportsApi = const ReportsApi();
+  late final ProjectsApi _projectsApi;
+  late final ReportsApi _reportsApi;
+  late final TasksApi _tasksApi;
 
   bool isLoadingProjects = true;
   bool isLoadingReport = false;
+  bool isLoadingTaskSummary = false;
   String? errorMessage;
   String? reportMessage;
+  String? taskSummaryMessage;
   List<ProjectModel> projects = [];
+  List<TaskListItem> allTasks = [];
   List<ReportExportModel> exports = [];
   ProjectModel? selectedProject;
   ProjectReportModel? report;
@@ -29,17 +43,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   void initState() {
     super.initState();
+    _projectsApi = widget.projectsApi;
+    _reportsApi = widget.reportsApi;
+    _tasksApi = widget.tasksApi;
     loadProjects();
   }
 
   Future<void> loadProjects() async {
     setState(() {
       isLoadingProjects = true;
+      isLoadingTaskSummary = true;
       errorMessage = null;
+      taskSummaryMessage = null;
     });
 
     try {
       final loadedProjects = await _projectsApi.getProjects();
+      var loadedTasks = <TaskListItem>[];
+
+      try {
+        final taskBoard = await _tasksApi.getTasks();
+        loadedTasks = taskBoard.tasks;
+
+        if (taskBoard.isFromCache) {
+          taskSummaryMessage =
+              'Could not connect. Showing last saved task data.';
+        }
+      } catch (error, stackTrace) {
+        debugPrint('Reports task summary load failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+        taskSummaryMessage = 'Could not load task summary.';
+      }
 
       if (!mounted) {
         return;
@@ -47,8 +81,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
       setState(() {
         projects = loadedProjects;
+        allTasks = loadedTasks;
         selectedProject = loadedProjects.isEmpty ? null : loadedProjects.first;
         isLoadingProjects = false;
+        isLoadingTaskSummary = false;
       });
 
       if (loadedProjects.isNotEmpty) {
@@ -64,6 +100,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
       setState(() {
         isLoadingProjects = false;
+        isLoadingTaskSummary = false;
         errorMessage = 'Could not load projects for reports.';
       });
     }
@@ -104,9 +141,69 @@ class _ReportsScreenState extends State<ReportsScreen> {
       setState(() {
         isLoadingReport = false;
         reportMessage = 'Could not generate this report right now.';
-        report ??= const ProjectReportModel.empty();
+        report = buildLocalProjectReport(project);
       });
     }
+  }
+
+  ProjectReportModel buildLocalProjectReport(ProjectModel project) {
+    final projectTasks = allTasks
+        .where((item) => item.project.projectId == project.projectId)
+        .toList();
+    final completed = projectTasks
+        .where((item) => item.task.isCompleted)
+        .length;
+    final overdue = projectTasks.where((item) => item.task.isOverdue).length;
+    final total = projectTasks.length;
+    final pending = total - completed;
+    final statusCounts = {
+      for (final status in TaskStatus.values)
+        status.value: projectTasks
+            .where((item) => item.task.status == status)
+            .length,
+    };
+    final priorityCounts = {
+      for (final priority in TaskPriority.values)
+        priority.value: projectTasks
+            .where((item) => item.task.priority == priority)
+            .length,
+    };
+
+    return ProjectReportModel(
+      generatedAt: DateTime.now(),
+      totalTasks: total,
+      completedTasks: completed,
+      pendingTasks: pending,
+      overdueTasks: overdue,
+      completionPercentage: total == 0 ? 0 : (completed / total) * 100,
+      statusCounts: statusCounts,
+      priorityCounts: priorityCounts,
+      exportId: null,
+    );
+  }
+
+  int get activeProjectCount {
+    return projects.where((project) => project.isActive).length;
+  }
+
+  int get completedProjectCount {
+    return projects.where((project) => project.isCompleted).length;
+  }
+
+  int get overdueTaskCount {
+    return allTasks.where((item) => item.task.isOverdue).length;
+  }
+
+  int get completedTaskCount {
+    return allTasks.where((item) => item.task.isCompleted).length;
+  }
+
+  double get portfolioCompletion {
+    if (allTasks.isEmpty) {
+      return 0;
+    }
+
+    return completedTaskCount / allTasks.length;
   }
 
   Color mutedColor(BuildContext context) {
@@ -196,8 +293,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 28),
         children: [
+          _buildPortfolioSummary(context),
+          const SizedBox(height: 16),
+          _buildPortfolioStatusBreakdown(context),
+          const SizedBox(height: 16),
           _buildProjectSelector(context),
           const SizedBox(height: 16),
+          if (taskSummaryMessage != null) ...[
+            _buildMessageCard(context, taskSummaryMessage!),
+            const SizedBox(height: 14),
+          ],
           if (isLoadingReport)
             const LinearProgressIndicator(minHeight: 3)
           else if (reportMessage != null)
@@ -250,6 +355,189 @@ class _ReportsScreenState extends State<ReportsScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildPortfolioSummary(BuildContext context) {
+    final progress = portfolioCompletion.clamp(0, 1).toDouble();
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Planora Insights',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (isLoadingTaskSummary)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 9,
+            borderRadius: BorderRadius.circular(999),
+            color: Theme.of(context).colorScheme.primary,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.12),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildMetric(
+                context,
+                label: 'Projects',
+                value: '${projects.length}',
+              ),
+              _buildMetric(
+                context,
+                label: 'Active',
+                value: '$activeProjectCount',
+              ),
+              _buildMetric(
+                context,
+                label: 'Completed',
+                value: '$completedProjectCount',
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildMetric(
+                context,
+                label: 'Tasks',
+                value: '${allTasks.length}',
+              ),
+              _buildMetric(
+                context,
+                label: 'Done',
+                value: '$completedTaskCount',
+              ),
+              _buildMetric(
+                context,
+                label: 'Overdue',
+                value: '$overdueTaskCount',
+              ),
+            ],
+          ),
+          if (selectedProject != null) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: isLoadingReport
+                    ? null
+                    : () => loadReport(selectedProject!),
+                icon: const Icon(Icons.ios_share_rounded),
+                label: const Text('Generate export snapshot'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortfolioStatusBreakdown(BuildContext context) {
+    final counts = {
+      for (final status in TaskStatus.values)
+        status.label: allTasks
+            .where((item) => item.task.status == status)
+            .length,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Task Status',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          if (allTasks.isEmpty)
+            Text(
+              'No task activity loaded yet.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            for (final entry in counts.entries) ...[
+              _buildBreakdownBar(
+                context,
+                label: entry.key,
+                count: entry.value,
+                total: allTasks.length,
+              ),
+              if (entry.key != counts.keys.last) const SizedBox(height: 10),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownBar(
+    BuildContext context, {
+    required String label,
+    required int count,
+    required int total,
+  }) {
+    final ratio = total == 0 ? 0.0 : count / total;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            Text(
+              '$count',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: ratio,
+          minHeight: 7,
+          borderRadius: BorderRadius.circular(999),
+          color: Theme.of(context).colorScheme.primary,
+          backgroundColor: Theme.of(
+            context,
+          ).colorScheme.primary.withValues(alpha: 0.12),
+        ),
+      ],
     );
   }
 
@@ -440,7 +728,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '${item.reportType} • ${item.exportFormat}',
+                        '${item.reportType} - ${item.exportFormat}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w800),

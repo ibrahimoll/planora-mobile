@@ -65,9 +65,11 @@ class _TasksScreenState extends State<TasksScreen> {
   bool _openCreateAfterLoad = false;
   bool _isCreateSheetOpen = false;
   bool _hasInitializedProjectFilter = false;
+  bool isShowingCachedData = false;
   bool addAnotherTask = false;
 
   String? errorMessage;
+  DateTime? lastSyncedAt;
   String searchQuery = '';
   DateTime? selectedDueDate;
   TaskPriority selectedPriority = TaskPriority.medium;
@@ -234,6 +236,8 @@ class _TasksScreenState extends State<TasksScreen> {
       setState(() {
         projects = data.projects;
         tasks = data.tasks;
+        isShowingCachedData = data.isFromCache;
+        lastSyncedAt = data.lastSyncedAt;
         selectedProjectId = _resolveSelectedProjectId(data.projects);
         selectedCreateProjectId = _resolveSelectedCreateProjectId(
           data.projects,
@@ -249,8 +253,28 @@ class _TasksScreenState extends State<TasksScreen> {
         return;
       }
 
+      final cached = await _tasksApi.getCachedTasks();
+
+      if (cached != null) {
+        setState(() {
+          projects = cached.projects;
+          tasks = cached.tasks;
+          isShowingCachedData = true;
+          lastSyncedAt = cached.lastSyncedAt;
+          selectedProjectId = _resolveSelectedProjectId(cached.projects);
+          selectedCreateProjectId = _resolveSelectedCreateProjectId(
+            cached.projects,
+          );
+          _hasInitializedProjectFilter = true;
+          errorMessage = null;
+          isLoading = false;
+        });
+        return;
+      }
+
       setState(() {
-        errorMessage = 'Could not load tasks. Please try again.';
+        errorMessage = 'Could not load tasks. Try again.';
+        isShowingCachedData = false;
         isLoading = false;
       });
     }
@@ -263,6 +287,25 @@ class _TasksScreenState extends State<TasksScreen> {
       _openCreateAfterLoad = false;
       scheduleCreateTaskSheet(consumeRequest: true);
     }
+  }
+
+  String formatLastSynced(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inMinutes < 1) {
+      return 'Last synced just now';
+    }
+
+    if (difference.inHours < 1) {
+      return 'Last synced ${difference.inMinutes}m ago';
+    }
+
+    if (difference.inDays < 1) {
+      return 'Last synced ${difference.inHours}h ago';
+    }
+
+    return 'Last synced ${formatShortDate(date)}';
   }
 
   int? _resolveSelectedProjectId(List<TaskProjectSummary> loadedProjects) {
@@ -1313,33 +1356,80 @@ class _TasksScreenState extends State<TasksScreen> {
     final visibleTasks = filteredTasks;
     final hasSelectedProject = selectedProjectId != null;
     final hasSearchQuery = searchQuery.trim().isNotEmpty;
+    final cacheBanner = buildCacheBanner(context);
 
     if (visibleTasks.isEmpty) {
-      return buildMessageState(
-        context,
-        icon: hasSearchQuery
-            ? Icons.manage_search_rounded
-            : Icons.check_box_outlined,
-        title: hasSearchQuery
-            ? 'No tasks matching search'
-            : hasSelectedProject && selectedStatus == null
-            ? 'No tasks for this project yet.'
-            : selectedStatus == null
-            ? 'No tasks yet'
-            : 'No ${filterLabel(selectedStatus).toLowerCase()} tasks',
-        message: hasSearchQuery
-            ? 'Try a different title, detail, or plan name.'
-            : hasSelectedProject
-            ? 'Create a task here or switch plans to see other work.'
-            : selectedStatus == null
-            ? 'Choose a plan or create your first task across all plans.'
-            : 'Try another status or create a task in one of your plans.',
-        buttonText: hasSearchQuery ? 'Clear Search' : 'New Task',
-        onPressed: hasSearchQuery ? clearTaskSearch : showCreateTaskSheet,
+      return Column(
+        children: [
+          if (cacheBanner != null) ...[cacheBanner, const SizedBox(height: 12)],
+          buildMessageState(
+            context,
+            icon: hasSearchQuery
+                ? Icons.manage_search_rounded
+                : Icons.check_box_outlined,
+            title: hasSearchQuery
+                ? 'No tasks matching search'
+                : hasSelectedProject && selectedStatus == null
+                ? 'No tasks for this project yet.'
+                : selectedStatus == null
+                ? 'No tasks yet'
+                : 'No ${filterLabel(selectedStatus).toLowerCase()} tasks',
+            message: hasSearchQuery
+                ? 'Try a different title, detail, or plan name.'
+                : hasSelectedProject
+                ? 'Create a task here or switch plans to see other work.'
+                : selectedStatus == null
+                ? 'Choose a plan or create your first task across all plans.'
+                : 'Try another status or create a task in one of your plans.',
+            buttonText: hasSearchQuery ? 'Clear Search' : 'New Task',
+            onPressed: hasSearchQuery ? clearTaskSearch : showCreateTaskSheet,
+          ),
+        ],
       );
     }
 
-    return buildGroupedTasks(context, visibleTasks);
+    return Column(
+      children: [
+        if (cacheBanner != null) ...[cacheBanner, const SizedBox(height: 12)],
+        buildGroupedTasks(context, visibleTasks),
+      ],
+    );
+  }
+
+  Widget? buildCacheBanner(BuildContext context) {
+    if (!isShowingCachedData) {
+      return null;
+    }
+
+    final lastSynced = lastSyncedAt;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PlanoraTheme.warning.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: PlanoraTheme.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              lastSynced == null
+                  ? 'Could not connect. Showing last saved data.'
+                  : 'Could not connect. Showing last saved data. ${formatLastSynced(lastSynced)}.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          TextButton(onPressed: loadTasks, child: const Text('Retry')),
+        ],
+      ),
+    );
   }
 
   Widget buildLoadingState(BuildContext context) {

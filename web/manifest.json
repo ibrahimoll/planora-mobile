@@ -1,11 +1,11 @@
 {
-    "name": "mobile",
-    "short_name": "mobile",
+    "name": "Planora",
+    "short_name": "Planora",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "AI-powered project planning and collaboration.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

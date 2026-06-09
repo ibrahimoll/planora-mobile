@@ -38,6 +38,21 @@ class ProjectModel {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'project_id': projectId,
+      'created_by': createdBy,
+      'team_id': teamId,
+      'title': title,
+      'description': description,
+      'deadline': deadline.toIso8601String(),
+      'status': status,
+      'project_type': projectType,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
+
   bool get isCompleted {
     return status == 'completed';
   }
@@ -138,6 +153,15 @@ class TeamModel {
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'team_id': teamId,
+      'name': name,
+      'created_by': createdBy,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
 }
 
 class UserSummaryModel {
@@ -172,6 +196,16 @@ class UserSummaryModel {
         json['avatar'],
       ]),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'user_id': userId,
+      'username': username,
+      'email': email,
+      'full_name': fullName,
+      'profile_pic': profilePic,
+    };
   }
 
   String get displayName {
@@ -250,6 +284,17 @@ class ProjectMemberModel {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'member_id': memberId,
+      'project_id': projectId,
+      'user_id': userId,
+      'role': role,
+      'joined_at': joinedAt.toIso8601String(),
+      'user': user?.toJson(),
+    };
+  }
+
   String get displayName {
     return user?.displayName ?? 'Unknown user';
   }
@@ -270,6 +315,8 @@ class ProjectMemberModel {
     switch (role) {
       case 'owner':
         return 'Owner';
+      case 'admin':
+        return 'Admin';
       case 'manager':
         return 'Manager';
       case 'member':

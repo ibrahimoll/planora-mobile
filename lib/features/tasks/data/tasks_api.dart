@@ -2,11 +2,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/storage/local_cache_store.dart';
 import '../../auth/data/project_api.dart';
 import '../models/task_models.dart';
 
 class TasksApi {
   final ProjectsApi _projectsApi;
+  static const String _taskBoardCacheKey = 'task_board';
 
   const TasksApi([this._projectsApi = const ProjectsApi()]);
 
@@ -19,44 +21,108 @@ class TasksApi {
   }
 
   Future<TaskBoardData> getTasks({TaskStatus? status}) async {
-    final projects = await _projectsApi.getProjects();
-    final projectSummaries = projects
-        .map(TaskProjectSummary.fromProject)
-        .toList();
+    try {
+      final projects = await _projectsApi.getProjects();
+      final projectSummaries = projects
+          .map(TaskProjectSummary.fromProject)
+          .toList();
 
-    final taskGroups = await Future.wait(
-      projectSummaries.map((project) async {
-        try {
-          return await getProjectTasks(project: project, status: status);
-        } catch (error, stackTrace) {
-          debugPrint(
-            'Task load failed for project ${project.projectId}: $error',
-          );
-          debugPrintStack(stackTrace: stackTrace);
-          return <TaskListItem>[];
-        }
-      }),
+      final taskGroups = await Future.wait(
+        projectSummaries.map((project) async {
+          try {
+            return await getProjectTasks(project: project, status: status);
+          } catch (error, stackTrace) {
+            debugPrint(
+              'Task load failed for project ${project.projectId}: $error',
+            );
+            debugPrintStack(stackTrace: stackTrace);
+            return <TaskListItem>[];
+          }
+        }),
+      );
+
+      final tasks = taskGroups.expand((group) => group).toList()
+        ..sort(compareTaskItemsByDueDate);
+      final data = TaskBoardData(
+        projects: projectSummaries,
+        tasks: tasks,
+        lastSyncedAt: DateTime.now(),
+      );
+
+      await LocalCacheStore.writeJson(_taskBoardCacheKey, data.toJson());
+
+      return data;
+    } catch (_) {
+      final cached = await getCachedTasks();
+
+      if (cached != null) {
+        return cached;
+      }
+
+      rethrow;
+    }
+  }
+
+  Future<TaskBoardData?> getCachedTasks() async {
+    final cached = await LocalCacheStore.readJson(_taskBoardCacheKey);
+
+    if (cached?.data is! Map<String, dynamic>) {
+      return null;
+    }
+
+    return TaskBoardData.fromJson(
+      cached!.data as Map<String, dynamic>,
+      lastSyncedAt: cached.syncedAt,
+      isFromCache: true,
     );
-
-    final tasks = taskGroups.expand((group) => group).toList()
-      ..sort(compareTaskItemsByDueDate);
-
-    return TaskBoardData(projects: projectSummaries, tasks: tasks);
   }
 
   Future<List<TaskListItem>> getProjectTasks({
     required TaskProjectSummary project,
     TaskStatus? status,
   }) async {
-    final response = await ApiClient.get(
-      _tasksPath(project),
-      queryParameters: {if (status != null) 'status': status.value},
+    try {
+      final response = await ApiClient.get(
+        _tasksPath(project),
+        queryParameters: {if (status != null) 'status': status.value},
+      );
+
+      if (response is! List) {
+        return [];
+      }
+
+      await LocalCacheStore.writeJson(_projectTasksCacheKey(project), response);
+
+      return _parseProjectTasks(response, project);
+    } catch (_) {
+      final cached = await getCachedProjectTasks(project);
+
+      if (cached != null) {
+        return cached;
+      }
+
+      rethrow;
+    }
+  }
+
+  Future<List<TaskListItem>?> getCachedProjectTasks(
+    TaskProjectSummary project,
+  ) async {
+    final cached = await LocalCacheStore.readJson(
+      _projectTasksCacheKey(project),
     );
 
-    if (response is! List) {
-      return [];
+    if (cached?.data is! List) {
+      return null;
     }
 
+    return _parseProjectTasks(cached!.data as List, project);
+  }
+
+  List<TaskListItem> _parseProjectTasks(
+    List response,
+    TaskProjectSummary project,
+  ) {
     return response
         .map(
           (item) => TaskListItem(
@@ -65,6 +131,10 @@ class TasksApi {
           ),
         )
         .toList();
+  }
+
+  String _projectTasksCacheKey(TaskProjectSummary project) {
+    return 'project_tasks_${project.projectType}_${project.teamId ?? 0}_${project.projectId}';
   }
 
   Future<TaskListItem> getTask({
