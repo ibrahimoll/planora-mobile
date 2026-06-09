@@ -3,13 +3,8 @@ import '../../../core/network/api_client.dart';
 class ProgressApi {
   const ProgressApi();
 
-  Future<ProjectProgressModel> getProjectProgress(int projectId) async {
+  Future<Map<String, dynamic>> getProjectProgress(int projectId) async {
     final data = await ApiClient.get('/projects/$projectId/progress');
-    return ProjectProgressModel.fromJson(data as Map<String, dynamic>);
+    return Map<String, dynamic>.from(data as Map);
   }
 }
-
-class ProjectProgressModel {
-  final int projectId;
-  final int tasksCompleted;
- 
