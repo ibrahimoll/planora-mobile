@@ -905,7 +905,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: suggestions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final suggestion = suggestions[index];
 
