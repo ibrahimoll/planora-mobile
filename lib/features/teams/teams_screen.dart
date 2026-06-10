@@ -474,59 +474,76 @@ class _TeamsScreenState extends State<TeamsScreen> {
         ? PlanoraTheme.darkBackground
         : const Color(0xFFFAFAFF);
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    final content = AnnotatedRegion<SystemUiOverlayStyle>(
       value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: backgroundColor,
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: RefreshIndicator(
-                color: PlanoraTheme.primaryPurple,
-                onRefresh: () => _loadTeams(silent: true),
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TeamsHeader(
-                        showBackButton: widget.showBackButton,
-                        isRefreshing: _isRefreshing,
-                        onBackPressed: () => Navigator.of(context).maybePop(),
-                        onCreatePressed: _openCreateTeamDialog,
-                      ),
-                      const SizedBox(height: 18),
-                      _SearchAndFilterRow(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          setState(() => _searchQuery = value);
-                        },
-                        onFilterPressed: () => _showSnackBar(
-                          'Filters will be connected when team roles/status filters are added.',
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      _TeamTabs(
-                        selectedIndex: _selectedTabIndex,
-                        invitationCount: _pendingInvitations.length,
-                        onChanged: (index) {
-                          setState(() => _selectedTabIndex = index);
-                        },
-                      ),
-                      const SizedBox(height: 18),
-                      _buildBody(),
-                      const SizedBox(height: 4),
-                      _CreateTeamBanner(onPressed: _openCreateTeamDialog),
-                    ],
-                  ),
-                ),
+      child: _buildTeamsContent(context),
+    );
+
+    if (!widget.showBackButton) {
+      return content;
+    }
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: content,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTeamsContent(BuildContext context) {
+    final isEmbeddedInHome = !widget.showBackButton;
+
+    return RefreshIndicator(
+      color: PlanoraTheme.primaryPurple,
+      onRefresh: () => _loadTeams(silent: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          isEmbeddedInHome ? 0 : 22,
+          isEmbeddedInHome ? 0 : 22,
+          isEmbeddedInHome ? 0 : 22,
+          120,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _TeamsHeader(
+              showBackButton: widget.showBackButton,
+              isRefreshing: _isRefreshing,
+              onBackPressed: () => Navigator.of(context).maybePop(),
+              onCreatePressed: _openCreateTeamDialog,
+            ),
+            const SizedBox(height: 18),
+            _SearchAndFilterRow(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() => _searchQuery = value);
+              },
+              onFilterPressed: () => _showSnackBar(
+                'Filters will be connected when team roles/status filters are added.',
               ),
             ),
-          ),
+            const SizedBox(height: 22),
+            _TeamTabs(
+              selectedIndex: _selectedTabIndex,
+              invitationCount: _pendingInvitations.length,
+              onChanged: (index) {
+                setState(() => _selectedTabIndex = index);
+              },
+            ),
+            const SizedBox(height: 18),
+            _buildBody(),
+            const SizedBox(height: 4),
+            _CreateTeamBanner(onPressed: _openCreateTeamDialog),
+          ],
         ),
       ),
     );
