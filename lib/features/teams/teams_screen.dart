@@ -13,4 +13,5 @@ class TeamsScreen extends StatefulWidget {
   const TeamsScreen({
     super.key,
     this.teamsApi = const TeamsApi(),
-    this.projects
+    this.projectsApi = const ProjectsApi(),
+    this.tasksApi
