@@ -91,53 +91,51 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = SizedBox.expand(
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(
-          widget.showBackButton ? 22 : 0,
-          widget.showBackButton ? 22 : 0,
-          widget.showBackButton ? 22 : 0,
-          110,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Header(
-              showBackButton: widget.showBackButton,
-              onBackPressed: () => Navigator.of(context).maybePop(),
-              onCreatePressed: _showCreateTeamMessage,
-            ),
-            const SizedBox(height: 18),
-            _SearchAndFilterRow(
-              onChanged: (value) => setState(() => _searchQuery = value),
-              onFilterPressed: () => _showMessage('Filters coming soon.'),
-            ),
-            const SizedBox(height: 22),
-            _Tabs(
-              selectedIndex: _selectedTabIndex,
-              invitationCount: 2,
-              onChanged: (index) => setState(() => _selectedTabIndex = index),
-            ),
-            const SizedBox(height: 18),
-            if (_selectedTabIndex == 0)
-              ..._visibleTeams.map(
-                (team) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: _TeamCard(
-                    team: team,
-                    onTap: () => _showMessage('${team.name} opened.'),
-                    onMenuPressed: () =>
-                        _showMessage('Team options coming soon.'),
-                  ),
+    final content = SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(
+        widget.showBackButton ? 22 : 0,
+        widget.showBackButton ? 22 : 0,
+        widget.showBackButton ? 22 : 0,
+        110,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _Header(
+            showBackButton: widget.showBackButton,
+            onBackPressed: () => Navigator.of(context).maybePop(),
+            onCreatePressed: _showCreateTeamMessage,
+          ),
+          const SizedBox(height: 18),
+          _SearchAndFilterRow(
+            onChanged: (value) => setState(() => _searchQuery = value),
+            onFilterPressed: () => _showMessage('Filters coming soon.'),
+          ),
+          const SizedBox(height: 22),
+          _Tabs(
+            selectedIndex: _selectedTabIndex,
+            invitationCount: 2,
+            onChanged: (index) => setState(() => _selectedTabIndex = index),
+          ),
+          const SizedBox(height: 18),
+          if (_selectedTabIndex == 0)
+            ..._visibleTeams.map(
+              (team) => Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _TeamCard(
+                  team: team,
+                  onTap: () => _showMessage('${team.name} opened.'),
+                  onMenuPressed: () =>
+                      _showMessage('Team options coming soon.'),
                 ),
-              )
-            else
-              const _InvitationsCard(),
-            const SizedBox(height: 4),
-            _CreateTeamBanner(onPressed: _showCreateTeamMessage),
-          ],
-        ),
+              ),
+            )
+          else
+            const _InvitationsCard(),
+          const SizedBox(height: 4),
+          _CreateTeamBanner(onPressed: _showCreateTeamMessage),
+        ],
       ),
     );
 
@@ -829,21 +827,26 @@ class _CreateTeamBanner extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           SizedBox(
+            width: 96,
             height: 40,
-            child: ElevatedButton(
-              onPressed: onPressed,
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                backgroundColor: const Color(0xFF7C3AED),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
+            child: Material(
+              color: const Color(0xFF7C3AED),
+              borderRadius: BorderRadius.circular(9),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(9),
+                onTap: onPressed,
+                child: const Center(
+                  child: Text(
+                    'Create Team',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-              ),
-              child: const Text(
-                'Create Team',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
               ),
             ),
           ),
