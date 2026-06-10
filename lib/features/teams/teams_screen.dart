@@ -10,14 +10,4 @@ import 'data/teams_api.dart';
 class TeamsScreen extends StatefulWidget {
   final TeamsApi teamsApi;
   final ProjectsApi projectsApi;
-  final TasksApi tasksApi;
-  final bool showBackButton;
-  final VoidCallback? onTeamsChanged;
-
-  const TeamsScreen({
-    super.key,
-    this.teamsApi = const TeamsApi(),
-    this.projectsApi = const ProjectsApi(),
-    this.tasksApi = const TasksApi(),
-    this.showBackButton = true,
-    this.on
+  final TasksApi
