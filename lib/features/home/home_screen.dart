@@ -365,6 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute<void>(
         builder: (_) => TeamsScreen(
           showBackButton: true,
+          currentUserId: widget.user.userId,
           onTeamsChanged: () {
             loadDashboardData();
             loadPendingTeamInvitationCount();
@@ -1968,6 +1969,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 4:
         return TeamsScreen(
           showBackButton: false,
+          currentUserId: widget.user.userId,
           onTeamsChanged: () {
             loadDashboardData();
             loadPendingTeamInvitationCount();
