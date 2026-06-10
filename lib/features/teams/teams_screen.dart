@@ -10,8 +10,4 @@ class TeamsScreen extends StatefulWidget {
   final bool showBackButton;
   final VoidCallback? onTeamsChanged;
 
-  const TeamsScreen({
-    super.key,
-    this.teamsApi = const TeamsApi(),
-    this.projectsApi = const ProjectsApi(),
-    this.tasksApi
+  const TeamsScreen({super.key, this.teamsApi = const TeamsApi(), this.projectsApi = const ProjectsApi(), this.tasksApi = const
