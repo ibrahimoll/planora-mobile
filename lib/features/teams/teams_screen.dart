@@ -407,7 +407,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       });
     }
 
-    if (!wasCreated || !mounted) {
+    if (!wasCreated || !mounted || !sheetContext.mounted) {
       return;
     }
 
@@ -575,7 +575,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                               });
                             }
 
-                            if (!wasSent || !mounted) {
+                            if (!wasSent || !mounted || !sheetContext.mounted) {
                               return;
                             }
 
