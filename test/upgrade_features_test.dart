@@ -296,7 +296,7 @@ void main() {
   testWidgets('Notification tap resolves task route from type and IDs', (
     tester,
   ) async {
-    NotificationNavigationTarget? target;
+    `NotificationNavigationTarget`? target;
     final project = _project(21, 'Notification Plan');
     final notification = NotificationModel(
       notificationId: 1,
