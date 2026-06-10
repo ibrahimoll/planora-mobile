@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -74,9 +75,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return _teams.where((item) {
-      final name = item.team.name.toLowerCase();
-      final subtitle = item.subtitle.toLowerCase();
-      return name.contains(query) || subtitle.contains(query);
+      return item.team.name.toLowerCase().contains(query) ||
+          item.subtitle.toLowerCase().contains(query);
     }).toList();
   }
 
@@ -97,22 +97,29 @@ class _TeamsScreenState extends State<TeamsScreen> {
     });
 
     try {
-      final teams = await _teamsApi.getTeams();
-      final invitations = await _teamsApi.getMyInvitations();
-      final cardData = await Future.wait(
-        teams.asMap().entries.map(
-          (entry) => _buildTeamCardData(team: entry.value, index: entry.key),
-        ),
+      final teams = await _teamsApi.getTeams().timeout(
+        const Duration(seconds: 12),
       );
+
+      final invitations = await _teamsApi.getMyInvitations().timeout(
+        const Duration(seconds: 12),
+        onTimeout: () => <TeamInvitationModel>[],
+      );
+
+      final basicCards = teams.asMap().entries.map((entry) {
+        return _TeamCardData.basic(team: entry.value, index: entry.key);
+      }).toList();
 
       if (!mounted) return;
 
       setState(() {
-        _teams = cardData;
+        _teams = basicCards;
         _invitations = invitations;
         _isLoading = false;
         _isRefreshing = false;
       });
+
+      unawaited(_loadTeamStatsInBackground(teams));
     } catch (error, stackTrace) {
       debugPrint('Teams load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -127,6 +134,24 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
   }
 
+  Future<void> _loadTeamStatsInBackground(List<TeamModel> teams) async {
+    final detailedCards = <_TeamCardData>[];
+
+    for (final entry in teams.asMap().entries) {
+      final card = await _buildTeamCardData(
+        team: entry.value,
+        index: entry.key,
+      );
+      detailedCards.add(card);
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _teams = detailedCards;
+    });
+  }
+
   Future<_TeamCardData> _buildTeamCardData({
     required TeamModel team,
     required int index,
@@ -136,40 +161,44 @@ class _TeamsScreenState extends State<TeamsScreen> {
     int taskCount = 0;
 
     try {
-      members = await _teamsApi.getTeamMembers(team.teamId);
+      members = await _teamsApi
+          .getTeamMembers(team.teamId)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => <TeamMemberModel>[],
+          );
     } catch (error, stackTrace) {
       debugPrint('Team members load failed for ${team.teamId}: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
 
     try {
-      projects = await _projectsApi.getTeamProjects(team.teamId);
+      projects = await _projectsApi
+          .getTeamProjects(team.teamId)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => <ProjectModel>[],
+          );
     } catch (error, stackTrace) {
       debugPrint('Team projects load failed for ${team.teamId}: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
 
-    if (projects.isNotEmpty) {
-      final taskGroups = await Future.wait(
-        projects.map((project) async {
-          try {
-            return await _tasksApi.getProjectTasks(
-              project: TaskProjectSummary.fromProject(project),
+    for (final project in projects) {
+      try {
+        final tasks = await _tasksApi
+            .getProjectTasks(project: TaskProjectSummary.fromProject(project))
+            .timeout(
+              const Duration(seconds: 8),
+              onTimeout: () => <TaskListItem>[],
             );
-          } catch (error, stackTrace) {
-            debugPrint(
-              'Team task load failed for project ${project.projectId}: $error',
-            );
-            debugPrintStack(stackTrace: stackTrace);
-            return <TaskListItem>[];
-          }
-        }),
-      );
-
-      taskCount = taskGroups.fold<int>(
-        0,
-        (total, group) => total + group.length,
-      );
+        taskCount += tasks.length;
+      } catch (error, stackTrace) {
+        debugPrint(
+          'Team task load failed for project ${project.projectId}: $error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
+      }
     }
 
     return _TeamCardData(
@@ -181,6 +210,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       iconColor: _iconColorForTeam(team.name),
       iconBackground: _iconBackgroundForTeam(team.name),
       accentLabel: index == 0 ? 'Owner' : null,
+      isLoadingStats: false,
     );
   }
 
@@ -503,11 +533,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 72),
-        child: Center(child: CircularProgressIndicator()),
-      );
+    if (_isLoading && _teams.isEmpty) {
+      return const _TeamsLoadingList();
     }
 
     if (_errorMessage != null) {
@@ -684,7 +711,7 @@ class _TeamsHeader extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradient,
+            gradient: PlanoraTheme.primaryGradientFor(context),
             borderRadius: BorderRadius.circular(13),
             boxShadow: PlanoraTheme.floatingShadowFor(context),
           ),
@@ -972,6 +999,83 @@ class _TabButton extends StatelessWidget {
   }
 }
 
+class _TeamsLoadingList extends StatelessWidget {
+  const _TeamsLoadingList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        _LoadingTeamCard(),
+        SizedBox(height: 14),
+        _LoadingTeamCard(),
+        SizedBox(height: 14),
+        _LoadingTeamCard(),
+      ],
+    );
+  }
+}
+
+class _LoadingTeamCard extends StatelessWidget {
+  const _LoadingTeamCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final surface = isDark ? PlanoraTheme.darkSurface : Colors.white;
+    final borderColor = isDark
+        ? PlanoraTheme.darkBorder
+        : const Color(0xFFE8EAF4);
+    final blockColor = isDark
+        ? PlanoraTheme.darkSurfaceVariant
+        : const Color(0xFFF1F3FA);
+
+    return Container(
+      height: 156,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: isDark ? [] : PlanoraTheme.softCardShadow,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: blockColor,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(width: 150, height: 16, color: blockColor),
+                    const SizedBox(height: 10),
+                    Container(width: 220, height: 12, color: blockColor),
+                    const SizedBox(height: 12),
+                    Container(width: 88, height: 24, color: blockColor),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Divider(color: borderColor, height: 1),
+          const SizedBox(height: 10),
+          Container(width: double.infinity, height: 18, color: blockColor),
+        ],
+      ),
+    );
+  }
+}
+
 class _TeamCard extends StatelessWidget {
   const _TeamCard({
     required this.data,
@@ -1123,6 +1227,7 @@ class _TeamCard extends StatelessWidget {
                         icon: Icons.group_outlined,
                         value: data.memberCount,
                         label: 'Members',
+                        isLoading: data.isLoadingStats,
                       ),
                     ),
                     Expanded(
@@ -1130,6 +1235,7 @@ class _TeamCard extends StatelessWidget {
                         icon: Icons.folder_copy_outlined,
                         value: data.projectCount,
                         label: 'Projects',
+                        isLoading: data.isLoadingStats,
                       ),
                     ),
                     Expanded(
@@ -1137,6 +1243,7 @@ class _TeamCard extends StatelessWidget {
                         icon: Icons.check_box_outlined,
                         value: data.taskCount,
                         label: 'Tasks',
+                        isLoading: data.isLoadingStats,
                       ),
                     ),
                   ],
@@ -1167,7 +1274,7 @@ class _AvatarStack extends StatelessWidget {
 
     if (visibleMembers.isEmpty) {
       return Text(
-        'No members yet',
+        'Loading members',
         style: TextStyle(
           color: PlanoraTheme.isDark(context)
               ? PlanoraTheme.darkTextMuted
@@ -1272,11 +1379,13 @@ class _StatItem extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.label,
+    required this.isLoading,
   });
 
   final IconData icon;
   final int value;
   final String label;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -1295,16 +1404,28 @@ class _StatItem extends StatelessWidget {
                   : const Color(0xFF69718D),
             ),
             const SizedBox(width: 5),
-            Text(
-              '$value',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: isDark
-                    ? PlanoraTheme.darkTextPrimary
-                    : const Color(0xFF24283B),
+            if (isLoading)
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.6,
+                  color: isDark
+                      ? PlanoraTheme.darkTextMuted
+                      : const Color(0xFF69718D),
+                ),
+              )
+            else
+              Text(
+                '$value',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : const Color(0xFF24283B),
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 4),
@@ -1759,7 +1880,26 @@ class _TeamCardData {
     required this.iconColor,
     required this.iconBackground,
     required this.accentLabel,
+    required this.isLoadingStats,
   });
+
+  factory _TeamCardData.basic({required TeamModel team, required int index}) {
+    final icon = _basicIconForTeam(team.name);
+    final iconColor = _basicIconColorForTeam(team.name);
+    final iconBackground = _basicIconBackgroundForTeam(team.name);
+
+    return _TeamCardData(
+      team: team,
+      members: const [],
+      projectCount: 0,
+      taskCount: 0,
+      icon: icon,
+      iconColor: iconColor,
+      iconBackground: iconBackground,
+      accentLabel: index == 0 ? 'Owner' : null,
+      isLoadingStats: true,
+    );
+  }
 
   final TeamModel team;
   final List<TeamMemberModel> members;
@@ -1769,10 +1909,15 @@ class _TeamCardData {
   final Color iconColor;
   final Color iconBackground;
   final String? accentLabel;
+  final bool isLoadingStats;
 
   int get memberCount => members.length;
 
   String get subtitle {
+    if (isLoadingStats) {
+      return 'Workspace for team collaboration';
+    }
+
     if (projectCount == 0 && taskCount == 0) {
       return 'Workspace for team collaboration';
     }
@@ -1782,5 +1927,63 @@ class _TeamCardData {
     }
 
     return '$projectCount project workspaces';
+  }
+
+  static IconData _basicIconForTeam(String teamName) {
+    final normalized = teamName.toLowerCase();
+
+    if (normalized.contains('design') || normalized.contains('ui')) {
+      return Icons.business_center_outlined;
+    }
+
+    if (normalized.contains('develop') || normalized.contains('code')) {
+      return Icons.code_rounded;
+    }
+
+    if (normalized.contains('market') || normalized.contains('sales')) {
+      return Icons.campaign_outlined;
+    }
+
+    if (normalized.contains('planora')) {
+      return Icons.rocket_launch_outlined;
+    }
+
+    return Icons.groups_2_outlined;
+  }
+
+  static Color _basicIconColorForTeam(String teamName) {
+    final normalized = teamName.toLowerCase();
+
+    if (normalized.contains('design') || normalized.contains('ui')) {
+      return const Color(0xFF3B82F6);
+    }
+
+    if (normalized.contains('develop') || normalized.contains('code')) {
+      return const Color(0xFF22C55E);
+    }
+
+    if (normalized.contains('market') || normalized.contains('sales')) {
+      return const Color(0xFFF59E0B);
+    }
+
+    return PlanoraTheme.secondaryPurple;
+  }
+
+  static Color _basicIconBackgroundForTeam(String teamName) {
+    final normalized = teamName.toLowerCase();
+
+    if (normalized.contains('design') || normalized.contains('ui')) {
+      return const Color(0xFFEAF2FF);
+    }
+
+    if (normalized.contains('develop') || normalized.contains('code')) {
+      return const Color(0xFFEAFBF0);
+    }
+
+    if (normalized.contains('market') || normalized.contains('sales')) {
+      return const Color(0xFFFFF6E6);
+    }
+
+    return const Color(0xFFF0EAFF);
   }
 }
