@@ -17,7 +17,7 @@
 	<key>CFBundleName</key>
 	<string>Planora</string>
 	<key>CFBundlePackageType</key>
-	<string>APPL</string>
+	<string>Planora</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
