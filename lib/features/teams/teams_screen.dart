@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../auth/data/project_api.dart';
-import '../auth/models/project_models.dart';
 import '../tasks/data/tasks_api.dart';
-import '../tasks/models/task_models.dart';
 import 'data/teams_api.dart';
 
 class TeamsScreen extends StatefulWidget {
@@ -15,3 +12,5 @@ class TeamsScreen extends StatefulWidget {
 
   const TeamsScreen({
     super.key,
+    this.teamsApi = const TeamsApi(),
+    this.projects
