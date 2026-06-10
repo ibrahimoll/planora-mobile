@@ -1277,7 +1277,7 @@ class _CreateTeamBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 82,
+      constraints: const BoxConstraints(minHeight: 92),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -1317,7 +1317,7 @@ class _CreateTeamBanner extends StatelessWidget {
                 ),
                 SizedBox(height: 5),
                 Text(
-                  'Invite your team members and start collaborating together.',
+                  'Invite members and collaborate together.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
