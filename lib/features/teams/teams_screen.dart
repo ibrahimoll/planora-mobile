@@ -1,14 +1,4 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:mobile/core/theme/planora_theme.dart';
-import 'package:mobile/features/auth/data/project_api.dart';
-import 'package:mobile/features/auth/models/project_models.dart';
-import 'package:mobile/features/tasks/data/tasks_api.dart';
-import 'package:mobile/features/tasks/models/task_models.dart';
-import 'package:mobile/features/teams/data/teams_api.dart';
 
 class TeamsScreen extends StatefulWidget {
   final Object? teamsApi;
@@ -31,427 +21,141 @@ class TeamsScreen extends StatefulWidget {
 }
 
 class _TeamsScreenState extends State<TeamsScreen> {
-  late final TeamsApi _teamsApi;
-  late final ProjectsApi _projectsApi;
-  late final TasksApi _tasksApi;
-  late final TextEditingController _searchController;
-
-  bool _isLoading = true;
-  bool _isRefreshing = false;
-  String? _errorMessage;
   int _selectedTabIndex = 0;
   String _searchQuery = '';
 
-  List<_TeamCardData> _teams = [];
-  List<TeamInvitationModel> _invitations = [];
+  final List<_TeamDemoData> _teams = const [
+    _TeamDemoData(
+      name: 'Planora Team',
+      subtitle: 'Workspace for Planora AI development',
+      badge: 'Owner',
+      icon: Icons.rocket_launch_outlined,
+      iconColor: Color(0xFF7C3AED),
+      iconBackground: Color(0xFFF0EAFF),
+      members: 12,
+      projects: 8,
+      tasks: 54,
+      avatars: [Color(0xFF8D5A3B), Color(0xFFC98252), Color(0xFF6C4634)],
+      extraMembers: 5,
+    ),
+    _TeamDemoData(
+      name: 'Design Team',
+      subtitle: 'UI/UX design and user experience',
+      icon: Icons.business_center_outlined,
+      iconColor: Color(0xFF3B82F6),
+      iconBackground: Color(0xFFEAF2FF),
+      members: 5,
+      projects: 4,
+      tasks: 23,
+      avatars: [Color(0xFFC98252), Color(0xFF6C4634)],
+      extraMembers: 3,
+    ),
+    _TeamDemoData(
+      name: 'Development Team',
+      subtitle: 'Building the future of Planora',
+      icon: Icons.code_rounded,
+      iconColor: Color(0xFF22C55E),
+      iconBackground: Color(0xFFEAFBF0),
+      members: 8,
+      projects: 6,
+      tasks: 38,
+      avatars: [Color(0xFF8D5A3B), Color(0xFF6C4634), Color(0xFFC98252)],
+      extraMembers: 4,
+    ),
+    _TeamDemoData(
+      name: 'Marketing Team',
+      subtitle: 'Spreading the word about Planora',
+      icon: Icons.campaign_outlined,
+      iconColor: Color(0xFFF59E0B),
+      iconBackground: Color(0xFFFFF6E6),
+      members: 4,
+      projects: 3,
+      tasks: 15,
+      avatars: [Color(0xFFC98252), Color(0xFF6C4634)],
+      extraMembers: 2,
+    ),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    _teamsApi = widget.teamsApi is TeamsApi
-        ? widget.teamsApi! as TeamsApi
-        : const TeamsApi();
-    _projectsApi = widget.projectsApi is ProjectsApi
-        ? widget.projectsApi! as ProjectsApi
-        : const ProjectsApi();
-    _tasksApi = widget.tasksApi is TasksApi
-        ? widget.tasksApi! as TasksApi
-        : const TasksApi();
-    _searchController = TextEditingController();
-    _loadTeams();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<_TeamCardData> get _filteredTeams {
+  List<_TeamDemoData> get _visibleTeams {
     final query = _searchQuery.trim().toLowerCase();
 
     if (query.isEmpty) {
       return _teams;
     }
 
-    return _teams.where((item) {
-      return item.team.name.toLowerCase().contains(query) ||
-          item.subtitle.toLowerCase().contains(query);
+    return _teams.where((team) {
+      return team.name.toLowerCase().contains(query) ||
+          team.subtitle.toLowerCase().contains(query);
     }).toList();
   }
 
-  List<TeamInvitationModel> get _pendingInvitations {
-    return _invitations.where((item) => item.isPending).toList();
-  }
+  @override
+  Widget build(BuildContext context) {
+    final content = SizedBox.expand(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          widget.showBackButton ? 22 : 0,
+          widget.showBackButton ? 22 : 0,
+          widget.showBackButton ? 22 : 0,
+          110,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Header(
+              showBackButton: widget.showBackButton,
+              onBackPressed: () => Navigator.of(context).maybePop(),
+              onCreatePressed: _showCreateTeamMessage,
+            ),
+            const SizedBox(height: 18),
+            _SearchAndFilterRow(
+              onChanged: (value) => setState(() => _searchQuery = value),
+              onFilterPressed: () => _showMessage('Filters coming soon.'),
+            ),
+            const SizedBox(height: 22),
+            _Tabs(
+              selectedIndex: _selectedTabIndex,
+              invitationCount: 2,
+              onChanged: (index) => setState(() => _selectedTabIndex = index),
+            ),
+            const SizedBox(height: 18),
+            if (_selectedTabIndex == 0)
+              ..._visibleTeams.map(
+                (team) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _TeamCard(
+                    team: team,
+                    onTap: () => _showMessage('${team.name} opened.'),
+                    onMenuPressed: () =>
+                        _showMessage('Team options coming soon.'),
+                  ),
+                ),
+              )
+            else
+              const _InvitationsCard(),
+            const SizedBox(height: 4),
+            _CreateTeamBanner(onPressed: _showCreateTeamMessage),
+          ],
+        ),
+      ),
+    );
 
-  Future<void> _loadTeams({bool silent = false}) async {
-    if (!mounted) return;
-
-    setState(() {
-      if (silent) {
-        _isRefreshing = true;
-      } else {
-        _isLoading = true;
-      }
-      _errorMessage = null;
-    });
-
-    try {
-      final teams = await _teamsApi.getTeams().timeout(
-        const Duration(seconds: 12),
-      );
-
-      final invitations = await _teamsApi.getMyInvitations().timeout(
-        const Duration(seconds: 12),
-        onTimeout: () => <TeamInvitationModel>[],
-      );
-
-      final basicCards = teams.asMap().entries.map((entry) {
-        return _TeamCardData.basic(team: entry.value, index: entry.key);
-      }).toList();
-
-      if (!mounted) return;
-
-      setState(() {
-        _teams = basicCards;
-        _invitations = invitations;
-        _isLoading = false;
-        _isRefreshing = false;
-      });
-
-      unawaited(_loadTeamStatsInBackground(teams));
-    } catch (error, stackTrace) {
-      debugPrint('Teams load failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) return;
-
-      setState(() {
-        _errorMessage = 'Could not load teams. Please try again.';
-        _isLoading = false;
-        _isRefreshing = false;
-      });
-    }
-  }
-
-  Future<void> _loadTeamStatsInBackground(List<TeamModel> teams) async {
-    final detailedCards = <_TeamCardData>[];
-
-    for (final entry in teams.asMap().entries) {
-      final card = await _buildTeamCardData(
-        team: entry.value,
-        index: entry.key,
-      );
-      detailedCards.add(card);
+    if (!widget.showBackButton) {
+      return content;
     }
 
-    if (!mounted) return;
-
-    setState(() {
-      _teams = detailedCards;
-    });
-  }
-
-  Future<_TeamCardData> _buildTeamCardData({
-    required TeamModel team,
-    required int index,
-  }) async {
-    List<TeamMemberModel> members = [];
-    List<ProjectModel> projects = [];
-    int taskCount = 0;
-
-    try {
-      members = await _teamsApi
-          .getTeamMembers(team.teamId)
-          .timeout(
-            const Duration(seconds: 8),
-            onTimeout: () => <TeamMemberModel>[],
-          );
-    } catch (error, stackTrace) {
-      debugPrint('Team members load failed for ${team.teamId}: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
-
-    try {
-      projects = await _projectsApi
-          .getTeamProjects(team.teamId)
-          .timeout(
-            const Duration(seconds: 8),
-            onTimeout: () => <ProjectModel>[],
-          );
-    } catch (error, stackTrace) {
-      debugPrint('Team projects load failed for ${team.teamId}: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
-
-    for (final project in projects) {
-      try {
-        final tasks = await _tasksApi
-            .getProjectTasks(project: TaskProjectSummary.fromProject(project))
-            .timeout(
-              const Duration(seconds: 8),
-              onTimeout: () => <TaskListItem>[],
-            );
-        taskCount += tasks.length;
-      } catch (error, stackTrace) {
-        debugPrint(
-          'Team task load failed for project ${project.projectId}: $error',
-        );
-        debugPrintStack(stackTrace: stackTrace);
-      }
-    }
-
-    return _TeamCardData(
-      team: team,
-      members: members,
-      projectCount: projects.length,
-      taskCount: taskCount,
-      icon: _iconForTeam(team.name),
-      iconColor: _iconColorForTeam(team.name),
-      iconBackground: _iconBackgroundForTeam(team.name),
-      accentLabel: index == 0 ? 'Owner' : null,
-      isLoadingStats: false,
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFF),
+      body: SafeArea(child: content),
     );
   }
 
-  IconData _iconForTeam(String teamName) {
-    final normalized = teamName.toLowerCase();
-
-    if (normalized.contains('design') || normalized.contains('ui')) {
-      return Icons.business_center_outlined;
-    }
-
-    if (normalized.contains('develop') ||
-        normalized.contains('code') ||
-        normalized.contains('tech') ||
-        normalized.contains('backend') ||
-        normalized.contains('frontend')) {
-      return Icons.code_rounded;
-    }
-
-    if (normalized.contains('market') ||
-        normalized.contains('sales') ||
-        normalized.contains('growth')) {
-      return Icons.campaign_outlined;
-    }
-
-    if (normalized.contains('planora')) {
-      return Icons.rocket_launch_outlined;
-    }
-
-    return Icons.groups_2_outlined;
+  void _showCreateTeamMessage() {
+    _showMessage('Create team flow will be connected here.');
   }
 
-  Color _iconColorForTeam(String teamName) {
-    final normalized = teamName.toLowerCase();
-
-    if (normalized.contains('design') || normalized.contains('ui')) {
-      return const Color(0xFF3B82F6);
-    }
-
-    if (normalized.contains('develop') ||
-        normalized.contains('code') ||
-        normalized.contains('tech') ||
-        normalized.contains('backend') ||
-        normalized.contains('frontend')) {
-      return const Color(0xFF22C55E);
-    }
-
-    if (normalized.contains('market') ||
-        normalized.contains('sales') ||
-        normalized.contains('growth')) {
-      return const Color(0xFFF59E0B);
-    }
-
-    return PlanoraTheme.secondaryPurple;
-  }
-
-  Color _iconBackgroundForTeam(String teamName) {
-    final normalized = teamName.toLowerCase();
-
-    if (normalized.contains('design') || normalized.contains('ui')) {
-      return const Color(0xFFEAF2FF);
-    }
-
-    if (normalized.contains('develop') ||
-        normalized.contains('code') ||
-        normalized.contains('tech') ||
-        normalized.contains('backend') ||
-        normalized.contains('frontend')) {
-      return const Color(0xFFEAFBF0);
-    }
-
-    if (normalized.contains('market') ||
-        normalized.contains('sales') ||
-        normalized.contains('growth')) {
-      return const Color(0xFFFFF6E6);
-    }
-
-    return const Color(0xFFF0EAFF);
-  }
-
-  Future<void> _openCreateTeamDialog() async {
-    final controller = TextEditingController();
-    var isSubmitting = false;
-
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final isDark = PlanoraTheme.isDark(context);
-
-            return AlertDialog(
-              backgroundColor: isDark
-                  ? PlanoraTheme.darkSurface
-                  : PlanoraTheme.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              title: Text(
-                'Create a new team',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: isDark
-                      ? PlanoraTheme.darkTextPrimary
-                      : PlanoraTheme.textPrimary,
-                ),
-              ),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  labelText: 'Team name',
-                  hintText: 'Example: Design Team',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onSubmitted: (_) async {
-                  if (!isSubmitting) {
-                    await _createTeamFromDialog(
-                      controller: controller,
-                      setDialogState: setDialogState,
-                      closeDialog: () => Navigator.of(dialogContext).pop(true),
-                      setSubmitting: (value) => isSubmitting = value,
-                    );
-                  }
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          await _createTeamFromDialog(
-                            controller: controller,
-                            setDialogState: setDialogState,
-                            closeDialog: () =>
-                                Navigator.of(dialogContext).pop(true),
-                            setSubmitting: (value) => isSubmitting = value,
-                          );
-                        },
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: PlanoraTheme.primaryPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        )
-                      : const Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (created == true) {
-      widget.onTeamsChanged?.call();
-      await _loadTeams(silent: true);
-    }
-  }
-
-  Future<void> _createTeamFromDialog({
-    required TextEditingController controller,
-    required StateSetter setDialogState,
-    required VoidCallback closeDialog,
-    required ValueChanged<bool> setSubmitting,
-  }) async {
-    final name = controller.text.trim();
-
-    if (name.isEmpty) {
-      _showSnackBar('Enter a team name first.');
-      return;
-    }
-
-    setDialogState(() {
-      setSubmitting(true);
-    });
-
-    try {
-      await _teamsApi.createTeam(name);
-      closeDialog();
-      _showSnackBar('Team created successfully.');
-    } catch (error, stackTrace) {
-      debugPrint('Team create failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      _showSnackBar('Could not create team. Please try again.');
-      setDialogState(() {
-        setSubmitting(false);
-      });
-    }
-  }
-
-  Future<void> _acceptInvitation(TeamInvitationModel invitation) async {
-    try {
-      await _teamsApi.acceptInvitation(invitation.invitationId);
-      _showSnackBar('Invitation accepted.');
-      widget.onTeamsChanged?.call();
-      await _loadTeams(silent: true);
-    } catch (error, stackTrace) {
-      debugPrint('Invitation accept failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      _showSnackBar('Could not accept invitation.');
-    }
-  }
-
-  Future<void> _rejectInvitation(TeamInvitationModel invitation) async {
-    try {
-      await _teamsApi.rejectInvitation(invitation.invitationId);
-      _showSnackBar('Invitation rejected.');
-      widget.onTeamsChanged?.call();
-      await _loadTeams(silent: true);
-    } catch (error, stackTrace) {
-      debugPrint('Invitation reject failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      _showSnackBar('Could not reject invitation.');
-    }
-  }
-
-  void _showSnackBar(String message) {
+  void _showMessage(String message) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context)
@@ -466,258 +170,52 @@ class _TeamsScreenState extends State<TeamsScreen> {
         ),
       );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final backgroundColor = isDark
-        ? PlanoraTheme.darkBackground
-        : const Color(0xFFFAFAFF);
-
-    final content = AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-      child: _buildTeamsContent(context),
-    );
-
-    if (!widget.showBackButton) {
-      return content;
-    }
-
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: content,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTeamsContent(BuildContext context) {
-    final isEmbeddedInHome = !widget.showBackButton;
-
-    return RefreshIndicator(
-      color: PlanoraTheme.primaryPurple,
-      onRefresh: () => _loadTeams(silent: true),
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        padding: EdgeInsets.fromLTRB(
-          isEmbeddedInHome ? 0 : 22,
-          isEmbeddedInHome ? 0 : 22,
-          isEmbeddedInHome ? 0 : 22,
-          120,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _TeamsHeader(
-              showBackButton: widget.showBackButton,
-              isRefreshing: _isRefreshing,
-              onBackPressed: () => Navigator.of(context).maybePop(),
-              onCreatePressed: _openCreateTeamDialog,
-            ),
-            const SizedBox(height: 18),
-            _SearchAndFilterRow(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() => _searchQuery = value);
-              },
-              onFilterPressed: () => _showSnackBar(
-                'Filters will be connected when team roles/status filters are added.',
-              ),
-            ),
-            const SizedBox(height: 22),
-            _TeamTabs(
-              selectedIndex: _selectedTabIndex,
-              invitationCount: _pendingInvitations.length,
-              onChanged: (index) {
-                setState(() => _selectedTabIndex = index);
-              },
-            ),
-            const SizedBox(height: 18),
-            _buildBody(),
-            const SizedBox(height: 4),
-            _CreateTeamBanner(onPressed: _openCreateTeamDialog),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_isLoading && _teams.isEmpty) {
-      return const _TeamsLoadingList();
-    }
-
-    if (_errorMessage != null) {
-      return _TeamsErrorState(
-        message: _errorMessage!,
-        onRetry: () => _loadTeams(),
-      );
-    }
-
-    if (_selectedTabIndex == 1) {
-      return _InvitationsList(
-        invitations: _pendingInvitations,
-        onAccept: _acceptInvitation,
-        onReject: _rejectInvitation,
-      );
-    }
-
-    final teams = _filteredTeams;
-
-    if (teams.isEmpty) {
-      return _EmptyTeamsState(
-        hasSearchQuery: _searchQuery.trim().isNotEmpty,
-        onCreateTeam: _openCreateTeamDialog,
-      );
-    }
-
-    return Column(
-      children: [
-        for (final team in teams)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: _TeamCard(
-              data: team,
-              onMenuPressed: () => _showTeamMenu(team),
-              onTap: () => _showTeamSummary(team),
-            ),
-          ),
-      ],
-    );
-  }
-
-  void _showTeamMenu(_TeamCardData team) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final isDark = PlanoraTheme.isDark(context);
-
-        return Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          decoration: BoxDecoration(
-            color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? PlanoraTheme.darkBorder
-                      : const Color(0xFFE5E7EB),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              const SizedBox(height: 18),
-              ListTile(
-                leading: const Icon(Icons.info_outline_rounded),
-                title: const Text('View team summary'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _showTeamSummary(team);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.refresh_rounded),
-                title: const Text('Refresh teams'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _loadTeams(silent: true);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showTeamSummary(_TeamCardData team) {
-    _showSnackBar(
-      '${team.team.name}: ${team.memberCount} members, ${team.projectCount} projects, ${team.taskCount} tasks.',
-    );
-  }
 }
 
-class _TeamsHeader extends StatelessWidget {
-  const _TeamsHeader({
+class _Header extends StatelessWidget {
+  const _Header({
     required this.showBackButton,
-    required this.isRefreshing,
     required this.onBackPressed,
     required this.onCreatePressed,
   });
 
   final bool showBackButton;
-  final bool isRefreshing;
   final VoidCallback onBackPressed;
   final VoidCallback onCreatePressed;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final titleColor = isDark
-        ? PlanoraTheme.darkTextPrimary
-        : const Color(0xFF141724);
-    final subtitleColor = isDark
-        ? PlanoraTheme.darkTextSecondary
-        : const Color(0xFF6C7391);
-
     return Row(
       children: [
         if (showBackButton) ...[
-          _HeaderIconButton(
+          _SmallIconButton(
             icon: Icons.arrow_back_rounded,
             onPressed: onBackPressed,
           ),
           const SizedBox(width: 12),
         ],
-        Expanded(
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      'Teams',
-                      style: TextStyle(
-                        fontSize: 28,
-                        height: 1.05,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.8,
-                        color: titleColor,
-                      ),
-                    ),
-                  ),
-                  if (isRefreshing) ...[
-                    const SizedBox(width: 10),
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ],
-                ],
+              Text(
+                'Teams',
+                style: TextStyle(
+                  fontSize: 28,
+                  height: 1.05,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
+                  color: Color(0xFF141724),
+                ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Manage your teams and collaborate',
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.2,
                   fontWeight: FontWeight.w500,
-                  color: subtitleColor,
+                  color: Color(0xFF6C7391),
                 ),
               ),
             ],
@@ -728,9 +226,17 @@ class _TeamsHeader extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradientFor(context),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+            ),
             borderRadius: BorderRadius.circular(13),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.26),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Material(
             color: Colors.transparent,
@@ -751,25 +257,21 @@ class _TeamsHeader extends StatelessWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({required this.icon, required this.onPressed});
+class _SmallIconButton extends StatelessWidget {
+  const _SmallIconButton({required this.icon, required this.onPressed});
 
   final IconData icon;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
     return Container(
       width: 42,
       height: 42,
       decoration: BoxDecoration(
-        color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(
-          color: isDark ? PlanoraTheme.darkBorder : const Color(0xFFE6E8F2),
-        ),
+        border: Border.all(color: const Color(0xFFE6E8F2)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -777,12 +279,7 @@ class _HeaderIconButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(13),
           onTap: onPressed,
-          child: Icon(
-            icon,
-            color: isDark
-                ? PlanoraTheme.darkTextSecondary
-                : const Color(0xFF68708C),
-          ),
+          child: Icon(icon, color: const Color(0xFF68708C)),
         ),
       ),
     );
@@ -791,66 +288,52 @@ class _HeaderIconButton extends StatelessWidget {
 
 class _SearchAndFilterRow extends StatelessWidget {
   const _SearchAndFilterRow({
-    required this.controller,
     required this.onChanged,
     required this.onFilterPressed,
   });
 
-  final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onFilterPressed;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final surface = isDark ? PlanoraTheme.darkSurface : Colors.white;
-    final borderColor = isDark
-        ? PlanoraTheme.darkBorder
-        : const Color(0xFFE6E8F2);
-
     return Row(
       children: [
         Expanded(
           child: Container(
             height: 48,
             decoration: BoxDecoration(
-              color: surface,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: borderColor),
-              boxShadow: isDark ? [] : PlanoraTheme.cardShadow,
+              border: Border.all(color: const Color(0xFFE6E8F2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.035),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
             child: TextField(
-              controller: controller,
               onChanged: onChanged,
-              cursorColor: PlanoraTheme.primaryPurple,
-              decoration: InputDecoration(
+              cursorColor: const Color(0xFF7C3AED),
+              decoration: const InputDecoration(
                 hintText: 'Search teams...',
                 hintStyle: TextStyle(
-                  color: isDark
-                      ? PlanoraTheme.darkTextMuted
-                      : const Color(0xFF98A0B8),
+                  color: Color(0xFF98A0B8),
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
-                  color: isDark
-                      ? PlanoraTheme.darkTextMuted
-                      : const Color(0xFF8A91AA),
+                  color: Color(0xFF8A91AA),
                   size: 22,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding: EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 14,
                 ),
-              ),
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark
-                    ? PlanoraTheme.darkTextPrimary
-                    : const Color(0xFF171B2E),
-                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -860,10 +343,16 @@ class _SearchAndFilterRow extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: surface,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: borderColor),
-            boxShadow: isDark ? [] : PlanoraTheme.cardShadow,
+            border: Border.all(color: const Color(0xFFE6E8F2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.035),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Material(
             color: Colors.transparent,
@@ -871,11 +360,9 @@ class _SearchAndFilterRow extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(13),
               onTap: onFilterPressed,
-              child: Icon(
+              child: const Icon(
                 Icons.tune_rounded,
-                color: isDark
-                    ? PlanoraTheme.darkTextSecondary
-                    : const Color(0xFF68708C),
+                color: Color(0xFF68708C),
                 size: 23,
               ),
             ),
@@ -886,8 +373,8 @@ class _SearchAndFilterRow extends StatelessWidget {
   }
 }
 
-class _TeamTabs extends StatelessWidget {
-  const _TeamTabs({
+class _Tabs extends StatelessWidget {
+  const _Tabs({
     required this.selectedIndex,
     required this.invitationCount,
     required this.onChanged,
@@ -899,17 +386,10 @@ class _TeamTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
     return Container(
       height: 35,
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? PlanoraTheme.darkBorder : const Color(0xFFE7E9F2),
-            width: 1,
-          ),
-        ),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFE7E9F2), width: 1)),
       ),
       child: Row(
         children: [
@@ -941,17 +421,12 @@ class _TabButton extends StatelessWidget {
 
   final String label;
   final bool selected;
-  final int? badge;
   final VoidCallback onTap;
+  final int? badge;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final color = selected
-        ? PlanoraTheme.secondaryPurple
-        : isDark
-        ? PlanoraTheme.darkTextSecondary
-        : const Color(0xFF6C7391);
+    final color = selected ? const Color(0xFF7C3AED) : const Color(0xFF6C7391);
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
@@ -988,7 +463,7 @@ class _TabButton extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: PlanoraTheme.primaryPurple,
+                          color: Color(0xFF7C3AED),
                         ),
                       ),
                     ),
@@ -1004,7 +479,7 @@ class _TabButton extends StatelessWidget {
                 child: Container(
                   height: 2.5,
                   decoration: BoxDecoration(
-                    color: PlanoraTheme.secondaryPurple,
+                    color: const Color(0xFF7C3AED),
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
@@ -1016,114 +491,31 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _TeamsLoadingList extends StatelessWidget {
-  const _TeamsLoadingList();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: const [
-        _LoadingTeamCard(),
-        SizedBox(height: 14),
-        _LoadingTeamCard(),
-        SizedBox(height: 14),
-        _LoadingTeamCard(),
-      ],
-    );
-  }
-}
-
-class _LoadingTeamCard extends StatelessWidget {
-  const _LoadingTeamCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final surface = isDark ? PlanoraTheme.darkSurface : Colors.white;
-    final borderColor = isDark
-        ? PlanoraTheme.darkBorder
-        : const Color(0xFFE8EAF4);
-    final blockColor = isDark
-        ? PlanoraTheme.darkSurfaceVariant
-        : const Color(0xFFF1F3FA);
-
-    return Container(
-      height: 156,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surface,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: isDark ? [] : PlanoraTheme.softCardShadow,
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: blockColor,
-                  borderRadius: BorderRadius.circular(13),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(width: 150, height: 16, color: blockColor),
-                    const SizedBox(height: 10),
-                    Container(width: 220, height: 12, color: blockColor),
-                    const SizedBox(height: 12),
-                    Container(width: 88, height: 24, color: blockColor),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Divider(color: borderColor, height: 1),
-          const SizedBox(height: 10),
-          Container(width: double.infinity, height: 18, color: blockColor),
-        ],
-      ),
-    );
-  }
-}
-
 class _TeamCard extends StatelessWidget {
   const _TeamCard({
-    required this.data,
-    required this.onMenuPressed,
+    required this.team,
     required this.onTap,
+    required this.onMenuPressed,
   });
 
-  final _TeamCardData data;
-  final VoidCallback onMenuPressed;
+  final _TeamDemoData team;
   final VoidCallback onTap;
+  final VoidCallback onMenuPressed;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final surface = isDark ? PlanoraTheme.darkSurface : Colors.white;
-    final borderColor = isDark
-        ? PlanoraTheme.darkBorder
-        : const Color(0xFFE8EAF4);
-    final titleColor = isDark
-        ? PlanoraTheme.darkTextPrimary
-        : const Color(0xFF171B2E);
-    final subtitleColor = isDark
-        ? PlanoraTheme.darkTextSecondary
-        : const Color(0xFF6C7391);
-
     return Container(
       decoration: BoxDecoration(
-        color: surface,
-        border: Border.all(color: borderColor),
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE8EAF4)),
         borderRadius: BorderRadius.circular(15),
-        boxShadow: isDark ? [] : PlanoraTheme.softCardShadow,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.045),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -1142,10 +534,10 @@ class _TeamCard extends StatelessWidget {
                       width: 58,
                       height: 58,
                       decoration: BoxDecoration(
-                        color: data.iconBackground,
+                        color: team.iconBackground,
                         borderRadius: BorderRadius.circular(13),
                       ),
-                      child: Icon(data.icon, color: data.iconColor, size: 31),
+                      child: Icon(team.icon, color: team.iconColor, size: 31),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -1158,19 +550,19 @@ class _TeamCard extends StatelessWidget {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    data.team.name,
+                                    team.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 17,
                                       height: 1.15,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: -0.25,
-                                      color: titleColor,
+                                      color: Color(0xFF171B2E),
                                     ),
                                   ),
                                 ),
-                                if (data.accentLabel != null) ...[
+                                if (team.badge != null) ...[
                                   const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
@@ -1182,11 +574,11 @@ class _TeamCard extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      data.accentLabel!,
+                                      team.badge!,
                                       style: const TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w800,
-                                        color: PlanoraTheme.primaryPurple,
+                                        color: Color(0xFF7C3AED),
                                       ),
                                     ),
                                   ),
@@ -1195,17 +587,20 @@ class _TeamCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 7),
                             Text(
-                              data.subtitle,
+                              team.subtitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w500,
-                                color: subtitleColor,
+                                color: Color(0xFF6C7391),
                               ),
                             ),
                             const SizedBox(height: 12),
-                            _AvatarStack(members: data.members),
+                            _AvatarStack(
+                              colors: team.avatars,
+                              extraCount: team.extraMembers,
+                            ),
                           ],
                         ),
                       ),
@@ -1218,23 +613,19 @@ class _TeamCard extends StatelessWidget {
                         minHeight: 32,
                       ),
                       onPressed: onMenuPressed,
-                      icon: Icon(
+                      icon: const Icon(
                         Icons.more_vert_rounded,
-                        color: isDark
-                            ? PlanoraTheme.darkTextSecondary
-                            : const Color(0xFF626B87),
+                        color: Color(0xFF626B87),
                         size: 21,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 15),
-                Divider(
+                const Divider(
                   height: 1,
                   thickness: 1,
-                  color: isDark
-                      ? PlanoraTheme.darkBorder
-                      : const Color(0xFFE9EBF4),
+                  color: Color(0xFFE9EBF4),
                 ),
                 const SizedBox(height: 11),
                 Row(
@@ -1242,25 +633,22 @@ class _TeamCard extends StatelessWidget {
                     Expanded(
                       child: _StatItem(
                         icon: Icons.group_outlined,
-                        value: data.memberCount,
+                        value: team.members,
                         label: 'Members',
-                        isLoading: data.isLoadingStats,
                       ),
                     ),
                     Expanded(
                       child: _StatItem(
                         icon: Icons.folder_copy_outlined,
-                        value: data.projectCount,
+                        value: team.projects,
                         label: 'Projects',
-                        isLoading: data.isLoadingStats,
                       ),
                     ),
                     Expanded(
                       child: _StatItem(
                         icon: Icons.check_box_outlined,
-                        value: data.taskCount,
+                        value: team.tasks,
                         label: 'Tasks',
-                        isLoading: data.isLoadingStats,
                       ),
                     ),
                   ],
@@ -1275,32 +663,16 @@ class _TeamCard extends StatelessWidget {
 }
 
 class _AvatarStack extends StatelessWidget {
-  const _AvatarStack({required this.members});
+  const _AvatarStack({required this.colors, required this.extraCount});
 
-  final List<TeamMemberModel> members;
+  final List<Color> colors;
+  final int extraCount;
 
   @override
   Widget build(BuildContext context) {
     const double size = 26;
     const double overlap = 18;
-    final visibleMembers = members.take(3).toList();
-    final extraCount = math.max(0, members.length - visibleMembers.length);
-    final width = visibleMembers.isEmpty
-        ? 94.0
-        : (visibleMembers.length * overlap) + (extraCount > 0 ? 33 : 12);
-
-    if (visibleMembers.isEmpty) {
-      return Text(
-        'Loading members',
-        style: TextStyle(
-          color: PlanoraTheme.isDark(context)
-              ? PlanoraTheme.darkTextMuted
-              : const Color(0xFF98A0B8),
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-        ),
-      );
-    }
+    final width = (colors.length * overlap) + (extraCount > 0 ? 33 : 12);
 
     return SizedBox(
       height: size,
@@ -1308,18 +680,23 @@ class _AvatarStack extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          for (int index = 0; index < visibleMembers.length; index++)
+          for (int index = 0; index < colors.length; index++)
             Positioned(
               left: index * overlap,
-              child: _MemberAvatar(
-                member: visibleMembers[index],
-                index: index,
-                size: size,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: colors[index],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(Icons.person, color: Colors.white, size: 15),
               ),
             ),
           if (extraCount > 0)
             Positioned(
-              left: visibleMembers.length * overlap,
+              left: colors.length * overlap,
               child: Container(
                 width: size,
                 height: size,
@@ -1332,7 +709,7 @@ class _AvatarStack extends StatelessWidget {
                 child: Text(
                   '+$extraCount',
                   style: const TextStyle(
-                    color: PlanoraTheme.primaryPurple,
+                    color: Color(0xFF7C3AED),
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1345,115 +722,43 @@ class _AvatarStack extends StatelessWidget {
   }
 }
 
-class _MemberAvatar extends StatelessWidget {
-  const _MemberAvatar({
-    required this.member,
-    required this.index,
-    required this.size,
-  });
-
-  final TeamMemberModel member;
-  final int index;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = [
-      const Color(0xFF8D5A3B),
-      const Color(0xFFD08A5B),
-      const Color(0xFF7A4B32),
-      const Color(0xFF6D28D9),
-      const Color(0xFF2563EB),
-    ];
-
-    return Tooltip(
-      message: member.displayName,
-      child: Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: colors[index % colors.length],
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-        ),
-        child: Text(
-          member.initials,
-          maxLines: 1,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StatItem extends StatelessWidget {
   const _StatItem({
     required this.icon,
     required this.value,
     required this.label,
-    required this.isLoading,
   });
 
   final IconData icon;
   final int value;
   final String label;
-  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 15,
-              color: isDark
-                  ? PlanoraTheme.darkTextSecondary
-                  : const Color(0xFF69718D),
-            ),
+            Icon(icon, size: 15, color: const Color(0xFF69718D)),
             const SizedBox(width: 5),
-            if (isLoading)
-              SizedBox(
-                width: 10,
-                height: 10,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.6,
-                  color: isDark
-                      ? PlanoraTheme.darkTextMuted
-                      : const Color(0xFF69718D),
-                ),
-              )
-            else
-              Text(
-                '$value',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: isDark
-                      ? PlanoraTheme.darkTextPrimary
-                      : const Color(0xFF24283B),
-                ),
+            Text(
+              '$value',
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF24283B),
               ),
+            ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w500,
-            color: isDark
-                ? PlanoraTheme.darkTextSecondary
-                : const Color(0xFF6C7391),
+            color: Color(0xFF6C7391),
           ),
         ),
       ],
@@ -1469,12 +774,14 @@ class _CreateTeamBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 81,
+      height: 82,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        gradient: PlanoraTheme.softPurpleGradientFor(context),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF4EDFF), Color(0xFFF8F5FF)],
+        ),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: PlanoraTheme.lavenderBorder),
+        border: Border.all(color: const Color(0xFFEDE7FF)),
       ),
       child: Row(
         children: [
@@ -1487,12 +794,12 @@ class _CreateTeamBanner extends StatelessWidget {
             ),
             child: const Icon(
               Icons.person_add_alt_1_rounded,
-              color: PlanoraTheme.secondaryPurple,
+              color: Color(0xFF7C3AED),
               size: 25,
             ),
           ),
           const SizedBox(width: 14),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1502,12 +809,10 @@ class _CreateTeamBanner extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: PlanoraTheme.isDark(context)
-                        ? PlanoraTheme.darkTextPrimary
-                        : const Color(0xFF171B2E),
+                    color: Color(0xFF171B2E),
                   ),
                 ),
-                const SizedBox(height: 5),
+                SizedBox(height: 5),
                 Text(
                   'Invite your team members and start\ncollaborating together.',
                   maxLines: 2,
@@ -1516,9 +821,7 @@ class _CreateTeamBanner extends StatelessWidget {
                     fontSize: 11.5,
                     height: 1.25,
                     fontWeight: FontWeight.w500,
-                    color: PlanoraTheme.isDark(context)
-                        ? PlanoraTheme.darkTextSecondary
-                        : const Color(0xFF6C7391),
+                    color: Color(0xFF6C7391),
                   ),
                 ),
               ],
@@ -1531,9 +834,9 @@ class _CreateTeamBanner extends StatelessWidget {
               onPressed: onPressed,
               style: ElevatedButton.styleFrom(
                 elevation: 0,
-                backgroundColor: PlanoraTheme.primaryPurple,
+                backgroundColor: const Color(0xFF7C3AED),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(9),
                 ),
@@ -1550,199 +853,39 @@ class _CreateTeamBanner extends StatelessWidget {
   }
 }
 
-class _InvitationsList extends StatelessWidget {
-  const _InvitationsList({
-    required this.invitations,
-    required this.onAccept,
-    required this.onReject,
-  });
-
-  final List<TeamInvitationModel> invitations;
-  final ValueChanged<TeamInvitationModel> onAccept;
-  final ValueChanged<TeamInvitationModel> onReject;
-
-  @override
-  Widget build(BuildContext context) {
-    if (invitations.isEmpty) {
-      return const _InvitationsEmptyState();
-    }
-
-    return Column(
-      children: [
-        for (final invitation in invitations)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: _InvitationCard(
-              invitation: invitation,
-              onAccept: () => onAccept(invitation),
-              onReject: () => onReject(invitation),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _InvitationCard extends StatelessWidget {
-  const _InvitationCard({
-    required this.invitation,
-    required this.onAccept,
-    required this.onReject,
-  });
-
-  final TeamInvitationModel invitation;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-        border: Border.all(
-          color: isDark ? PlanoraTheme.darkBorder : const Color(0xFFE8EAF4),
-        ),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: isDark ? [] : PlanoraTheme.softCardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEDE8FF),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.mail_outline_rounded,
-                  color: PlanoraTheme.secondaryPurple,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Team invitation',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : const Color(0xFF171B2E),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Role: ${invitation.role}',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? PlanoraTheme.darkTextSecondary
-                            : const Color(0xFF6C7391),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onReject,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: PlanoraTheme.error,
-                    side: const BorderSide(color: Color(0xFFFCA5A5)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Reject'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: onAccept,
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: PlanoraTheme.primaryPurple,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Accept'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InvitationsEmptyState extends StatelessWidget {
-  const _InvitationsEmptyState();
+class _InvitationsCard extends StatelessWidget {
+  const _InvitationsCard();
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
       decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? PlanoraTheme.darkSurface
-            : Colors.white,
-        border: Border.all(
-          color: PlanoraTheme.isDark(context)
-              ? PlanoraTheme.darkBorder
-              : const Color(0xFFE8EAF4),
-        ),
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE8EAF4)),
         borderRadius: BorderRadius.circular(15),
       ),
-      child: Column(
+      child: const Column(
         children: [
-          const Icon(
-            Icons.mail_outline_rounded,
-            size: 42,
-            color: PlanoraTheme.secondaryPurple,
-          ),
-          const SizedBox(height: 12),
+          Icon(Icons.mail_outline_rounded, size: 42, color: Color(0xFF7C3AED)),
+          SizedBox(height: 12),
           Text(
             'No invitations yet',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: PlanoraTheme.isDark(context)
-                  ? PlanoraTheme.darkTextPrimary
-                  : const Color(0xFF171B2E),
+              color: Color(0xFF171B2E),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Team invitations will appear here.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: PlanoraTheme.isDark(context)
-                  ? PlanoraTheme.darkTextSecondary
-                  : const Color(0xFF6C7391),
+              color: Color(0xFF6C7391),
             ),
           ),
         ],
@@ -1751,256 +894,30 @@ class _InvitationsEmptyState extends StatelessWidget {
   }
 }
 
-class _EmptyTeamsState extends StatelessWidget {
-  const _EmptyTeamsState({
-    required this.hasSearchQuery,
-    required this.onCreateTeam,
-  });
-
-  final bool hasSearchQuery;
-  final VoidCallback onCreateTeam;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
-      decoration: BoxDecoration(
-        color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-        border: Border.all(
-          color: isDark ? PlanoraTheme.darkBorder : const Color(0xFFE8EAF4),
-        ),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.groups_2_outlined,
-            size: 46,
-            color: PlanoraTheme.secondaryPurple,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            hasSearchQuery ? 'No matching teams' : 'No teams yet',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : const Color(0xFF171B2E),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            hasSearchQuery
-                ? 'Try another search keyword.'
-                : 'Create your first team and start collaborating.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isDark
-                  ? PlanoraTheme.darkTextSecondary
-                  : const Color(0xFF6C7391),
-            ),
-          ),
-          if (!hasSearchQuery) ...[
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: onCreateTeam,
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                backgroundColor: PlanoraTheme.primaryPurple,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: const Text('Create Team'),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TeamsErrorState extends StatelessWidget {
-  const _TeamsErrorState({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-      decoration: BoxDecoration(
-        color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-        border: Border.all(
-          color: isDark ? PlanoraTheme.darkBorder : const Color(0xFFE8EAF4),
-        ),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            size: 42,
-            color: PlanoraTheme.error,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isDark
-                  ? PlanoraTheme.darkTextSecondary
-                  : const Color(0xFF6C7391),
-            ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRetry,
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: PlanoraTheme.primaryPurple,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TeamCardData {
-  const _TeamCardData({
-    required this.team,
-    required this.members,
-    required this.projectCount,
-    required this.taskCount,
+class _TeamDemoData {
+  const _TeamDemoData({
+    required this.name,
+    required this.subtitle,
     required this.icon,
     required this.iconColor,
     required this.iconBackground,
-    required this.accentLabel,
-    required this.isLoadingStats,
+    required this.members,
+    required this.projects,
+    required this.tasks,
+    required this.avatars,
+    required this.extraMembers,
+    this.badge,
   });
 
-  factory _TeamCardData.basic({required TeamModel team, required int index}) {
-    final icon = _basicIconForTeam(team.name);
-    final iconColor = _basicIconColorForTeam(team.name);
-    final iconBackground = _basicIconBackgroundForTeam(team.name);
-
-    return _TeamCardData(
-      team: team,
-      members: const [],
-      projectCount: 0,
-      taskCount: 0,
-      icon: icon,
-      iconColor: iconColor,
-      iconBackground: iconBackground,
-      accentLabel: index == 0 ? 'Owner' : null,
-      isLoadingStats: true,
-    );
-  }
-
-  final TeamModel team;
-  final List<TeamMemberModel> members;
-  final int projectCount;
-  final int taskCount;
+  final String name;
+  final String subtitle;
+  final String? badge;
   final IconData icon;
   final Color iconColor;
   final Color iconBackground;
-  final String? accentLabel;
-  final bool isLoadingStats;
-
-  int get memberCount => members.length;
-
-  String get subtitle {
-    if (isLoadingStats) {
-      return 'Workspace for team collaboration';
-    }
-
-    if (projectCount == 0 && taskCount == 0) {
-      return 'Workspace for team collaboration';
-    }
-
-    if (projectCount == 1) {
-      return '1 active project workspace';
-    }
-
-    return '$projectCount project workspaces';
-  }
-
-  static IconData _basicIconForTeam(String teamName) {
-    final normalized = teamName.toLowerCase();
-
-    if (normalized.contains('design') || normalized.contains('ui')) {
-      return Icons.business_center_outlined;
-    }
-
-    if (normalized.contains('develop') || normalized.contains('code')) {
-      return Icons.code_rounded;
-    }
-
-    if (normalized.contains('market') || normalized.contains('sales')) {
-      return Icons.campaign_outlined;
-    }
-
-    if (normalized.contains('planora')) {
-      return Icons.rocket_launch_outlined;
-    }
-
-    return Icons.groups_2_outlined;
-  }
-
-  static Color _basicIconColorForTeam(String teamName) {
-    final normalized = teamName.toLowerCase();
-
-    if (normalized.contains('design') || normalized.contains('ui')) {
-      return const Color(0xFF3B82F6);
-    }
-
-    if (normalized.contains('develop') || normalized.contains('code')) {
-      return const Color(0xFF22C55E);
-    }
-
-    if (normalized.contains('market') || normalized.contains('sales')) {
-      return const Color(0xFFF59E0B);
-    }
-
-    return PlanoraTheme.secondaryPurple;
-  }
-
-  static Color _basicIconBackgroundForTeam(String teamName) {
-    final normalized = teamName.toLowerCase();
-
-    if (normalized.contains('design') || normalized.contains('ui')) {
-      return const Color(0xFFEAF2FF);
-    }
-
-    if (normalized.contains('develop') || normalized.contains('code')) {
-      return const Color(0xFFEAFBF0);
-    }
-
-    if (normalized.contains('market') || normalized.contains('sales')) {
-      return const Color(0xFFFFF6E6);
-    }
-
-    return const Color(0xFFF0EAFF);
-  }
+  final int members;
+  final int projects;
+  final int tasks;
+  final List<Color> avatars;
+  final int extraMembers;
 }
