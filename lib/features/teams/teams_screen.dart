@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import '../auth/data/project_api.dart';
-import '../tasks/data/tasks_api.dart';
-import 'data/teams_api.dart';
 
-class TeamsScreen extends StatefulWidget {
-  final TeamsApi teamsApi;
-  final ProjectsApi projectsApi;
-  final TasksApi tasksApi;
+class TeamsScreen extends StatelessWidget {
+  final dynamic teamsApi, projectsApi, tasksApi;
   final bool showBackButton;
   final VoidCallback? onTeamsChanged;
 
-  const TeamsScreen({super.key, this.teamsApi = const TeamsApi(), this.projectsApi = const ProjectsApi(), this.tasksApi = const
+  const TeamsScreen({super.key, this.teamsApi, this.projectsApi, this.tasksApi, this.showBackButton = false, this.onTeamsChanged});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(automaticallyImplyLeading: showBackButton,
