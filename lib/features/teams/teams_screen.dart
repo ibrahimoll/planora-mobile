@@ -12,11 +12,16 @@ class TeamsScreen extends StatefulWidget {
   final ProjectsApi projectsApi;
   final TasksApi tasksApi;
 
+  final bool showBackButton;
+  final VoidCallback? onTeamsChanged;
+
   const TeamsScreen({
     super.key,
     this.teamsApi = const TeamsApi(),
     this.projectsApi = const ProjectsApi(),
     this.tasksApi = const TasksApi(),
+    this.showBackButton = true,
+    this.onTeamsChanged,
   });
 
   @override
@@ -232,6 +237,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Team created.')));
+      widget.onTeamsChanged?.call();
     } catch (error, stackTrace) {
       debugPrint('Team creation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -287,6 +293,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Invitation sent.')));
+      widget.onTeamsChanged?.call();
     } catch (error, stackTrace) {
       debugPrint('Team invitation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -341,6 +348,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
           ),
         ),
       );
+      widget.onTeamsChanged?.call();
     } catch (error, stackTrace) {
       debugPrint('Invitation response failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -398,11 +406,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
   Widget _buildHeader(BuildContext context) {
     return Row(
       children: [
-        IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        const SizedBox(width: 6),
+        if (widget.showBackButton) ...[
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+          const SizedBox(width: 6),
+        ],
         Expanded(
           child: Text(
             'Teams',

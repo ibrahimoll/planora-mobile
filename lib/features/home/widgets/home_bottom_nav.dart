@@ -5,18 +5,20 @@ import '../../../core/theme/planora_theme.dart';
 class HomeBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onTap;
+  final int teamsBadgeCount;
 
   const HomeBottomNav({
     super.key,
     required this.selectedIndex,
     required this.onTap,
+    this.teamsBadgeCount = 0,
   });
 
   static const _items = [
     _BottomNavItem(Icons.today_rounded, 'Today', 0),
     _BottomNavItem(Icons.route_rounded, 'Plans', 1),
     _BottomNavItem(Icons.check_box_rounded, 'Tasks', 3),
-    _BottomNavItem(Icons.person_rounded, 'Profile', 4),
+    _BottomNavItem(Icons.groups_rounded, 'Teams', 4),
   ];
 
   int get _visualSlot {
@@ -190,6 +192,7 @@ class HomeBottomNav extends StatelessWidget {
   }) {
     final selected = selectedIndex == item.index;
     final color = selected ? primary : inactiveColor;
+    final showBadge = item.index == 4 && teamsBadgeCount > 0;
 
     return Expanded(
       child: InkWell(
@@ -202,7 +205,37 @@ class HomeBottomNav extends StatelessWidget {
               scale: selected ? 1.12 : 1.0,
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeOutBack,
-              child: Icon(item.icon, size: selected ? 23 : 21, color: color),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(item.icon, size: selected ? 23 : 21, color: color),
+                  if (showBadge)
+                    Positioned(
+                      top: -7,
+                      right: -9,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 17),
+                        height: 17,
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          teamsBadgeCount > 9
+                              ? '9+'
+                              : teamsBadgeCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 4),
             AnimatedDefaultTextStyle(

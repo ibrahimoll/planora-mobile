@@ -21,6 +21,7 @@ import '../auth/data/project_api.dart';
 import '../auth/models/auth_models.dart';
 import '../auth/models/project_models.dart';
 import 'widgets/home_bottom_nav.dart';
+import 'package:mobile/features/teams/data/teams_api.dart';
 
 enum DashboardRange {
   week('This Week'),
@@ -54,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
   final TasksApi _tasksApi = const TasksApi();
   final NotificationsApi _notificationsApi = const NotificationsApi();
+  final TeamsApi _teamsApi = const TeamsApi();
 
   int selectedIndex = 0;
   int projectCreateRequestId = 0;
@@ -63,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DashboardRange dashboardRange = DashboardRange.month;
 
   bool hasUnreadNotifications = false;
+  int pendingTeamInvitationCount = 0;
   bool isLoadingDashboard = true;
   bool shouldOpenTaskCreateOnStart = false;
 
@@ -78,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     loadDashboardData();
     loadUnreadNotificationCount();
+    loadPendingTeamInvitationCount();
   }
 
   String get displayName {
@@ -229,6 +233,32 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> loadPendingTeamInvitationCount() async {
+    try {
+      final invitations = await _teamsApi.getMyInvitations();
+      final pendingCount = invitations.where((item) => item.isPending).length;
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        pendingTeamInvitationCount = pendingCount;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Team invitation count load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        pendingTeamInvitationCount = 0;
+      });
+    }
+  }
+
   void openNewProjectFlow({
     ProjectCreateStartMode mode = ProjectCreateStartMode.modeChoice,
   }) {
@@ -331,9 +361,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> openTeams() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen()));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TeamsScreen(
+          showBackButton: true,
+          onTeamsChanged: () {
+            loadDashboardData();
+            loadPendingTeamInvitationCount();
+          },
+        ),
+      ),
+    );
 
     if (!mounted) {
       return;
@@ -1928,11 +1966,12 @@ class _HomeScreenState extends State<HomeScreen> {
         );
 
       case 4:
-        return ProfileScreen(
-          user: widget.user,
-          onThemeToggle: widget.onThemeToggle,
-          onLoggedOut: widget.onLoggedOut ?? () {},
-          onUserUpdated: widget.onUserUpdated,
+        return TeamsScreen(
+          showBackButton: false,
+          onTeamsChanged: () {
+            loadDashboardData();
+            loadPendingTeamInvitationCount();
+          },
         );
 
       default:
@@ -1945,6 +1984,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       bottomNavigationBar: HomeBottomNav(
         selectedIndex: selectedIndex,
+        teamsBadgeCount: pendingTeamInvitationCount,
         onTap: (index) {
           setState(() {
             if (index == 1) {
@@ -1960,6 +2000,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
             selectedIndex = index;
           });
+
+          if (index == 4) {
+            loadPendingTeamInvitationCount();
+          }
 
           if (index == 0) {
             loadDashboardData();
