@@ -36,7 +36,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
   int _selectedTabIndex = 0;
   String _searchQuery = '';
   bool _isLoading = true;
-  bool _isCreatingTeam = false;
   String? _errorMessage;
 
   List<TeamModel> _teams = [];
@@ -69,7 +68,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return _teams.where((team) {
-      final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+      final members =
+          _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
       final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
       final stats = _statsByTeamId[team.teamId];
 
@@ -158,7 +158,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
               project: TaskProjectSummary.fromProject(project),
             );
             taskCount += tasks.length;
-            completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
+            completedTaskCount += tasks
+                .where((item) => item.task.isCompleted)
+                .length;
           } catch (error, stackTrace) {
             debugPrint(
               'Team task load failed for team ${team.teamId}, project ${project.projectId}: $error',
@@ -206,13 +208,17 @@ class _TeamsScreenState extends State<TeamsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF050816) : const Color(0xFFFAFAFF);
+    final background = isDark
+        ? const Color(0xFF050816)
+        : const Color(0xFFFAFAFF);
 
     final content = RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
       onRefresh: () => _loadTeams(showLoading: false),
       child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
         padding: EdgeInsets.fromLTRB(0, 0, 0, widget.showBackButton ? 28 : 112),
         children: [
           _TeamsHeader(
@@ -288,7 +294,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
       return [
         _StateCard(
           icon: Icons.groups_2_outlined,
-          title: _searchQuery.trim().isEmpty ? 'No teams yet' : 'No teams found',
+          title: _searchQuery.trim().isEmpty
+              ? 'No teams yet'
+              : 'No teams found',
           message: _searchQuery.trim().isEmpty
               ? 'Create your first team and start collaborating on Planora projects.'
               : 'Try another team, member, project, or role name.',
@@ -318,7 +326,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
         dismissible: DismissiblePane(
           closeOnCancel: true,
           confirmDismiss: () async {
-            final confirmed = await _confirmDeleteTeam(team, executeDelete: false);
+            final confirmed = await _confirmDeleteTeam(
+              team,
+              executeDelete: false,
+            );
             if (confirmed == true) {
               await _deleteTeam(team);
             }
@@ -389,7 +400,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
           builder: (context, setSheetState) {
             return _BottomSheetShell(
               title: 'Create team',
-              subtitle: 'Name the workspace where members, plans, and tasks live.',
+              subtitle:
+                  'Name the workspace where members, plans, and tasks live.',
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -415,12 +427,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     onPressed: isSubmitting
                         ? null
                         : () => _submitCreateTeam(
-                              sheetContext: sheetContext,
-                              setSheetState: setSheetState,
-                              controller: controller,
-                              isSubmitting: isSubmitting,
-                              setSubmitting: (value) => isSubmitting = value,
-                            ),
+                            sheetContext: sheetContext,
+                            setSheetState: setSheetState,
+                            controller: controller,
+                            isSubmitting: isSubmitting,
+                            setSubmitting: (value) => isSubmitting = value,
+                          ),
                   ),
                 ],
               ),
@@ -465,7 +477,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
     } catch (error, stackTrace) {
       debugPrint('Create team failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _showMessage(_genericApiMessage(error, fallback: 'Could not create team. Try again.'));
+      _showMessage(
+        _genericApiMessage(
+          error,
+          fallback: 'Could not create team. Try again.',
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isCreatingTeam = false);
@@ -551,7 +568,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
       builder: (sheetContext) {
         return _BottomSheetShell(
           title: team.name,
-          subtitle: currentMember == null ? 'Team workspace' : 'Your role: ${currentMember.roleLabel}',
+          subtitle: currentMember == null
+              ? 'Team workspace'
+              : 'Your role: ${currentMember.roleLabel}',
           maxHeightFactor: 0.88,
           child: Expanded(
             child: SingleChildScrollView(
@@ -559,15 +578,28 @@ class _TeamsScreenState extends State<TeamsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _TeamOverviewPanel(team: team, currentMember: currentMember, stats: stats),
+                  _TeamOverviewPanel(
+                    team: team,
+                    currentMember: currentMember,
+                    stats: stats,
+                  ),
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
+                      _SheetStat(
+                        label: 'Members',
+                        value: '${stats?.memberCount ?? members.length}',
+                      ),
                       const SizedBox(width: 9),
-                      _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
+                      _SheetStat(
+                        label: 'Plans',
+                        value: '${stats?.projectCount ?? projects.length}',
+                      ),
                       const SizedBox(width: 9),
-                      _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
+                      _SheetStat(
+                        label: 'Tasks',
+                        value: '${stats?.taskCount ?? 0}',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),
@@ -597,7 +629,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
                           Navigator.of(sheetContext).pop();
                           await Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => ProjectDetailScreen(project: project),
+                              builder: (_) =>
+                                  ProjectDetailScreen(project: project),
                             ),
                           );
                           if (mounted) {
@@ -679,7 +712,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                             } catch (error, stackTrace) {
                               debugPrint('Invite member failed: $error');
                               debugPrintStack(stackTrace: stackTrace);
-                              _showMessage(_genericApiMessage(error, fallback: 'Could not send invitation.'));
+                              _showMessage(
+                                _genericApiMessage(
+                                  error,
+                                  fallback: 'Could not send invitation.',
+                                ),
+                              );
                             } finally {
                               if (sheetContext.mounted) {
                                 setSheetState(() => isSubmitting = false);
@@ -716,7 +754,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
           title: const Text('Delete team?'),
           content: Text(
             'This will remove "${team.name}" if your account has permission. Team plans may also be affected.',
@@ -728,7 +768,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFEF4444),
+              ),
               child: const Text('Delete'),
             ),
           ],
@@ -794,7 +836,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
         return 'Only team owners/admins can delete this team.';
       }
       final message = error.message.trim();
-      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
+      if (message.isNotEmpty &&
+          message != 'Something went wrong. Please try again.') {
         return message;
       }
     }
@@ -804,7 +847,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
   String _genericApiMessage(Object error, {required String fallback}) {
     if (error is ApiException) {
       final message = error.message.trim();
-      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
+      if (message.isNotEmpty &&
+          message != 'Something went wrong. Please try again.') {
         return message;
       }
     }
@@ -832,7 +876,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
     } catch (error, stackTrace) {
       debugPrint('Invitation response failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _showMessage(_genericApiMessage(error, fallback: 'Could not update invitation.'));
+      _showMessage(
+        _genericApiMessage(error, fallback: 'Could not update invitation.'),
+      );
     }
   }
 
@@ -847,7 +893,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       );
   }
@@ -873,7 +921,10 @@ class _TeamsHeader extends StatelessWidget {
     return Row(
       children: [
         if (showBackButton) ...[
-          _CircleIconButton(icon: Icons.arrow_back_rounded, onPressed: onBackPressed),
+          _CircleIconButton(
+            icon: Icons.arrow_back_rounded,
+            onPressed: onBackPressed,
+          ),
           const SizedBox(width: 12),
         ],
         Expanded(
@@ -905,7 +956,10 @@ class _TeamsHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 14),
-        _GradientIconButton(icon: Icons.add_rounded, onPressed: onCreatePressed),
+        _GradientIconButton(
+          icon: Icons.add_rounded,
+          onPressed: onCreatePressed,
+        ),
       ],
     );
   }
@@ -959,7 +1013,10 @@ class _SearchField extends StatelessWidget {
             },
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 15,
+          ),
         ),
       ),
     );
@@ -987,11 +1044,17 @@ class _TeamTabs extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0B1020) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF2A3550) : const Color(0xFFE7E9F2)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2A3550) : const Color(0xFFE7E9F2),
+        ),
       ),
       child: Row(
         children: [
-          _TabButton(label: 'My Teams', selected: selectedIndex == 0, onTap: () => onChanged(0)),
+          _TabButton(
+            label: 'My Teams',
+            selected: selectedIndex == 0,
+            onTap: () => onChanged(0),
+          ),
           _TabButton(
             label: 'Invitations',
             selected: selectedIndex == 1,
@@ -1005,7 +1068,12 @@ class _TeamTabs extends StatelessWidget {
 }
 
 class _TabButton extends StatelessWidget {
-  const _TabButton({required this.label, required this.selected, required this.onTap, this.badge});
+  const _TabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
 
   final String label;
   final bool selected;
@@ -1026,7 +1094,9 @@ class _TabButton extends StatelessWidget {
           curve: Curves.easeOutCubic,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected ? primary.withValues(alpha: isDark ? 0.26 : 0.12) : Colors.transparent,
+            color: selected
+                ? primary.withValues(alpha: isDark ? 0.26 : 0.12)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -1044,22 +1114,29 @@ class _TabButton extends StatelessWidget {
                     color: selected
                         ? primary
                         : isDark
-                            ? Colors.white70
-                            : const Color(0xFF6C7391),
+                        ? Colors.white70
+                        : const Color(0xFF6C7391),
                   ),
                 ),
               ),
               if (badge != null && badge! > 0) ...[
                 const SizedBox(width: 7),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     '$badge',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: primary),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: primary,
+                    ),
                   ),
                 ),
               ],
@@ -1077,7 +1154,11 @@ class _SwipeHint extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Icon(Icons.swipe_left_alt_rounded, size: 16, color: isDark ? Colors.white38 : const Color(0xFF8A91AA)),
+        Icon(
+          Icons.swipe_left_alt_rounded,
+          size: 16,
+          color: isDark ? Colors.white38 : const Color(0xFF8A91AA),
+        ),
         const SizedBox(width: 6),
         Text(
           'Swipe left to delete. Tap a team to see details.',
@@ -1156,7 +1237,11 @@ class _TeamCard extends StatelessWidget {
                         color: primary.withValues(alpha: isDark ? 0.22 : 0.12),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Icon(_teamIcon(team.name), color: primary, size: 27),
+                      child: Icon(
+                        _teamIcon(team.name),
+                        color: primary,
+                        size: 27,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1175,7 +1260,9 @@ class _TeamCard extends StatelessWidget {
                                     height: 1.15,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -0.2,
-                                    color: isDark ? Colors.white : const Color(0xFF171B2E),
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF171B2E),
                                   ),
                                 ),
                               ),
@@ -1193,7 +1280,9 @@ class _TeamCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white54 : const Color(0xFF6C7391),
+                              color: isDark
+                                  ? Colors.white54
+                                  : const Color(0xFF6C7391),
                             ),
                           ),
                         ],
@@ -1202,11 +1291,16 @@ class _TeamCard extends StatelessWidget {
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                      constraints: const BoxConstraints(
+                        minWidth: 34,
+                        minHeight: 34,
+                      ),
                       onPressed: onMenuPressed,
                       icon: Icon(
                         Icons.more_vert_rounded,
-                        color: isDark ? Colors.white54 : const Color(0xFF626B87),
+                        color: isDark
+                            ? Colors.white54
+                            : const Color(0xFF626B87),
                         size: 22,
                       ),
                     ),
@@ -1218,20 +1312,39 @@ class _TeamCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: completion.clamp(0.0, 1.0),
                     minHeight: 5,
-                    backgroundColor: isDark ? const Color(0xFF263244) : const Color(0xFFE9EBF4),
+                    backgroundColor: isDark
+                        ? const Color(0xFF263244)
+                        : const Color(0xFFE9EBF4),
                     valueColor: AlwaysStoppedAnimation<Color>(primary),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _AvatarStack(members: previewMembers, extraCount: memberCount > previewMembers.length ? memberCount - previewMembers.length : 0),
+                    _AvatarStack(
+                      members: previewMembers,
+                      extraCount: memberCount > previewMembers.length
+                          ? memberCount - previewMembers.length
+                          : 0,
+                    ),
                     const Spacer(),
-                    _MiniStat(icon: Icons.group_outlined, value: memberCount, label: 'Members'),
+                    _MiniStat(
+                      icon: Icons.group_outlined,
+                      value: memberCount,
+                      label: 'Members',
+                    ),
                     const SizedBox(width: 13),
-                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount, label: 'Plans'),
+                    _MiniStat(
+                      icon: Icons.folder_copy_outlined,
+                      value: projectCount,
+                      label: 'Plans',
+                    ),
                     const SizedBox(width: 13),
-                    _MiniStat(icon: Icons.check_box_outlined, value: taskCount, label: 'Tasks'),
+                    _MiniStat(
+                      icon: Icons.check_box_outlined,
+                      value: taskCount,
+                      label: 'Tasks',
+                    ),
                   ],
                 ),
               ],
@@ -1244,7 +1357,11 @@ class _TeamCard extends StatelessWidget {
 }
 
 class _TeamOverviewPanel extends StatelessWidget {
-  const _TeamOverviewPanel({required this.team, required this.currentMember, required this.stats});
+  const _TeamOverviewPanel({
+    required this.team,
+    required this.currentMember,
+    required this.stats,
+  });
 
   final TeamModel team;
   final TeamMemberModel? currentMember;
@@ -1255,7 +1372,9 @@ class _TeamOverviewPanel extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
     final taskCount = stats?.taskCount ?? 0;
-    final completion = taskCount == 0 ? 0.0 : (stats?.completedTaskCount ?? 0) / taskCount;
+    final completion = taskCount == 0
+        ? 0.0
+        : (stats?.completedTaskCount ?? 0) / taskCount;
 
     return Container(
       padding: const EdgeInsets.all(15),
@@ -1279,7 +1398,10 @@ class _TeamOverviewPanel extends StatelessWidget {
               Container(
                 width: 48,
                 height: 48,
-                decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: primary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Icon(_teamIcon(team.name), color: Colors.white),
               ),
               const SizedBox(width: 12),
@@ -1299,10 +1421,14 @@ class _TeamOverviewPanel extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      currentMember == null ? 'Team workspace' : 'Your role: ${currentMember!.roleLabel}',
+                      currentMember == null
+                          ? 'Team workspace'
+                          : 'Your role: ${currentMember!.roleLabel}',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        color: isDark
+                            ? Colors.white60
+                            : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -1383,9 +1509,14 @@ class _AvatarStack extends StatelessWidget {
                 height: size,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(color: isDark ? const Color(0xFF111827) : Colors.white, width: 2),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF111827) : Colors.white,
+                    width: 2,
+                  ),
                 ),
                 child: Text(
                   '+$extraCount',
@@ -1404,7 +1535,11 @@ class _AvatarStack extends StatelessWidget {
 }
 
 class _InvitationCard extends StatelessWidget {
-  const _InvitationCard({required this.invitation, required this.onAccept, required this.onReject});
+  const _InvitationCard({
+    required this.invitation,
+    required this.onAccept,
+    required this.onReject,
+  });
 
   final TeamInvitationModel invitation;
   final VoidCallback onAccept;
@@ -1422,10 +1557,15 @@ class _InvitationCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(Icons.mail_outline_rounded, color: Theme.of(context).colorScheme.primary),
+              child: Icon(
+                Icons.mail_outline_rounded,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -1434,19 +1574,34 @@ class _InvitationCard extends StatelessWidget {
                 children: [
                   Text(
                     'Team #${invitation.teamId}',
-                    style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF171B2E),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Role: ${invitation.role}',
-                    style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF6C7391), fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white60 : const Color(0xFF6C7391),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-            _TinyActionButton(label: 'No', color: const Color(0xFFEF4444), onTap: onReject),
+            _TinyActionButton(
+              label: 'No',
+              color: const Color(0xFFEF4444),
+              onTap: onReject,
+            ),
             const SizedBox(width: 8),
-            _TinyActionButton(label: 'Yes', color: Theme.of(context).colorScheme.primary, onTap: onAccept),
+            _TinyActionButton(
+              label: 'Yes',
+              color: Theme.of(context).colorScheme.primary,
+              onTap: onAccept,
+            ),
           ],
         ),
       ),
@@ -1486,7 +1641,13 @@ class _TeamLoadingCard extends StatelessWidget {
 }
 
 class _StateCard extends StatelessWidget {
-  const _StateCard({required this.icon, required this.title, required this.message, this.actionText, this.onAction});
+  const _StateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionText,
+    this.onAction,
+  });
 
   final IconData icon;
   final String title;
@@ -1508,17 +1669,29 @@ class _StateCard extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF171B2E),
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF6C7391)),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white60 : const Color(0xFF6C7391),
+              ),
             ),
             if (actionText != null && onAction != null) ...[
               const SizedBox(height: 16),
-              _TinyActionButton(label: actionText!, color: primary, onTap: onAction!),
+              _TinyActionButton(
+                label: actionText!,
+                color: primary,
+                onTap: onAction!,
+              ),
             ],
           ],
         ),
@@ -1541,7 +1714,9 @@ class _CardShell extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0B1020) : Colors.white,
-        border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE8EAF4)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF263244) : const Color(0xFFE8EAF4),
+        ),
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
@@ -1576,7 +1751,11 @@ class _CircleIconButton extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: onPressed,
-            child: Icon(icon, color: isDark ? Colors.white70 : const Color(0xFF68708C), size: 23),
+            child: Icon(
+              icon,
+              color: isDark ? Colors.white70 : const Color(0xFF68708C),
+              size: 23,
+            ),
           ),
         ),
       ),
@@ -1596,7 +1775,9 @@ class _GradientIconButton extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1620,7 +1801,11 @@ class _GradientIconButton extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.icon, required this.value, required this.label});
+  const _MiniStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
 
   final IconData icon;
   final int value;
@@ -1632,11 +1817,19 @@ class _MiniStat extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: isDark ? Colors.white54 : const Color(0xFF69718D)),
+        Icon(
+          icon,
+          size: 14,
+          color: isDark ? Colors.white54 : const Color(0xFF69718D),
+        ),
         const SizedBox(width: 4),
         Text(
           '$value',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF24283B)),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: isDark ? Colors.white : const Color(0xFF24283B),
+          ),
         ),
       ],
     );
@@ -1644,7 +1837,11 @@ class _MiniStat extends StatelessWidget {
 }
 
 class _InitialsAvatar extends StatelessWidget {
-  const _InitialsAvatar({required this.label, required this.color, this.size = 34});
+  const _InitialsAvatar({
+    required this.label,
+    required this.color,
+    this.size = 34,
+  });
 
   final String label;
   final Color color;
@@ -1661,11 +1858,20 @@ class _InitialsAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: isDark ? const Color(0xFF0B1020) : Colors.white, width: 2),
+        border: Border.all(
+          color: isDark ? const Color(0xFF0B1020) : Colors.white,
+          width: 2,
+        ),
       ),
       child: Text(
-        text.length > 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase(),
-        style: TextStyle(color: Colors.white, fontSize: size <= 24 ? 9 : 12, fontWeight: FontWeight.w900),
+        text.length > 2
+            ? text.substring(0, 2).toUpperCase()
+            : text.toUpperCase(),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size <= 24 ? 9 : 12,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -1681,17 +1887,28 @@ class _RoleBadge extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: primary),
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w900,
+          color: primary,
+        ),
       ),
     );
   }
 }
 
 class _TinyActionButton extends StatelessWidget {
-  const _TinyActionButton({required this.label, required this.color, required this.onTap});
+  const _TinyActionButton({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   final String label;
   final Color color;
@@ -1709,7 +1926,11 @@ class _TinyActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           child: Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
       ),
@@ -1718,7 +1939,12 @@ class _TinyActionButton extends StatelessWidget {
 }
 
 class _BottomSheetShell extends StatelessWidget {
-  const _BottomSheetShell({required this.title, required this.child, this.subtitle, this.maxHeightFactor});
+  const _BottomSheetShell({
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.maxHeightFactor,
+  });
 
   final String title;
   final String? subtitle;
@@ -1735,7 +1961,10 @@ class _BottomSheetShell extends StatelessWidget {
       child: ConstrainedBox(
         constraints: maxHeightFactor == null
             ? const BoxConstraints()
-            : BoxConstraints(maxHeight: MediaQuery.of(context).size.height * maxHeightFactor!),
+            : BoxConstraints(
+                maxHeight:
+                    MediaQuery.of(context).size.height * maxHeightFactor!,
+              ),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF050816) : Colors.white,
@@ -1759,7 +1988,9 @@ class _BottomSheetShell extends StatelessWidget {
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE6E8F2),
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE6E8F2),
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -1786,7 +2017,9 @@ class _BottomSheetShell extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                          color: isDark
+                              ? Colors.white60
+                              : const Color(0xFF64748B),
                         ),
                       ),
                     ),
@@ -1804,7 +2037,13 @@ class _BottomSheetShell extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap, this.color});
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.color,
+  });
 
   final IconData icon;
   final String title;
@@ -1821,17 +2060,34 @@ class _ActionTile extends StatelessWidget {
       leading: Icon(icon, color: itemColor),
       title: Text(
         title,
-        style: TextStyle(fontWeight: FontWeight.w900, color: color ?? (isDark ? Colors.white : const Color(0xFF111827))),
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          color: color ?? (isDark ? Colors.white : const Color(0xFF111827)),
+        ),
       ),
-      subtitle: Text(subtitle, style: TextStyle(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
-      trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+        ),
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+      ),
       onTap: onTap,
     );
   }
 }
 
 class _SheetTextField extends StatelessWidget {
-  const _SheetTextField({required this.controller, required this.label, required this.hintText, required this.icon, this.onSubmitted});
+  const _SheetTextField({
+    required this.controller,
+    required this.label,
+    required this.hintText,
+    required this.icon,
+    this.onSubmitted,
+  });
 
   final TextEditingController controller;
   final String label;
@@ -1847,7 +2103,10 @@ class _SheetTextField extends StatelessWidget {
       controller: controller,
       textInputAction: TextInputAction.done,
       onSubmitted: onSubmitted,
-      style: TextStyle(color: isDark ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w700),
+      style: TextStyle(
+        color: isDark ? Colors.white : const Color(0xFF111827),
+        fontWeight: FontWeight.w700,
+      ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
@@ -1856,7 +2115,9 @@ class _SheetTextField extends StatelessWidget {
         fillColor: isDark ? const Color(0xFF0B1020) : Colors.white,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB)),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -1868,7 +2129,11 @@ class _SheetTextField extends StatelessWidget {
 }
 
 class _PrimarySheetButton extends StatelessWidget {
-  const _PrimarySheetButton({required this.label, required this.isLoading, required this.onPressed});
+  const _PrimarySheetButton({
+    required this.label,
+    required this.isLoading,
+    required this.onPressed,
+  });
 
   final String label;
   final bool isLoading;
@@ -1884,15 +2149,26 @@ class _PrimarySheetButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           elevation: 0,
           backgroundColor: Theme.of(context).colorScheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
         ),
         child: isLoading
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: Colors.white,
+                ),
               )
-            : Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
+            : Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }
@@ -1913,13 +2189,29 @@ class _SheetStat extends StatelessWidget {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB),
+          ),
         ),
         child: Column(
           children: [
-            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF111827),
+              ),
+            ),
             const SizedBox(height: 3),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+              ),
+            ),
           ],
         ),
       ),
@@ -1928,7 +2220,11 @@ class _SheetStat extends StatelessWidget {
 }
 
 class _SheetSectionHeader extends StatelessWidget {
-  const _SheetSectionHeader({required this.title, this.actionLabel, this.onAction});
+  const _SheetSectionHeader({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String title;
   final String? actionLabel;
@@ -1940,10 +2236,19 @@ class _SheetSectionHeader extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+          ),
         ),
         if (actionLabel != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!, style: TextStyle(color: primary, fontWeight: FontWeight.w900))),
+          TextButton(
+            onPressed: onAction,
+            child: Text(
+              actionLabel!,
+              style: TextStyle(color: primary, fontWeight: FontWeight.w900),
+            ),
+          ),
       ],
     );
   }
@@ -1963,11 +2268,17 @@ class _MemberRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB),
+        ),
       ),
       child: Row(
         children: [
-          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 34),
+          _InitialsAvatar(
+            label: member.initials,
+            color: _avatarColor(member.userId),
+            size: 34,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1977,14 +2288,21 @@ class _MemberRow extends StatelessWidget {
                   member.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF111827),
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   member.user?.username ?? 'User #${member.userId}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                  ),
                 ),
               ],
             ),
@@ -2015,14 +2333,19 @@ class _ProjectMiniRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB),
+          ),
         ),
         child: Row(
           children: [
             Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(
+                color: primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Icon(Icons.folder_rounded, size: 20, color: primary),
             ),
             const SizedBox(width: 10),
@@ -2034,19 +2357,29 @@ class _ProjectMiniRow extends StatelessWidget {
                     project.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '${project.statusLabel} • ${project.deadlineLabel}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+            ),
           ],
         ),
       ),
@@ -2064,7 +2397,11 @@ class _SmallMutedText extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Text(
       text,
-      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+      style: TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w700,
+        color: isDark ? Colors.white54 : const Color(0xFF64748B),
+      ),
     );
   }
 }
@@ -2124,7 +2461,9 @@ class _TeamStats {
 
 IconData _teamIcon(String name) {
   final normalized = name.toLowerCase();
-  if (normalized.contains('design') || normalized.contains('ui') || normalized.contains('ux')) {
+  if (normalized.contains('design') ||
+      normalized.contains('ui') ||
+      normalized.contains('ux')) {
     return Icons.design_services_outlined;
   }
   if (normalized.contains('dev') || normalized.contains('code')) {
