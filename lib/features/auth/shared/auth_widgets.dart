@@ -332,7 +332,7 @@ class PlanoraSocialButton extends StatelessWidget {
   final double height;
   final String label;
   final Widget logo;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const PlanoraSocialButton({
     super.key,

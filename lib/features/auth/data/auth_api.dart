@@ -90,4 +90,28 @@ class AuthApi {
 
     return UserResponse.fromJson(data as Map<String, dynamic>);
   }
+
+  static Future<TokenResponse> loginWithGoogle({
+    required String idToken,
+    String? username,
+    String? fullName,
+  }) async {
+    final payload = <String, dynamic>{'id_token': idToken};
+
+    if (username != null) {
+      payload['username'] = username;
+    }
+
+    if (fullName != null) {
+      payload['full_name'] = fullName;
+    }
+
+    final data = await ApiClient.postJson(
+      '/auth/google',
+      data: payload,
+      requiresAuth: false,
+    );
+
+    return TokenResponse.fromJson(data as Map<String, dynamic>);
+  }
 }

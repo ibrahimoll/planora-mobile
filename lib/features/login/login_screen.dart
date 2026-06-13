@@ -8,6 +8,7 @@ import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
 import '../forgot_password/forgot_password_screen.dart';
 import '../register/register_screen.dart';
+import 'package:mobile/features/auth/data/google_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -99,6 +100,52 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
       _showMessage('Login failed. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final idToken = await GoogleAuthService.signInAndGetIdToken();
+
+      if (idToken == null) {
+        if (!mounted) return;
+        _showMessage('Google sign-in was cancelled.');
+        return;
+      }
+
+      final tokenResponse = await AuthApi.loginWithGoogle(idToken: idToken);
+
+      await TokenStorage.saveAccessToken(tokenResponse.accessToken);
+
+      if (!mounted) return;
+
+      _showMessage('Signed in with Google successfully.');
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => AuthGate(onThemeToggle: widget.onThemeToggle),
+        ),
+        (_) => false,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (error, stackTrace) {
+      debugPrint('Google login failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+      _showMessage('Google login failed. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -247,9 +294,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: metrics.socialButtonHeight,
                           label: 'Google',
                           logo: const PlanoraGoogleLogo(),
-                          onTap: () => _showMessage(
-                            'Google login connection coming next',
-                          ),
+                          onTap: isLoading ? null : _signInWithGoogle,
                         ),
                         SizedBox(height: metrics.sectionGap + 4),
                         _SignUpPrompt(

@@ -6,6 +6,11 @@ class AppConfig {
     defaultValue: 'https://planora-api-dqmv.onrender.com',
   );
 
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue: 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com',
+  );
+
   static String get apiBaseUrl {
     final trimmed = _apiUrlFromEnv.trim();
 
