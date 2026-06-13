@@ -566,36 +566,30 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Widget buildTasksHeader(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
-    final profilePic = widget.profilePic;
-    final hasProfilePic = profilePic != null && profilePic.trim().isNotEmpty;
 
     return Row(
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: hasProfilePic
-                ? null
-                : PlanoraTheme.primaryGradientFor(context),
-            boxShadow: PlanoraTheme.cardShadowFor(context),
-          ),
-          child: CircleAvatar(
-            backgroundColor: Colors.transparent,
-            backgroundImage: hasProfilePic ? NetworkImage(profilePic) : null,
-            child: hasProfilePic
-                ? null
-                : Text(
-                    widget.userInitials,
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                    ),
-                  ),
+        InkWell(
+          onTap: widget.onBack,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+              border: Border.all(
+                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+              ),
+              boxShadow: PlanoraTheme.cardShadowFor(context),
+            ),
+            child: Icon(
+              Icons.arrow_back_rounded,
+              size: 24,
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+            ),
           ),
         ),
         const SizedBox(width: 12),
