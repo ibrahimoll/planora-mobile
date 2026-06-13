@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/storage/token_storage.dart';
 import '../../core/theme/planora_theme.dart';
+import '../auth/auth_gate.dart';
 import '../auth/data/auth_api.dart';
+import '../auth/data/google_auth_service.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
 import '../email_verification/email_verification_screen.dart';
@@ -173,6 +176,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
       _showMessage('Could not create account. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _registerWithGoogle() async {
+    if (!acceptTerms) {
+      _showMessage('Please agree to the Terms and Privacy Policy');
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final idToken = await GoogleAuthService.signInAndGetIdToken();
+
+      if (idToken == null) {
+        if (!mounted) return;
+        _showMessage('Google registration was cancelled.');
+        return;
+      }
+
+      final tokenResponse = await AuthApi.loginWithGoogle(idToken: idToken);
+
+      await TokenStorage.saveAccessToken(tokenResponse.accessToken);
+
+      if (!mounted) return;
+
+      _showMessage('Account created with Google successfully.');
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => AuthGate(onThemeToggle: widget.onThemeToggle),
+        ),
+        (_) => false,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (error, stackTrace) {
+      debugPrint('Google registration failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+      _showMessage('Google registration failed. Please try again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -400,11 +454,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         SizedBox(height: metrics.socialGap + 6),
                         PlanoraSocialButton(
                           height: metrics.socialButtonHeight,
-                          label: 'Google',
+                          label: isLoading ? 'Creating...' : 'Google',
                           logo: const PlanoraGoogleLogo(),
-                          onTap: () => _showMessage(
-                            'Google register connection coming next',
-                          ),
+                          onTap: isLoading ? null : _registerWithGoogle,
                         ),
                         SizedBox(height: metrics.sectionGap + 4),
                         _SignInPrompt(onTap: () => Navigator.of(context).pop()),

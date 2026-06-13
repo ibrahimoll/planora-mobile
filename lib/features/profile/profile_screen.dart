@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/config/app_config.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
@@ -1015,12 +1014,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              buildSettingsRow(
-                sheetContext,
-                icon: Icons.cloud_outlined,
-                title: 'API URL',
-                subtitle: AppConfig.apiBaseUrl,
-              ),
             ],
           ),
         );
