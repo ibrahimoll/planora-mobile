@@ -36,6 +36,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
   int _selectedTabIndex = 0;
   String _searchQuery = '';
   bool _isLoading = true;
+  bool _isCreatingTeam = false;
   String? _errorMessage;
 
   List<TeamModel> _teams = [];
