@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../../../core/config/app_config.dart';
-
 class GoogleAuthService {
   GoogleAuthService._();
 
@@ -11,9 +9,7 @@ class GoogleAuthService {
   static Future<void> _ensureInitialized() async {
     if (_initialized) return;
 
-    await GoogleSignIn.instance.initialize(
-      serverClientId: AppConfig.googleWebClientId,
-    );
+    await GoogleSignIn.instance.initialize();
 
     _initialized = true;
   }
