@@ -28,6 +28,27 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadRememberedIdentifier();
+  }
+
+  Future<void> _loadRememberedIdentifier() async {
+    final savedRememberMe = await TokenStorage.getRememberMe();
+    final savedIdentifier = await TokenStorage.getRememberedIdentifier();
+
+    if (!mounted) return;
+
+    setState(() {
+      rememberMe = savedRememberMe;
+
+      if (savedIdentifier != null && savedIdentifier.trim().isNotEmpty) {
+        emailController.text = savedIdentifier;
+      }
+    });
+  }
+
+  @override
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
@@ -80,6 +101,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       await TokenStorage.saveAccessToken(tokenResponse.accessToken);
+
+      if (rememberMe) {
+        await TokenStorage.saveRememberedIdentifier(identifier);
+      } else {
+        await TokenStorage.clearRememberedIdentifier();
+      }
 
       if (!mounted) return;
 
