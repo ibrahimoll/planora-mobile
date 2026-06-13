@@ -140,9 +140,7 @@ class ProjectsApi {
   }
 
   Future<ProjectModel> getProject(ProjectModel project) async {
-    final path = project.isTeamProject && project.teamId != null
-        ? '/teams/${project.teamId}/projects/${project.projectId}'
-        : '/projects/${project.projectId}';
+    final path = projectPath(project);
 
     final response = await ApiClient.get(path);
 
@@ -203,6 +201,14 @@ class ProjectsApi {
     return ProjectMemberModel.fromJson(response as Map<String, dynamic>);
   }
 
+  String projectPath(ProjectModel project) {
+    if (project.isTeamProject && project.teamId != null) {
+      return '/teams/${project.teamId}/projects/${project.projectId}';
+    }
+
+    return '/projects/${project.projectId}';
+  }
+
   String _projectMembersPath(ProjectModel project) {
     if (project.isTeamProject && project.teamId != null) {
       return '/teams/${project.teamId}/projects/${project.projectId}/members';
@@ -244,11 +250,29 @@ class ProjectsApi {
     return ProjectModel.fromJson(response as Map<String, dynamic>);
   }
 
-  Future<void> deleteProject(ProjectModel project) async {
-    final path = project.isTeamProject && project.teamId != null
-        ? '/teams/${project.teamId}/projects/${project.projectId}'
-        : '/projects/${project.projectId}';
+  Future<ProjectModel> updateProjectForTarget({
+    required ProjectModel project,
+    required ProjectUpdateRequest request,
+  }) async {
+    final response = await ApiClient.patchJson(
+      projectPath(project),
+      data: request.toJson(),
+    );
 
-    await ApiClient.delete(path);
+    return ProjectModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<ProjectModel> updateProjectStatus({
+    required ProjectModel project,
+    required String status,
+  }) {
+    return updateProjectForTarget(
+      project: project,
+      request: ProjectUpdateRequest(status: status),
+    );
+  }
+
+  Future<void> deleteProject(ProjectModel project) async {
+    await ApiClient.delete(projectPath(project));
   }
 }

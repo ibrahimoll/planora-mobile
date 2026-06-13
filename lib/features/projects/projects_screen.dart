@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_exception.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
-import '../teams/teams_screen.dart';
 import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
 import 'ai_project_wizard_screen.dart';
@@ -35,25 +34,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
   final TasksApi _tasksApi = const TasksApi();
 
+  final TextEditingController searchController = TextEditingController();
+  final TextEditingController titleController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
+
   int selectedFilterIndex = 0;
-  int? selectedTeamId;
+  int handledCreateRequestId = 0;
+  DateTime? selectedDeadline;
 
   bool isLoading = true;
+  bool isSearchVisible = false;
   bool isCreatingProject = false;
-  bool isLoadingTeams = false;
-
   String? errorMessage;
   String? taskSummaryWarning;
-  DateTime? selectedDeadline;
 
   List<ProjectModel> projects = [];
   List<TaskListItem> projectTasks = [];
-  List<TeamModel> teams = [];
-  String selectedProjectType = 'personal';
-  int handledCreateRequestId = 0;
-
-  final TextEditingController titleController = TextEditingController();
-  final TextEditingController descriptionController = TextEditingController();
+  final Set<String> deletingProjectKeys = <String>{};
 
   @override
   void initState() {
@@ -70,9 +67,31 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   @override
   void dispose() {
+    searchController.dispose();
     titleController.dispose();
     descriptionController.dispose();
     super.dispose();
+  }
+
+  void scheduleCreateProjectSheet() {
+    if (!widget.openCreateOnStart || widget.createRequestId == 0) return;
+    if (handledCreateRequestId == widget.createRequestId) return;
+
+    handledCreateRequestId = widget.createRequestId;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onCreateRequestConsumed?.call();
+
+      switch (widget.createStartMode) {
+        case ProjectCreateStartMode.manual:
+          showManualCreateProjectSheet();
+        case ProjectCreateStartMode.ai:
+          openAiProjectWizard();
+        case ProjectCreateStartMode.modeChoice:
+          showCreateProjectSheet();
+      }
+    });
   }
 
   Future<void> loadProjects() async {
@@ -83,8 +102,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     });
 
     try {
-      final loadedProjects = await _projectsApi.getProjects();
+      var loadedProjects = await _projectsApi.getProjects();
       var hadTaskLoadError = false;
+
       final taskGroups = await Future.wait(
         loadedProjects.map((project) async {
           try {
@@ -101,7 +121,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           }
         }),
       );
+
       final loadedTasks = taskGroups.expand((group) => group).toList();
+      loadedProjects = await synchronizeCompletedProjectStatuses(
+        loadedProjects: loadedProjects,
+        loadedTasks: loadedTasks,
+      );
 
       if (!mounted) return;
 
@@ -123,120 +148,134 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         errorMessage = error is ApiException
             ? 'Could not load plans: ${error.message}'
             : 'Could not load plans. Please try again.';
-        taskSummaryWarning = null;
         projectTasks = [];
         isLoading = false;
       });
     }
   }
 
-  Future<void> loadTeamsForCreateSheet() async {
-    setState(() {
-      isLoadingTeams = true;
-    });
+  Future<List<ProjectModel>> synchronizeCompletedProjectStatuses({
+    required List<ProjectModel> loadedProjects,
+    required List<TaskListItem> loadedTasks,
+  }) async {
+    final updatedProjects = List<ProjectModel>.from(loadedProjects);
 
-    try {
-      final loadedTeams = await _projectsApi.getTeams();
+    for (var index = 0; index < updatedProjects.length; index++) {
+      final project = updatedProjects[index];
+      final tasks = loadedTasks.where((item) {
+        return item.project.projectId == project.projectId &&
+            item.project.teamId == project.teamId;
+      }).toList();
 
-      if (!mounted) {
-        return;
+      if (tasks.isEmpty || project.isCompleted) continue;
+      if (!tasks.every((item) => item.task.isCompleted)) continue;
+
+      try {
+        updatedProjects[index] = await _projectsApi.updateProjectStatus(
+          project: project,
+          status: 'completed',
+        );
+      } catch (error, stackTrace) {
+        debugPrint(
+          'Auto-complete project failed for project ${project.projectId}: $error',
+        );
+        debugPrintStack(stackTrace: stackTrace);
       }
-
-      setState(() {
-        teams = loadedTeams;
-        selectedTeamId = loadedTeams.isEmpty
-            ? null
-            : selectedTeamId == null
-            ? loadedTeams.first.teamId
-            : loadedTeams.any((team) => team.teamId == selectedTeamId)
-            ? selectedTeamId
-            : loadedTeams.first.teamId;
-        isLoadingTeams = false;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Team load for project creation failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        teams = [];
-        selectedTeamId = null;
-        isLoadingTeams = false;
-      });
     }
+
+    return updatedProjects;
   }
 
-  void scheduleCreateProjectSheet() {
-    if (!widget.openCreateOnStart || widget.createRequestId == 0) {
-      return;
-    }
-
-    if (handledCreateRequestId == widget.createRequestId) {
-      return;
-    }
-
-    handledCreateRequestId = widget.createRequestId;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-
-      widget.onCreateRequestConsumed?.call();
-
-      switch (widget.createStartMode) {
-        case ProjectCreateStartMode.manual:
-          showManualCreateProjectSheet();
-        case ProjectCreateStartMode.ai:
-          openAiProjectWizard();
-        case ProjectCreateStartMode.modeChoice:
-          showCreateProjectSheet();
-      }
-    });
-  }
+  bool get hasActiveSearch => searchController.text.trim().isNotEmpty;
 
   List<ProjectModel> get filteredProjects {
-    if (selectedFilterIndex == 1) {
-      return projects.where((project) => project.isActive).toList();
-    }
+    final query = searchController.text.trim().toLowerCase();
 
-    if (selectedFilterIndex == 2) {
-      return projects.where((project) => project.isCompleted).toList();
-    }
+    return projects.where((project) {
+      final matchesFilter = switch (selectedFilterIndex) {
+        1 => project.isActive,
+        2 => project.isCompleted,
+        _ => true,
+      };
 
-    return projects;
+      if (!matchesFilter) return false;
+      if (query.isEmpty) return true;
+
+      final nextTask = nextTaskForProject(project);
+      final searchable = [
+        project.title,
+        project.description ?? '',
+        project.statusLabel,
+        project.projectTypeLabel,
+        project.deadlineLabel,
+        nextTask?.task.title ?? '',
+      ].join(' ').toLowerCase();
+
+      return searchable.contains(query);
+    }).toList();
   }
 
-  int get totalProjectsCount {
-    return projects.length;
-  }
+  int get totalProjectsCount => projects.length;
+  int get activeProjectsCount => projects.where((project) => project.isActive).length;
+  int get completedProjectsCount =>
+      projects.where((project) => project.isCompleted).length;
 
-  int get activeProjectsCount {
-    return projects.where((project) => project.isActive).length;
-  }
-
-  int get completedProjectsCount {
-    return projects.where((project) => project.isCompleted).length;
+  String projectKey(ProjectModel project) {
+    return '${project.projectType}-${project.teamId ?? 0}-${project.projectId}';
   }
 
   List<TaskListItem> tasksForProject(ProjectModel project) {
     return projectTasks.where((item) {
-      final sameProject = item.project.projectId == project.projectId;
-      final sameTeam = item.project.teamId == project.teamId;
-      return sameProject && sameTeam;
+      return item.project.projectId == project.projectId &&
+          item.project.teamId == project.teamId;
     }).toList();
   }
 
   int completedTasksForProject(ProjectModel project) {
-    return tasksForProject(
-      project,
-    ).where((item) => item.task.isCompleted).length;
+    return tasksForProject(project).where((item) => item.task.isCompleted).length;
   }
 
-  Color getStatusColor(BuildContext context, ProjectModel project) {
+  double getProjectProgress(ProjectModel project) {
+    final tasks = tasksForProject(project);
+
+    if (tasks.isNotEmpty) {
+      return completedTasksForProject(project) / tasks.length;
+    }
+
+    if (project.isCompleted) return 1;
+    if (project.status == 'in_progress') return 0.55;
+    if (project.status == 'on_hold') return 0.35;
+    if (project.status == 'cancelled') return 0;
+    return 0.12;
+  }
+
+  String getProjectTaskLabel(ProjectModel project) {
+    final tasks = tasksForProject(project);
+    if (tasks.isEmpty) return 'No tasks yet';
+    return '${completedTasksForProject(project)}/${tasks.length} tasks done';
+  }
+
+  TaskListItem? nextTaskForProject(ProjectModel project) {
+    final tasks = tasksForProject(project)
+        .where((item) => !item.task.isCompleted)
+        .toList()
+      ..sort(compareUpcomingTaskItems);
+
+    if (tasks.isEmpty) return null;
+    return tasks.first;
+  }
+
+  String projectHealthLabel(ProjectModel project) {
+    final tasks = tasksForProject(project);
+
+    if (!project.isCompleted && project.daysLeft < 0) return 'At risk';
+    if (tasks.any((item) => item.task.isBlocked)) return 'Blocked';
+    if (tasks.any((item) => item.task.isOverdue)) return 'Needs attention';
+    if (project.daysLeft <= 3 && !project.isCompleted) return 'Due soon';
+    return 'Healthy';
+  }
+
+  Color getStatusColor(ProjectModel project) {
     switch (project.status) {
       case 'completed':
         return const Color(0xFF7C3AED);
@@ -270,90 +309,119 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
-  double getProjectProgress(ProjectModel project) {
-    final tasks = tasksForProject(project);
-
-    if (tasks.isNotEmpty) {
-      final completed = tasks.where((item) => item.task.isCompleted).length;
-      return completed / tasks.length;
-    }
-
-    if (project.isCompleted) {
-      return 1;
-    }
-
-    if (project.status == 'in_progress') {
-      return 0.55;
-    }
-
-    if (project.status == 'on_hold') {
-      return 0.35;
-    }
-
-    if (project.status == 'cancelled') {
-      return 0;
-    }
-
-    return 0.12;
-  }
-
-  String getProjectProgressLabel(ProjectModel project) {
-    final progress = getProjectProgress(project);
-    return '${(progress * 100).round()}%';
-  }
-
-  String getProjectTaskLabel(ProjectModel project) {
-    final tasks = tasksForProject(project);
-
-    if (tasks.isEmpty) {
-      return 'No tasks yet';
-    }
-
-    final completed = completedTasksForProject(project);
-    return '$completed/${tasks.length} tasks done';
-  }
-
-  TaskListItem? nextTaskForProject(ProjectModel project) {
-    final tasks =
-        tasksForProject(
-            project,
-          ).where((item) => !item.task.isCompleted).toList()
-          ..sort(compareUpcomingTaskItems);
-
-    if (tasks.isEmpty) {
-      return null;
-    }
-
-    return tasks.first;
-  }
-
-  String projectHealthLabel(ProjectModel project) {
-    final tasks = tasksForProject(project);
-    final hasBlockedTask = tasks.any((item) => item.task.isBlocked);
-    final hasOverdueTask = tasks.any((item) => item.task.isOverdue);
-
-    if (!project.isCompleted && project.daysLeft < 0) {
-      return 'At risk';
-    }
-
-    if (hasBlockedTask) {
-      return 'Blocked';
-    }
-
-    if (hasOverdueTask) {
-      return 'Needs attention';
-    }
-
-    if (project.daysLeft <= 3 && !project.isCompleted) {
-      return 'Due soon';
-    }
-
-    return 'Healthy';
-  }
-
   void setProjectFilter(int index) {
     setState(() {
       selectedFilterIndex = index;
+    });
+  }
+
+  void toggleSearch() {
+    setState(() {
+      isSearchVisible = !isSearchVisible;
+      if (!isSearchVisible) searchController.clear();
+    });
+  }
+
+  void clearSearch() {
+    setState(() {
+      searchController.clear();
+      isSearchVisible = false;
+      selectedFilterIndex = 0;
+    });
+  }
+
+  Future<bool> confirmDeleteProject(ProjectModel project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete plan?'),
+          content: Text(
+            'This will permanently delete "${project.title}" and its tasks. This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  Future<void> deleteProjectFromList(ProjectModel project) async {
+    final key = projectKey(project);
+    if (deletingProjectKeys.contains(key)) return;
+
+    final removedProject = project;
+    final removedTasks = tasksForProject(project);
+
+    setState(() {
+      deletingProjectKeys.add(key);
+      projects.removeWhere((item) => projectKey(item) == key);
+      projectTasks.removeWhere((item) {
+        return item.project.projectId == project.projectId &&
+            item.project.teamId == project.teamId;
+      });
+    });
+
+    try {
+      await _projectsApi.deleteProject(project);
+
+      if (!mounted) return;
+      setState(() => deletingProjectKeys.remove(key));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Plan deleted.')));
+    } on ApiException catch (error) {
+      restoreDeletedProject(key, removedProject, removedTasks);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error.statusCode == 403 || error.statusCode == 404
+                ? 'You do not have permission to delete this plan.'
+                : error.message,
+          ),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Project delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      restoreDeletedProject(key, removedProject, removedTasks);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete plan. Please try again.')),
+      );
+    }
+  }
+
+  void restoreDeletedProject(
+    String key,
+    ProjectModel removedProject,
+    List<TaskListItem> removedTasks,
+  ) {
+    if (!mounted) return;
+    setState(() {
+      if (!projects.any((item) => projectKey(item) == key)) {
+        projects.add(removedProject);
+        projects.sort((first, second) {
+          return second.createdAt.compareTo(first.createdAt);
+        });
+      }
+      projectTasks.addAll(removedTasks);
+      deletingProjectKeys.remove(key);
     });
   }
 
@@ -374,13 +442,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Filter projects',
+                  'Filter plans',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 10),
-                for (int index = 0; index < tabs.length; index++) ...[
+                for (var index = 0; index < tabs.length; index++) ...[
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
@@ -412,6 +480,295 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
+  Future<void> showCreateProjectSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Start a Plan',
+                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                buildCreateModeTile(
+                  sheetContext,
+                  icon: Icons.edit_note_rounded,
+                  title: 'Create Manually',
+                  subtitle: 'Create a simple project shell yourself.',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    showManualCreateProjectSheet();
+                  },
+                ),
+                const SizedBox(height: 10),
+                buildCreateModeTile(
+                  sheetContext,
+                  icon: Icons.auto_awesome_rounded,
+                  title: 'Generate with AI',
+                  subtitle: 'Describe an idea and Planora creates the plan.',
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    openAiProjectWizard();
+                  },
+                  primary: true,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget buildCreateModeTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool primary = false,
+  }) {
+    final color = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: primary
+              ? color.withValues(alpha: 0.10)
+              : isDark
+              ? const Color(0xFF111827)
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: primary ? color.withValues(alpha: 0.35) : borderColor(context),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: TextStyle(color: mutedColor(context))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> openAiProjectWizard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadProjects),
+      ),
+    );
+
+    if (!mounted) return;
+    loadProjects();
+  }
+
+  Future<void> showManualCreateProjectSheet() async {
+    titleController.clear();
+    descriptionController.clear();
+    selectedDeadline = null;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Create Plan',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        prefixIcon: Icon(Icons.folder_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        labelText: 'Description optional',
+                        prefixIcon: Icon(Icons.notes_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await pickDeadlineDate();
+                        if (picked == null) return;
+                        setSheetState(() => selectedDeadline = picked);
+                      },
+                      icon: const Icon(Icons.calendar_month_rounded),
+                      label: Text(
+                        selectedDeadline == null
+                            ? 'Choose deadline'
+                            : formatInputDate(selectedDeadline!),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: isCreatingProject
+                            ? null
+                            : () => createProjectFromSheet(sheetContext),
+                        child: isCreatingProject
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Create Plan'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> pickDeadlineDate() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: selectedDeadline ?? now.add(const Duration(days: 1)),
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: DateTime(now.year + 5),
+    );
+
+    if (pickedDate == null) return null;
+    return DateTime(pickedDate.year, pickedDate.month, pickedDate.day, 12);
+  }
+
+  Future<void> createProjectFromSheet(BuildContext sheetContext) async {
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
+
+    if (title.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Project title must be at least 2 letters.')),
+      );
+      return;
+    }
+
+    if (selectedDeadline == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Project deadline is required.')),
+      );
+      return;
+    }
+
+    setState(() => isCreatingProject = true);
+
+    try {
+      await _projectsApi.createProject(
+        ProjectCreateRequest(
+          title: title,
+          description: description.isEmpty ? null : description,
+          deadline: selectedDeadline!,
+        ),
+      );
+
+      if (!mounted) return;
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+
+      setState(() => isCreatingProject = false);
+      await loadProjects();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Plan created.')));
+    } catch (error, stackTrace) {
+      debugPrint('Project creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => isCreatingProject = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is ApiException ? error.message : 'Could not create plan.',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: loadProjects,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            buildProjectsHeader(context),
+            if (isSearchVisible) ...[
+              const SizedBox(height: 12),
+              buildProjectSearchField(context),
+            ],
+            const SizedBox(height: 22),
+            buildProjectTabsAndAction(context),
+            const SizedBox(height: 18),
+            buildProjectStats(context),
+            const SizedBox(height: 20),
+            buildProjectContent(context),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget buildProjectsHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -440,12 +797,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         const Spacer(),
         buildCircleIconButton(
           context,
-          icon: Icons.search_rounded,
-          onTap: () {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Search is next.')));
-          },
+          icon: isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+          onTap: toggleSearch,
         ),
         const SizedBox(width: 10),
         buildCircleIconButton(
@@ -473,9 +826,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: isDark ? const Color(0xFF111827) : Colors.white,
-          border: Border.all(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-          ),
+          border: Border.all(color: borderColor(context)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
@@ -484,11 +835,35 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
           ],
         ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: isDark ? Colors.white70 : const Color(0xFF64748B),
-        ),
+        child: Icon(icon, size: 20, color: mutedColor(context)),
+      ),
+    );
+  }
+
+  Widget buildProjectSearchField(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TextField(
+      controller: searchController,
+      autofocus: true,
+      onChanged: (_) => setState(() {}),
+      textInputAction: TextInputAction.search,
+      style: TextStyle(
+        color: isDark ? Colors.white : const Color(0xFF111827),
+        fontWeight: FontWeight.w700,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Search plans...',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: hasActiveSearch
+            ? IconButton(
+                onPressed: () => setState(searchController.clear),
+                icon: const Icon(Icons.close_rounded),
+              )
+            : null,
+        filled: true,
+        fillColor: isDark ? const Color(0xFF111827) : Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
   }
@@ -513,50 +888,32 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF111827) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.14 : 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        border: Border.all(color: borderColor(context)),
       ),
       child: Row(
         children: List.generate(tabs.length, (index) {
-          final isSelected = selectedFilterIndex == index;
+          final selected = selectedFilterIndex == index;
 
           return Expanded(
             child: InkWell(
-              onTap: () {
-                setProjectFilter(index);
-              },
+              onTap: () => setProjectFilter(index),
               borderRadius: BorderRadius.circular(12),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? Theme.of(context).colorScheme.primary.withValues(
-                          alpha: isDark ? 0.22 : 0.12,
-                        )
+                  color: selected
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   tabs[index],
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: isSelected
+                    color: selected
                         ? Theme.of(context).colorScheme.primary
-                        : isDark
-                        ? Colors.white70
-                        : const Color(0xFF4B5563),
+                        : mutedColor(context),
                   ),
                 ),
               ),
@@ -576,30 +933,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         width: 142,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
             colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
           ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF6D28D9).withValues(alpha: 0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-          ],
         ),
-        child: Row(
+        child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.add_rounded, color: Colors.white, size: 24),
-            const SizedBox(width: 6),
+            Icon(Icons.add_rounded, color: Colors.white, size: 24),
+            SizedBox(width: 6),
             Text(
               'New Plan',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-              ),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
             ),
           ],
         ),
@@ -614,7 +959,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: buildProjectStatCard(
             context,
             icon: Icons.folder_rounded,
-            value: totalProjectsCount.toString(),
+            value: '$totalProjectsCount',
             label: 'Total Plans',
             color: Theme.of(context).colorScheme.primary,
           ),
@@ -624,7 +969,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: buildProjectStatCard(
             context,
             icon: Icons.bar_chart_rounded,
-            value: activeProjectsCount.toString(),
+            value: '$activeProjectsCount',
             label: 'Active',
             color: const Color(0xFF22C55E),
           ),
@@ -634,7 +979,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: buildProjectStatCard(
             context,
             icon: Icons.check_circle_rounded,
-            value: completedProjectsCount.toString(),
+            value: '$completedProjectsCount',
             label: 'Completed',
             color: const Color(0xFF7C3AED),
           ),
@@ -655,20 +1000,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Container(
       height: 76,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      decoration: cardDecoration(context, 18),
       child: Row(
         children: [
           Container(
@@ -688,21 +1020,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               children: [
                 Text(
                   value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                     color: isDark ? Colors.white : const Color(0xFF1E1B4B),
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+                    color: mutedColor(context),
                   ),
                 ),
               ],
@@ -735,12 +1064,22 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final visibleProjects = filteredProjects;
 
     if (visibleProjects.isEmpty) {
+      if (projects.isNotEmpty && (hasActiveSearch || selectedFilterIndex != 0)) {
+        return buildMessageState(
+          context,
+          icon: Icons.search_off_rounded,
+          title: 'No matching plans',
+          message: 'Try another search term or clear the current filter.',
+          buttonText: 'Clear Search',
+          onPressed: clearSearch,
+        );
+      }
+
       return buildMessageState(
         context,
         icon: Icons.folder_open_rounded,
         title: 'No plans yet',
-        message:
-            'Describe an idea or create a manual plan to start organizing it.',
+        message: 'Describe an idea or create a manual plan to start organizing it.',
         buttonText: 'Start Plan',
         onPressed: showCreateProjectSheet,
       );
@@ -749,104 +1088,49 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Column(
       children: [
         if (taskSummaryWarning != null) ...[
-          buildTaskSummaryWarning(context),
+          buildWarning(context, taskSummaryWarning!),
           const SizedBox(height: 14),
         ],
         for (final project in visibleProjects) ...[
-          buildProjectCard(context, project),
+          buildSwipeableProjectCard(context, project),
           const SizedBox(height: 14),
         ],
       ],
     );
   }
 
-  Widget buildTaskSummaryWarning(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.14 : 0.10),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+  Widget buildSwipeableProjectCard(BuildContext context, ProjectModel project) {
+    return Dismissible(
+      key: ValueKey('plan-${projectKey(project)}'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => confirmDeleteProject(project),
+      onDismissed: (_) => deleteProjectFromList(project),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 22),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Icon(Icons.delete_outline_rounded, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Delete',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+            ),
+          ],
         ),
       ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: Color(0xFFF59E0B),
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              taskSummaryWarning!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: isDark ? Colors.white70 : const Color(0xFF92400E),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildMessageState(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String message,
-    required String buttonText,
-    required VoidCallback onPressed,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 40),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 42, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: isDark ? Colors.white : const Color(0xFF1E1B4B),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isDark ? Colors.white70 : const Color(0xFF4B5563),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 18),
-          ElevatedButton(onPressed: onPressed, child: Text(buttonText)),
-        ],
-      ),
+      child: buildProjectCard(context, project),
     );
   }
 
   Widget buildProjectCard(BuildContext context, ProjectModel project) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusColor = getStatusColor(context, project);
+    final statusColor = getStatusColor(project);
     final iconColor = getProjectIconColor(project);
     final progress = getProjectProgress(project);
     final nextTask = nextTaskForProject(project);
@@ -859,30 +1143,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
         );
 
-        if (!mounted) {
-          return;
-        }
-
+        if (!mounted) return;
         loadProjects();
       },
       borderRadius: BorderRadius.circular(24),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF111827) : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
+        decoration: cardDecoration(context, 24),
         child: Column(
           children: [
             Row(
@@ -913,9 +1181,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF1E1B4B),
+                          color: isDark ? Colors.white : const Color(0xFF1E1B4B),
                         ),
                       ),
                       const SizedBox(height: 5),
@@ -925,19 +1191,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                             : 'Next: ${nextTask.task.title}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: isDark
-                                  ? Colors.white60
-                                  : const Color(0xFF64748B),
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                buildStatusBadge(context, project, statusColor),
+                buildChip(context, project.statusLabel, statusColor),
                 const SizedBox(width: 8),
                 Icon(
                   Icons.more_vert_rounded,
@@ -955,9 +1218,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 5,
-                      backgroundColor: isDark
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFE5E7EB),
+                      backgroundColor:
+                          isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         project.isCompleted
                             ? const Color(0xFF7C3AED)
@@ -968,10 +1230,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  getProjectProgressLabel(project),
+                  '${(progress * 100).round()}%',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white70 : const Color(0xFF4B5563),
+                    color: mutedColor(context),
                   ),
                 ),
               ],
@@ -979,11 +1241,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 14,
-                  color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                ),
+                Icon(Icons.calendar_today_rounded, size: 14, color: mutedColor(context)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -992,43 +1250,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      color: mutedColor(context),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 buildHealthChip(context, project),
                 const SizedBox(width: 8),
-                buildProjectTypeChip(context, project),
+                buildTypeChip(context, project),
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildStatusBadge(
-    BuildContext context,
-    ProjectModel project,
-    Color statusColor,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: isDark ? 0.18 : 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        project.statusLabel,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: statusColor,
-          fontWeight: FontWeight.w900,
-          fontSize: 10,
         ),
       ),
     );
@@ -1044,61 +1276,40 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       _ => const Color(0xFF22C55E),
     };
 
+    return buildChip(context, label, color);
+  }
+
+  Widget buildTypeChip(BuildContext context, ProjectModel project) {
+    return buildChip(
+      context,
+      project.isTeamProject ? 'Team' : 'Personal',
+      project.isTeamProject ? const Color(0xFF8B5CF6) : const Color(0xFF64748B),
+      icon: project.isTeamProject ? Icons.groups_2_rounded : Icons.person_rounded,
+    );
+  }
+
+  Widget buildChip(BuildContext context, String label, Color color, {IconData? icon}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w900,
-          fontSize: 10,
-        ),
-      ),
-    );
-  }
-
-  Widget buildProjectTypeChip(BuildContext context, ProjectModel project) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: project.isTeamProject
-            ? const Color(0xFF8B5CF6).withValues(alpha: 0.12)
-            : const Color(0xFF64748B).withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            project.isTeamProject
-                ? Icons.groups_2_rounded
-                : Icons.person_rounded,
-            size: 12,
-            color: project.isTeamProject
-                ? const Color(0xFF8B5CF6)
-                : isDark
-                ? Colors.white60
-                : const Color(0xFF64748B),
-          ),
-          const SizedBox(width: 4),
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+          ],
           Text(
-            project.isTeamProject ? 'Team' : 'Personal',
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
               fontWeight: FontWeight.w900,
               fontSize: 10,
-              color: project.isTeamProject
-                  ? const Color(0xFF8B5CF6)
-                  : isDark
-                  ? Colors.white60
-                  : const Color(0xFF64748B),
             ),
           ),
         ],
@@ -1106,1010 +1317,100 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  Future<void> showCreateProjectSheet() async {
-    resetCreateProjectForm();
-    await loadTeamsForCreateSheet();
-
-    if (!mounted) {
-      return;
-    }
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
-
-        return SafeArea(
-          top: false,
-          child: Container(
-            margin: const EdgeInsets.all(14),
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF050816) : Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.22),
-                  blurRadius: 32,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF475569)
-                          : const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.add_task_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Start a Plan',
-                            style: Theme.of(sheetContext).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Choose how Planora should create this project.',
-                            style: Theme.of(sheetContext).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: isDark
-                                      ? Colors.white60
-                                      : const Color(0xFF64748B),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                buildCreationModeCard(
-                  sheetContext,
-                  icon: Icons.edit_note_rounded,
-                  title: 'Create Manually',
-                  message: 'Build the project yourself and add tasks manually.',
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    showManualCreateProjectSheet();
-                  },
-                ),
-                const SizedBox(height: 12),
-                buildCreationModeCard(
-                  sheetContext,
-                  icon: Icons.auto_awesome_rounded,
-                  title: 'Generate with AI',
-                  message:
-                      'Describe your idea and Planora will create the plan, tasks, timeline, and risks.',
-                  isPrimary: true,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    openAiProjectWizard();
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget buildCreationModeCard(
+  Widget buildMessageState(
     BuildContext context, {
     required IconData icon,
     required String title,
     required String message,
-    required VoidCallback onTap,
-    bool isPrimary = false,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isPrimary
-              ? primary.withValues(alpha: isDark ? 0.22 : 0.10)
-              : isDark
-              ? const Color(0xFF0F172A)
-              : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isPrimary
-                ? primary.withValues(alpha: 0.42)
-                : isDark
-                ? const Color(0xFF1E293B)
-                : const Color(0xFFE5E7EB),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: isPrimary
-                    ? primary
-                    : primary.withValues(alpha: isDark ? 0.18 : 0.10),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, color: isPrimary ? Colors.white : primary),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    message,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                      height: 1.35,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Icon(Icons.chevron_right_rounded, color: primary),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> openAiProjectWizard() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadProjects),
-      ),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    loadProjects();
-  }
-
-  void resetCreateProjectForm() {
-    titleController.clear();
-    descriptionController.clear();
-
-    setState(() {
-      selectedDeadline = null;
-      selectedProjectType = 'personal';
-      isCreatingProject = false;
-    });
-  }
-
-  Future<void> showManualCreateProjectSheet() async {
-    resetCreateProjectForm();
-
-    await loadTeamsForCreateSheet();
-
-    if (!mounted) {
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
-            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-            return Padding(
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: Container(
-                width: double.infinity,
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.92,
-                ),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF050816) : Colors.white,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(34),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.22),
-                      blurRadius: 32,
-                      offset: const Offset(0, -12),
-                    ),
-                  ],
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 44,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF475569)
-                                : const Color(0xFFCBD5E1),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          InkWell(
-                            onTap: () => Navigator.of(sheetContext).pop(),
-                            borderRadius: BorderRadius.circular(999),
-                            child: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isDark
-                                    ? const Color(0xFF111827)
-                                    : const Color(0xFFF8FAFC),
-                                border: Border.all(
-                                  color: isDark
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFFE5E7EB),
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.close_rounded,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF111827),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Create Manually',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w900,
-                                        color: isDark
-                                            ? Colors.white
-                                            : const Color(0xFF111827),
-                                      ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Create the project shell now, then add tasks yourself.',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: isDark
-                                            ? Colors.white60
-                                            : const Color(0xFF64748B),
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
-                      buildCreateFieldLabel(context, 'Title'),
-                      const SizedBox(height: 8),
-                      buildCreateProjectTextField(
-                        context,
-                        controller: titleController,
-                        hintText: 'e.g. FYP Mobile App',
-                        icon: Icons.folder_outlined,
-                        maxLines: 1,
-                      ),
-                      const SizedBox(height: 20),
-                      buildCreateFieldLabel(context, 'Description (Optional)'),
-                      const SizedBox(height: 8),
-                      ValueListenableBuilder<TextEditingValue>(
-                        valueListenable: descriptionController,
-                        builder: (context, value, child) {
-                          return buildCreateProjectTextField(
-                            context,
-                            controller: descriptionController,
-                            hintText: 'Describe what this plan is for...',
-                            icon: Icons.notes_rounded,
-                            maxLines: 4,
-                            maxLength: 500,
-                            counterText: '${value.text.length}/500',
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
-
-                      buildCreateFieldLabel(context, 'Plan Type'),
-                      const SizedBox(height: 8),
-                      buildProjectTypeSelector(
-                        context,
-                        setSheetState: setSheetState,
-                      ),
-                      if (selectedProjectType == 'team') ...[
-                        const SizedBox(height: 14),
-                        buildCreateFieldLabel(context, 'Team'),
-                        const SizedBox(height: 8),
-                        buildTeamSelectorCard(
-                          context,
-                          setSheetState: setSheetState,
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-
-                      buildCreateFieldLabel(context, 'Deadline'),
-                      const SizedBox(height: 8),
-                      buildDeadlinePickerCard(
-                        context,
-                        onTap: () async {
-                          final pickedDate = await pickDeadlineDate();
-
-                          if (pickedDate == null) {
-                            return;
-                          }
-
-                          setSheetState(() {
-                            selectedDeadline = pickedDate;
-                          });
-
-                          setState(() {
-                            selectedDeadline = pickedDate;
-                          });
-                        },
-                      ),
-
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 58,
-                        child: ElevatedButton(
-                          onPressed: isCreatingProject
-                              ? null
-                              : () async {
-                                  await createProjectFromSheet(
-                                    sheetContext: sheetContext,
-                                    setSheetState: setSheetState,
-                                  );
-                                },
-                          style: ElevatedButton.styleFrom(
-                            elevation: 0,
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: Ink(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Center(
-                              child: isCreatingProject
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.4,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Create Plan',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget buildCreateFieldLabel(BuildContext context, String label) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        fontWeight: FontWeight.w900,
-        color: isDark ? Colors.white : const Color(0xFF111827),
-      ),
-    );
-  }
-
-  Widget buildCreateProjectTextField(
-    BuildContext context, {
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    required int maxLines,
-    int? maxLength,
-    String? counterText,
+    required String buttonText,
+    required VoidCallback onPressed,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      maxLength: maxLength,
-      textInputAction: maxLines == 1
-          ? TextInputAction.next
-          : TextInputAction.newline,
-      style: TextStyle(
-        color: isDark ? Colors.white : const Color(0xFF111827),
-        fontWeight: FontWeight.w700,
-      ),
-      decoration: InputDecoration(
-        counterText: counterText,
-        hintText: hintText,
-        hintStyle: TextStyle(
-          color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
-          fontWeight: FontWeight.w600,
-        ),
-        prefixIcon: Padding(
-          padding: EdgeInsets.only(bottom: maxLines > 1 ? 58 : 0),
-          child: Icon(icon, color: const Color(0xFF7C3AED)),
-        ),
-        filled: true,
-        fillColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 40),
+      padding: const EdgeInsets.all(22),
+      decoration: cardDecoration(context, 24),
+      child: Column(
+        children: [
+          Icon(icon, size: 42, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : const Color(0xFF1E1B4B),
+            ),
           ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF7C3AED), width: 1.4),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton(onPressed: onPressed, child: Text(buttonText)),
+        ],
       ),
     );
   }
 
-  Widget buildDeadlinePickerCard(
-    BuildContext context, {
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        height: 54,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.calendar_month_rounded, color: Color(0xFF7C3AED)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                selectedDeadline == null
-                    ? 'Choose project deadline'
-                    : formatDeadlineDate(selectedDeadline!),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: selectedDeadline == null
-                      ? isDark
-                            ? Colors.white38
-                            : const Color(0xFF94A3B8)
-                      : isDark
-                      ? Colors.white
-                      : const Color(0xFF111827),
-                ),
+  Widget buildWarning(BuildContext context, String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: Color(0xFFF59E0B)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: const Color(0xFF92400E),
+                fontWeight: FontWeight.w700,
               ),
             ),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: isDark ? Colors.white54 : const Color(0xFF64748B),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget buildProjectTypeSelector(
-    BuildContext context, {
-    required StateSetter setSheetState,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: buildProjectTypeOption(
-            context,
-            label: 'Personal',
-            icon: Icons.person_outline_rounded,
-            value: 'personal',
-            setSheetState: setSheetState,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: buildProjectTypeOption(
-            context,
-            label: 'Team',
-            icon: Icons.groups_2_outlined,
-            value: 'team',
-            setSheetState: setSheetState,
-          ),
+  BoxDecoration cardDecoration(BuildContext context, double radius) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return BoxDecoration(
+      color: isDark ? const Color(0xFF111827) : Colors.white,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: borderColor(context)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.05),
+          blurRadius: 16,
+          offset: const Offset(0, 8),
         ),
       ],
     );
   }
 
-  Widget buildProjectTypeOption(
-    BuildContext context, {
-    required String label,
-    required IconData icon,
-    required String value,
-    required StateSetter setSheetState,
-  }) {
+  Color borderColor(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = selectedProjectType == value;
-
-    return InkWell(
-      onTap: () {
-        setSheetState(() {
-          selectedProjectType = value;
-        });
-        setState(() {
-          selectedProjectType = value;
-        });
-      },
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        height: 54,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
-              : isDark
-              ? const Color(0xFF0F172A)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF7C3AED)
-                : isDark
-                ? const Color(0xFF1E293B)
-                : const Color(0xFFE5E7EB),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 19,
-              color: isSelected
-                  ? const Color(0xFF7C3AED)
-                  : isDark
-                  ? Colors.white70
-                  : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isSelected
-                      ? const Color(0xFF7C3AED)
-                      : isDark
-                      ? Colors.white70
-                      : const Color(0xFF334155),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB);
   }
 
-  Widget buildTeamSelectorCard(
-    BuildContext context, {
-    required StateSetter setSheetState,
-  }) {
+  Color mutedColor(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (isLoadingTeams) {
-      return Container(
-        height: 58,
-        alignment: Alignment.center,
-        decoration: buildCreateCardDecoration(context),
-        child: const SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.4),
-        ),
-      );
-    }
-
-    if (teams.isEmpty) {
-      return InkWell(
-        onTap: openTeamsFromProjectSheet,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: buildCreateCardDecoration(context),
-          child: Row(
-            children: [
-              const Icon(Icons.group_add_outlined, color: Color(0xFF7C3AED)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Create or join a team before making a team project.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: isDark ? Colors.white70 : const Color(0xFF334155),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: buildCreateCardDecoration(context),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: selectedTeamId,
-          isExpanded: true,
-          borderRadius: BorderRadius.circular(16),
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: isDark ? Colors.white54 : const Color(0xFF64748B),
-          ),
-          items: [
-            for (final team in teams)
-              DropdownMenuItem<int>(
-                value: team.teamId,
-                child: Text(
-                  team.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-          onChanged: (teamId) {
-            setSheetState(() {
-              selectedTeamId = teamId;
-            });
-            setState(() {
-              selectedTeamId = teamId;
-            });
-          },
-        ),
-      ),
-    );
-  }
-
-  BoxDecoration buildCreateCardDecoration(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return BoxDecoration(
-      color: isDark ? const Color(0xFF0F172A) : Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE5E7EB),
-      ),
-    );
-  }
-
-  Future<void> openTeamsFromProjectSheet() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen()));
-
-    if (!mounted) {
-      return;
-    }
-
-    await loadTeamsForCreateSheet();
-  }
-
-  Future<DateTime?> pickDeadlineDate() async {
-    final now = DateTime.now();
-
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: selectedDeadline ?? now.add(const Duration(days: 1)),
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: DateTime(now.year + 5),
-    );
-
-    if (pickedDate == null) {
-      return null;
-    }
-
-    return normalizeProjectDeadline(pickedDate);
-  }
-
-  DateTime normalizeProjectDeadline(DateTime pickedDate) {
-    final now = DateTime.now();
-    final noon = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      12,
-    );
-
-    if (noon.isAfter(now)) {
-      return noon;
-    }
-
-    final endOfDay = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      23,
-      59,
-      59,
-    );
-
-    if (endOfDay.isAfter(now)) {
-      return endOfDay;
-    }
-
-    return DateTime(now.year, now.month, now.day + 1, 12);
-  }
-
-  String formatDeadlineDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final year = date.year.toString();
-
-    return '$day/$month/$year';
-  }
-
-  Future<void> createProjectFromSheet({
-    required BuildContext sheetContext,
-    required StateSetter setSheetState,
-  }) async {
-    final title = titleController.text.trim();
-    final description = descriptionController.text.trim();
-
-    if (title.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Project title must be at least 2 letters.'),
-        ),
-      );
-      return;
-    }
-
-    if (selectedDeadline == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project deadline is required.')),
-      );
-      return;
-    }
-
-    if (selectedProjectType == 'team' && selectedTeamId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select or create a team first.')),
-      );
-      return;
-    }
-
-    setSheetState(() {
-      isCreatingProject = true;
-    });
-
-    setState(() {
-      isCreatingProject = true;
-    });
-
-    try {
-      final request = ProjectCreateRequest(
-        title: title,
-        description: description.isEmpty ? null : description,
-        deadline: selectedDeadline!,
-      );
-
-      if (selectedProjectType == 'team') {
-        await _projectsApi.createTeamProject(
-          teamId: selectedTeamId!,
-          request: request,
-        );
-      } else {
-        await _projectsApi.createProject(request);
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      if (sheetContext.mounted) {
-        Navigator.of(sheetContext).pop();
-      }
-
-      titleController.clear();
-      descriptionController.clear();
-
-      setState(() {
-        selectedDeadline = null;
-        isCreatingProject = false;
-      });
-
-      await loadProjects();
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Plan created.')));
-    } catch (error, stackTrace) {
-      debugPrint('Project creation failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) {
-        return;
-      }
-
-      if (sheetContext.mounted) {
-        setSheetState(() {
-          isCreatingProject = false;
-        });
-      }
-
-      setState(() {
-        isCreatingProject = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(projectCreationErrorMessage(error))),
-      );
-    }
-  }
-
-  String projectCreationErrorMessage(Object error) {
-    if (error is ApiException) {
-      final backendMessage = error.message.trim();
-
-      if (selectedProjectType == 'team' && error.statusCode == 403) {
-        const permissionMessage =
-            'You can only create team projects in teams where you are owner/admin.';
-
-        if (backendMessage.isNotEmpty &&
-            backendMessage != 'Something went wrong. Please try again.') {
-          return '$permissionMessage $backendMessage';
-        }
-
-        return permissionMessage;
-      }
-
-      if (backendMessage.isNotEmpty) {
-        return backendMessage;
-      }
-    }
-
-    return 'Could not create project. Try again.';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: loadProjects,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          children: [
-            buildProjectsHeader(context),
-            const SizedBox(height: 22),
-            buildProjectTabsAndAction(context),
-            const SizedBox(height: 18),
-            buildProjectStats(context),
-            const SizedBox(height: 20),
-            buildProjectContent(context),
-          ],
-        ),
-      ),
-    );
+    return isDark ? Colors.white60 : const Color(0xFF64748B);
   }
 }
