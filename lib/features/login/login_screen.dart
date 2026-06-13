@@ -292,7 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(height: metrics.socialGap + 6),
                         PlanoraSocialButton(
                           height: metrics.socialButtonHeight,
-                          label: 'Google',
+                          label: isLoading ? 'Signing In...' : 'Google',
                           logo: const PlanoraGoogleLogo(),
                           onTap: isLoading ? null : _signInWithGoogle,
                         ),
