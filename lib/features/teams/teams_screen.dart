@@ -3,6 +3,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/auth/data/project_api.dart';
 import 'package:mobile/features/auth/models/project_models.dart';
+import 'package:mobile/features/projects/project_detail_screen.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
 import 'package:mobile/features/teams/data/teams_api.dart';
@@ -34,7 +35,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   int _selectedTabIndex = 0;
   String _searchQuery = '';
-
   bool _isLoading = true;
   bool _isCreatingTeam = false;
   String? _errorMessage;
@@ -44,35 +44,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
   final Map<int, List<TeamMemberModel>> _membersByTeamId = {};
   final Map<int, List<ProjectModel>> _projectsByTeamId = {};
   final Map<int, _TeamStats> _statsByTeamId = {};
-
-  List<TeamModel> get _visibleTeams {
-    final query = _searchQuery.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return _teams;
-    }
-
-    return _teams.where((team) {
-      final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
-      final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
-
-      return team.name.toLowerCase().contains(query) ||
-          members.any(
-            (member) =>
-                member.displayName.toLowerCase().contains(query) ||
-                member.roleLabel.toLowerCase().contains(query),
-          ) ||
-          projects.any(
-            (project) =>
-                project.title.toLowerCase().contains(query) ||
-                project.statusLabel.toLowerCase().contains(query),
-          );
-    }).toList();
-  }
-
-  List<TeamInvitationModel> get _pendingInvitations {
-    return _invitations.where((item) => item.isPending).toList();
-  }
 
   @override
   void initState() {
@@ -84,6 +55,41 @@ class _TeamsScreenState extends State<TeamsScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  List<TeamInvitationModel> get _pendingInvitations {
+    return _invitations.where((item) => item.isPending).toList();
+  }
+
+  List<TeamModel> get _visibleTeams {
+    final query = _searchQuery.trim().toLowerCase();
+
+    if (query.isEmpty) {
+      return _teams;
+    }
+
+    return _teams.where((team) {
+      final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+      final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+      final stats = _statsByTeamId[team.teamId];
+
+      return team.name.toLowerCase().contains(query) ||
+          team.teamId.toString().contains(query) ||
+          (stats?.taskCount.toString().contains(query) ?? false) ||
+          members.any(
+            (member) =>
+                member.displayName.toLowerCase().contains(query) ||
+                member.roleLabel.toLowerCase().contains(query) ||
+                (member.user?.username ?? '').toLowerCase().contains(query) ||
+                (member.user?.email ?? '').toLowerCase().contains(query),
+          ) ||
+          projects.any(
+            (project) =>
+                project.title.toLowerCase().contains(query) ||
+                project.statusLabel.toLowerCase().contains(query) ||
+                project.deadlineLabel.toLowerCase().contains(query),
+          );
+    }).toList();
   }
 
   Future<void> _loadTeams({bool showLoading = true}) async {
@@ -105,6 +111,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
       setState(() {
         _teams = teams;
         _invitations = invitations;
+        _membersByTeamId.clear();
+        _projectsByTeamId.clear();
+        _statsByTeamId.clear();
         _errorMessage = null;
         _isLoading = false;
       });
@@ -120,7 +129,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Could not load teams. Pull down or tap retry.';
+        _errorMessage = error is ApiException
+            ? 'Could not load teams: ${error.message}'
+            : 'Could not load teams. Pull down or tap retry.';
       });
     }
   }
@@ -147,9 +158,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               project: TaskProjectSummary.fromProject(project),
             );
             taskCount += tasks.length;
-            completedTaskCount += tasks
-                .where((item) => item.task.isCompleted)
-                .length;
+            completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
           } catch (error, stackTrace) {
             debugPrint(
               'Team task load failed for team ${team.teamId}, project ${project.projectId}: $error',
@@ -200,41 +209,34 @@ class _TeamsScreenState extends State<TeamsScreen> {
     final background = isDark ? const Color(0xFF050816) : const Color(0xFFFAFAFF);
 
     final content = RefreshIndicator(
-      color: const Color(0xFF7C3AED),
+      color: Theme.of(context).colorScheme.primary,
       onRefresh: () => _loadTeams(showLoading: false),
       child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
-        ),
-        padding: EdgeInsets.fromLTRB(0, 0, 0, widget.showBackButton ? 28 : 110),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: EdgeInsets.fromLTRB(0, 0, 0, widget.showBackButton ? 28 : 112),
         children: [
-          _Header(
+          _TeamsHeader(
             showBackButton: widget.showBackButton,
             onBackPressed: () => Navigator.of(context).maybePop(),
             onCreatePressed: _openCreateTeamSheet,
           ),
-          const SizedBox(height: 18),
-          _SearchAndFilterRow(
+          const SizedBox(height: 14),
+          _SearchField(
             controller: _searchController,
             onChanged: (value) => setState(() => _searchQuery = value),
             onClear: _clearSearch,
           ),
-          const SizedBox(height: 18),
-          _Tabs(
+          const SizedBox(height: 14),
+          _TeamTabs(
             selectedIndex: _selectedTabIndex,
             invitationCount: _pendingInvitations.length,
             onChanged: (index) => setState(() => _selectedTabIndex = index),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           if (_selectedTabIndex == 0)
             ..._buildTeamContent()
           else
             _buildInvitationContent(),
-          const SizedBox(height: 6),
-          _CreateTeamBanner(
-            isLoading: _isCreatingTeam,
-            onPressed: _openCreateTeamSheet,
-          ),
         ],
       ),
     );
@@ -247,7 +249,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       backgroundColor: background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
           child: content,
         ),
       ),
@@ -256,18 +258,16 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   void _clearSearch() {
     _searchController.clear();
-    setState(() {
-      _searchQuery = '';
-    });
+    setState(() => _searchQuery = '');
   }
 
   List<Widget> _buildTeamContent() {
     if (_isLoading && _teams.isEmpty) {
       return const [
         _TeamLoadingCard(),
-        SizedBox(height: 14),
+        SizedBox(height: 12),
         _TeamLoadingCard(),
-        SizedBox(height: 14),
+        SizedBox(height: 12),
         _TeamLoadingCard(),
       ];
     }
@@ -299,9 +299,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return [
+      _SwipeHint(),
+      const SizedBox(height: 10),
       for (final team in _visibleTeams) ...[
         _buildSlidableTeamCard(team),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
       ],
     ];
   }
@@ -309,9 +311,21 @@ class _TeamsScreenState extends State<TeamsScreen> {
   Widget _buildSlidableTeamCard(TeamModel team) {
     return Slidable(
       key: ValueKey('team-${team.teamId}'),
+      closeOnScroll: true,
       endActionPane: ActionPane(
         motion: const StretchMotion(),
-        extentRatio: 0.32,
+        extentRatio: 0.28,
+        dismissible: DismissiblePane(
+          closeOnCancel: true,
+          confirmDismiss: () async {
+            final confirmed = await _confirmDeleteTeam(team, executeDelete: false);
+            if (confirmed == true) {
+              await _deleteTeam(team);
+            }
+            return false;
+          },
+          onDismissed: () {},
+        ),
         children: [
           SlidableAction(
             onPressed: (_) => _confirmDeleteTeam(team),
@@ -355,7 +369,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
             onAccept: () => _respondToInvitation(invitation, accept: true),
             onReject: () => _respondToInvitation(invitation, accept: false),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
         ],
       ],
     );
@@ -374,7 +388,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return _BottomSheetShell(
-              title: 'Create a new team',
+              title: 'Create team',
+              subtitle: 'Name the workspace where members, plans, and tasks live.',
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -400,12 +415,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     onPressed: isSubmitting
                         ? null
                         : () => _submitCreateTeam(
-                            sheetContext: sheetContext,
-                            setSheetState: setSheetState,
-                            controller: controller,
-                            isSubmitting: isSubmitting,
-                            setSubmitting: (value) => isSubmitting = value,
-                          ),
+                              sheetContext: sheetContext,
+                              setSheetState: setSheetState,
+                              controller: controller,
+                              isSubmitting: isSubmitting,
+                              setSubmitting: (value) => isSubmitting = value,
+                            ),
                   ),
                 ],
               ),
@@ -427,8 +442,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }) async {
     final name = controller.text.trim();
 
-    if (name.isEmpty) {
-      _showMessage('Enter a team name first.');
+    if (name.length < 2) {
+      _showMessage('Team name must be at least 2 letters.');
       return;
     }
 
@@ -436,14 +451,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
       return;
     }
 
-    setSheetState(() {
-      setSubmitting(true);
-    });
+    setSheetState(() => setSubmitting(true));
 
     if (mounted) {
-      setState(() {
-        _isCreatingTeam = true;
-      });
+      setState(() => _isCreatingTeam = true);
     }
 
     var wasCreated = false;
@@ -454,17 +465,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
     } catch (error, stackTrace) {
       debugPrint('Create team failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _showMessage('Could not create team. Try again.');
+      _showMessage(_genericApiMessage(error, fallback: 'Could not create team. Try again.'));
     } finally {
       if (mounted) {
-        setState(() {
-          _isCreatingTeam = false;
-        });
+        setState(() => _isCreatingTeam = false);
       }
-
-      setSheetState(() {
-        setSubmitting(false);
-      });
+      setSheetState(() => setSubmitting(false));
     }
 
     if (!wasCreated || !mounted || !sheetContext.mounted) {
@@ -484,13 +490,14 @@ class _TeamsScreenState extends State<TeamsScreen> {
       builder: (sheetContext) {
         return _BottomSheetShell(
           title: team.name,
+          subtitle: 'Choose what to do with this team.',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _ActionTile(
                 icon: Icons.info_outline_rounded,
                 title: 'Team details',
-                subtitle: 'Members, projects, and task activity',
+                subtitle: 'Members, plans, and task activity',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   _openTeamDetailsSheet(team);
@@ -508,7 +515,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               _ActionTile(
                 icon: Icons.refresh_rounded,
                 title: 'Refresh team',
-                subtitle: 'Reload members, projects, and tasks',
+                subtitle: 'Reload members, plans, and tasks',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   _loadTeams(showLoading: false);
@@ -541,63 +548,63 @@ class _TeamsScreenState extends State<TeamsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) {
+      builder: (sheetContext) {
         return _BottomSheetShell(
           title: team.name,
-          maxHeightFactor: 0.86,
-          child: Flexible(
+          subtitle: currentMember == null ? 'Team workspace' : 'Your role: ${currentMember.roleLabel}',
+          maxHeightFactor: 0.88,
+          child: Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _TeamOverviewPanel(
-                    team: team,
-                    currentMember: currentMember,
-                    stats: stats,
-                  ),
-                  const SizedBox(height: 16),
+                  _TeamOverviewPanel(team: team, currentMember: currentMember, stats: stats),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
-                      _SheetStat(
-                        label: 'Members',
-                        value: '${stats?.memberCount ?? members.length}',
-                      ),
-                      const SizedBox(width: 10),
-                      _SheetStat(
-                        label: 'Projects',
-                        value: '${stats?.projectCount ?? projects.length}',
-                      ),
-                      const SizedBox(width: 10),
-                      _SheetStat(
-                        label: 'Tasks',
-                        value: '${stats?.taskCount ?? 0}',
-                      ),
+                      _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
+                      const SizedBox(width: 9),
+                      _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
+                      const SizedBox(width: 9),
+                      _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                   _SheetSectionHeader(
                     title: 'Members',
                     actionLabel: 'Invite',
                     onAction: () {
-                      Navigator.of(context).pop();
+                      Navigator.of(sheetContext).pop();
                       _openInviteMemberSheet(team);
                     },
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 9),
                   if (members.isEmpty)
                     const _SmallMutedText('Members are loading or unavailable.')
                   else
-                    for (final member in members)
-                      _MemberRow(member: member),
-                  const SizedBox(height: 18),
-                  const _SheetSectionHeader(title: 'Team projects'),
-                  const SizedBox(height: 10),
+                    for (final member in members) _MemberRow(member: member),
+                  const SizedBox(height: 16),
+                  const _SheetSectionHeader(title: 'Team plans'),
+                  const SizedBox(height: 9),
                   if (projects.isEmpty)
-                    const _SmallMutedText('No team projects yet.')
+                    const _SmallMutedText('No team plans yet.')
                   else
-                    for (final project in projects.take(6))
-                      _ProjectMiniRow(project: project),
+                    for (final project in projects.take(8))
+                      _ProjectMiniRow(
+                        project: project,
+                        onTap: () async {
+                          Navigator.of(sheetContext).pop();
+                          await Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ProjectDetailScreen(project: project),
+                            ),
+                          );
+                          if (mounted) {
+                            _loadTeams(showLoading: false);
+                          }
+                        },
+                      ),
                 ],
               ),
             ),
@@ -609,13 +616,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   TeamMemberModel? _currentMemberForTeam(TeamModel team) {
     final id = widget.currentUserId;
-
     if (id == null) {
       return null;
     }
 
     final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
-
     for (final member in members) {
       if (member.userId == id) {
         return member;
@@ -639,6 +644,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
           builder: (context, setSheetState) {
             return _BottomSheetShell(
               title: 'Invite to ${team.name}',
+              subtitle: 'Send an invitation by Planora username.',
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -656,16 +662,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                         ? null
                         : () async {
                             final username = controller.text.trim();
-
                             if (username.isEmpty) {
                               _showMessage('Enter a username first.');
                               return;
                             }
 
-                            setSheetState(() {
-                              isSubmitting = true;
-                            });
-
+                            setSheetState(() => isSubmitting = true);
                             var wasSent = false;
 
                             try {
@@ -677,11 +679,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
                             } catch (error, stackTrace) {
                               debugPrint('Invite member failed: $error');
                               debugPrintStack(stackTrace: stackTrace);
-                              _showMessage('Could not send invitation.');
+                              _showMessage(_genericApiMessage(error, fallback: 'Could not send invitation.'));
                             } finally {
-                              setSheetState(() {
-                                isSubmitting = false;
-                              });
+                              if (sheetContext.mounted) {
+                                setSheetState(() => isSubmitting = false);
+                              }
                             }
 
                             if (!wasSent || !mounted || !sheetContext.mounted) {
@@ -704,20 +706,20 @@ class _TeamsScreenState extends State<TeamsScreen> {
     controller.dispose();
   }
 
-  Future<void> _confirmDeleteTeam(TeamModel team) async {
+  Future<bool?> _confirmDeleteTeam(
+    TeamModel team, {
+    bool executeDelete = true,
+  }) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
-
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
           title: const Text('Delete team?'),
           content: Text(
-            'This will remove "${team.name}" if your account has permission. Team projects may also be affected.',
+            'This will remove "${team.name}" if your account has permission. Team plans may also be affected.',
           ),
           actions: [
             TextButton(
@@ -734,11 +736,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
       },
     );
 
-    if (confirmed != true) {
-      return;
+    if (confirmed == true && executeDelete) {
+      await _deleteTeam(team);
     }
 
-    await _deleteTeam(team);
+    return confirmed;
   }
 
   Future<void> _deleteTeam(TeamModel team) async {
@@ -756,11 +758,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
     try {
       await widget.teamsApi.deleteTeam(team.teamId);
-
       if (!mounted) {
         return;
       }
-
       _showMessage('Team deleted.');
       widget.onTeamsChanged?.call();
     } catch (error, stackTrace) {
@@ -793,14 +793,22 @@ class _TeamsScreenState extends State<TeamsScreen> {
       if (error.statusCode == 403) {
         return 'Only team owners/admins can delete this team.';
       }
-
       final message = error.message.trim();
       if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
         return message;
       }
     }
-
     return 'Could not delete team. Try again.';
+  }
+
+  String _genericApiMessage(Object error, {required String fallback}) {
+    if (error is ApiException) {
+      final message = error.message.trim();
+      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
+        return message;
+      }
+    }
+    return fallback;
   }
 
   Future<void> _respondToInvitation(
@@ -824,7 +832,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     } catch (error, stackTrace) {
       debugPrint('Invitation response failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _showMessage('Could not update invitation.');
+      _showMessage(_genericApiMessage(error, fallback: 'Could not update invitation.'));
     }
   }
 
@@ -839,16 +847,14 @@ class _TeamsScreenState extends State<TeamsScreen> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({
+class _TeamsHeader extends StatelessWidget {
+  const _TeamsHeader({
     required this.showBackButton,
     required this.onBackPressed,
     required this.onCreatePressed,
@@ -867,10 +873,7 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         if (showBackButton) ...[
-          _SmallIconButton(
-            icon: Icons.arrow_back_rounded,
-            onPressed: onBackPressed,
-          ),
+          _CircleIconButton(icon: Icons.arrow_back_rounded, onPressed: onBackPressed),
           const SizedBox(width: 12),
         ],
         Expanded(
@@ -887,14 +890,13 @@ class _Header extends StatelessWidget {
                   color: titleColor,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 'Manage members, plans, and collaboration',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 14,
-                  height: 1.2,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
                   color: subtitleColor,
                 ),
@@ -902,18 +904,15 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 16),
-        _GradientIconButton(
-          icon: Icons.add_rounded,
-          onPressed: onCreatePressed,
-        ),
+        const SizedBox(width: 14),
+        _GradientIconButton(icon: Icons.add_rounded, onPressed: onCreatePressed),
       ],
     );
   }
 }
 
-class _SearchAndFilterRow extends StatelessWidget {
-  const _SearchAndFilterRow({
+class _SearchField extends StatelessWidget {
+  const _SearchField({
     required this.controller,
     required this.onChanged,
     required this.onClear,
@@ -930,33 +929,29 @@ class _SearchAndFilterRow extends StatelessWidget {
 
     return _CardShell(
       height: 52,
+      borderRadius: 16,
       child: TextField(
         controller: controller,
         onChanged: onChanged,
-        cursorColor: const Color(0xFF7C3AED),
+        cursorColor: Theme.of(context).colorScheme.primary,
         style: TextStyle(
           color: isDark ? Colors.white : const Color(0xFF111827),
           fontWeight: FontWeight.w700,
         ),
         decoration: InputDecoration(
-          hintText: 'Search teams, members, projects...',
+          hintText: 'Search teams, members, plans...',
           hintStyle: TextStyle(
             color: isDark ? Colors.white38 : const Color(0xFF98A0B8),
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: iconColor,
-            size: 22,
-          ),
+          prefixIcon: Icon(Icons.search_rounded, color: iconColor, size: 22),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, child) {
               if (value.text.trim().isEmpty) {
                 return const SizedBox.shrink();
               }
-
               return IconButton(
                 onPressed: onClear,
                 icon: Icon(Icons.close_rounded, color: iconColor, size: 20),
@@ -964,18 +959,15 @@ class _SearchAndFilterRow extends StatelessWidget {
             },
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 15,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
         ),
       ),
     );
   }
 }
 
-class _Tabs extends StatelessWidget {
-  const _Tabs({
+class _TeamTabs extends StatelessWidget {
+  const _TeamTabs({
     required this.selectedIndex,
     required this.invitationCount,
     required this.onChanged,
@@ -993,19 +985,13 @@ class _Tabs extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : Colors.white,
+        color: isDark ? const Color(0xFF0B1020) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE7E9F2),
-        ),
+        border: Border.all(color: isDark ? const Color(0xFF2A3550) : const Color(0xFFE7E9F2)),
       ),
       child: Row(
         children: [
-          _TabButton(
-            label: 'My Teams',
-            selected: selectedIndex == 0,
-            onTap: () => onChanged(0),
-          ),
+          _TabButton(label: 'My Teams', selected: selectedIndex == 0, onTap: () => onChanged(0)),
           _TabButton(
             label: 'Invitations',
             selected: selectedIndex == 1,
@@ -1019,12 +1005,7 @@ class _Tabs extends StatelessWidget {
 }
 
 class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    this.badge,
-  });
+  const _TabButton({required this.label, required this.selected, required this.onTap, this.badge});
 
   final String label;
   final bool selected;
@@ -1041,13 +1022,11 @@ class _TabButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: selected
-                ? primary.withValues(alpha: isDark ? 0.22 : 0.12)
-                : Colors.transparent,
+            color: selected ? primary.withValues(alpha: isDark ? 0.26 : 0.12) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -1065,8 +1044,8 @@ class _TabButton extends StatelessWidget {
                     color: selected
                         ? primary
                         : isDark
-                        ? Colors.white70
-                        : const Color(0xFF6C7391),
+                            ? Colors.white70
+                            : const Color(0xFF6C7391),
                   ),
                 ),
               ),
@@ -1080,11 +1059,7 @@ class _TabButton extends StatelessWidget {
                   ),
                   child: Text(
                     '$badge',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: primary,
-                    ),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: primary),
                   ),
                 ),
               ],
@@ -1092,6 +1067,27 @@ class _TabButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SwipeHint extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Icon(Icons.swipe_left_alt_rounded, size: 16, color: isDark ? Colors.white38 : const Color(0xFF8A91AA)),
+        const SizedBox(width: 6),
+        Text(
+          'Swipe left to delete. Tap a team to see details.',
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white38 : const Color(0xFF8A91AA),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1113,56 +1109,30 @@ class _TeamCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onMenuPressed;
 
-  TeamMemberModel? get _currentMember {
+  TeamMemberModel? get currentMember {
     final id = currentUserId;
-
     if (id == null) {
       return null;
     }
-
     for (final member in members) {
       if (member.userId == id) {
         return member;
       }
     }
-
     return null;
-  }
-
-  IconData get _icon {
-    final normalized = team.name.toLowerCase();
-
-    if (normalized.contains('design')) {
-      return Icons.design_services_outlined;
-    }
-
-    if (normalized.contains('dev') || normalized.contains('code')) {
-      return Icons.code_rounded;
-    }
-
-    if (normalized.contains('qa') || normalized.contains('test')) {
-      return Icons.fact_check_outlined;
-    }
-
-    if (normalized.contains('market')) {
-      return Icons.campaign_outlined;
-    }
-
-    return Icons.groups_2_rounded;
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-    final currentMember = _currentMember;
+    final role = currentMember;
     final memberCount = stats?.memberCount ?? members.length;
     final projectCount = stats?.projectCount ?? 0;
     final taskCount = stats?.taskCount ?? 0;
+    final doneCount = stats?.completedTaskCount ?? 0;
+    final completion = taskCount == 0 ? 0.0 : doneCount / taskCount;
     final previewMembers = members.take(3).toList();
-    final extraMembers = memberCount > previewMembers.length
-        ? memberCount - previewMembers.length
-        : 0;
 
     return _CardShell(
       borderRadius: 22,
@@ -1173,81 +1143,66 @@ class _TeamCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 14, 14),
+            padding: const EdgeInsets.fromLTRB(14, 14, 10, 13),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 58,
-                      height: 58,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
-                        color: primary.withValues(alpha: isDark ? 0.20 : 0.12),
-                        borderRadius: BorderRadius.circular(18),
+                        color: primary.withValues(alpha: isDark ? 0.22 : 0.12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Icon(_icon, color: primary, size: 30),
+                      child: Icon(_teamIcon(team.name), color: primary, size: 27),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    team.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 17,
-                                      height: 1.15,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: -0.25,
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF171B2E),
-                                    ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  team.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16.5,
+                                    height: 1.15,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.2,
+                                    color: isDark ? Colors.white : const Color(0xFF171B2E),
                                   ),
                                 ),
-                                if (currentMember != null) ...[
-                                  const SizedBox(width: 8),
-                                  _RoleBadge(label: currentMember.roleLabel),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 7),
-                            Text(
-                              'Tap to see team details',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? Colors.white60
-                                    : const Color(0xFF6C7391),
                               ),
+                              if (role != null) ...[
+                                const SizedBox(width: 7),
+                                _RoleBadge(label: role.roleLabel),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '${(completion * 100).round()}% complete • Tap for details',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white54 : const Color(0xFF6C7391),
                             ),
-                            const SizedBox(height: 12),
-                            _AvatarStack(
-                              members: previewMembers,
-                              extraCount: extraMembers,
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 34,
-                        minHeight: 34,
-                      ),
+                      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                       onPressed: onMenuPressed,
                       icon: Icon(
                         Icons.more_vert_rounded,
@@ -1257,36 +1212,26 @@ class _TeamCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 15),
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: isDark ? const Color(0xFF263244) : const Color(0xFFE9EBF4),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: completion.clamp(0.0, 1.0),
+                    minHeight: 5,
+                    backgroundColor: isDark ? const Color(0xFF263244) : const Color(0xFFE9EBF4),
+                    valueColor: AlwaysStoppedAnimation<Color>(primary),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(
-                      child: _StatItem(
-                        icon: Icons.group_outlined,
-                        value: memberCount,
-                        label: 'Members',
-                      ),
-                    ),
-                    Expanded(
-                      child: _StatItem(
-                        icon: Icons.folder_copy_outlined,
-                        value: projectCount,
-                        label: 'Projects',
-                      ),
-                    ),
-                    Expanded(
-                      child: _StatItem(
-                        icon: Icons.check_box_outlined,
-                        value: taskCount,
-                        label: 'Tasks',
-                      ),
-                    ),
+                    _AvatarStack(members: previewMembers, extraCount: memberCount > previewMembers.length ? memberCount - previewMembers.length : 0),
+                    const Spacer(),
+                    _MiniStat(icon: Icons.group_outlined, value: memberCount, label: 'Members'),
+                    const SizedBox(width: 13),
+                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount, label: 'Plans'),
+                    const SizedBox(width: 13),
+                    _MiniStat(icon: Icons.check_box_outlined, value: taskCount, label: 'Tasks'),
                   ],
                 ),
               ],
@@ -1299,11 +1244,7 @@ class _TeamCard extends StatelessWidget {
 }
 
 class _TeamOverviewPanel extends StatelessWidget {
-  const _TeamOverviewPanel({
-    required this.team,
-    required this.currentMember,
-    required this.stats,
-  });
+  const _TeamOverviewPanel({required this.team, required this.currentMember, required this.stats});
 
   final TeamModel team;
   final TeamMemberModel? currentMember;
@@ -1313,14 +1254,20 @@ class _TeamOverviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-    final completion = stats == null || stats!.taskCount == 0
-        ? 0.0
-        : stats!.completedTaskCount / stats!.taskCount;
+    final taskCount = stats?.taskCount ?? 0;
+    final completion = taskCount == 0 ? 0.0 : (stats?.completedTaskCount ?? 0) / taskCount;
 
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: primary.withValues(alpha: isDark ? 0.18 : 0.08),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            primary.withValues(alpha: isDark ? 0.28 : 0.12),
+            primary.withValues(alpha: isDark ? 0.10 : 0.05),
+          ],
+        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: primary.withValues(alpha: 0.18)),
       ),
@@ -1332,11 +1279,8 @@ class _TeamOverviewPanel extends StatelessWidget {
               Container(
                 width: 48,
                 height: 48,
-                decoration: BoxDecoration(
-                  color: primary,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(Icons.groups_2_rounded, color: Colors.white),
+                decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(16)),
+                child: Icon(_teamIcon(team.name), color: Colors.white),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1355,9 +1299,7 @@ class _TeamOverviewPanel extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      currentMember == null
-                          ? 'Team workspace'
-                          : 'Your role: ${currentMember!.roleLabel}',
+                      currentMember == null ? 'Team workspace' : 'Your role: ${currentMember!.roleLabel}',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white60 : const Color(0xFF64748B),
@@ -1401,27 +1343,22 @@ class _AvatarStack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double size = 28;
-    const double overlap = 19;
+    const double size = 24;
+    const double overlap = 16;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final width = (members.length * overlap) + (extraCount > 0 ? 36 : 12);
 
     if (members.isEmpty) {
-      return SizedBox(
-        height: size,
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            'Members loading...',
-            style: TextStyle(
-              fontSize: 11,
-              color: isDark ? Colors.white38 : const Color(0xFF8A91AA),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+      return Text(
+        'No members loaded',
+        style: TextStyle(
+          fontSize: 11,
+          color: isDark ? Colors.white38 : const Color(0xFF8A91AA),
+          fontWeight: FontWeight.w700,
         ),
       );
     }
+
+    final width = (members.length * overlap) + (extraCount > 0 ? 30 : 10);
 
     return SizedBox(
       height: size,
@@ -1448,16 +1385,13 @@ class _AvatarStack extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF111827) : Colors.white,
-                    width: 2,
-                  ),
+                  border: Border.all(color: isDark ? const Color(0xFF111827) : Colors.white, width: 2),
                 ),
                 child: Text(
                   '+$extraCount',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primary,
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1470,11 +1404,7 @@ class _AvatarStack extends StatelessWidget {
 }
 
 class _InvitationCard extends StatelessWidget {
-  const _InvitationCard({
-    required this.invitation,
-    required this.onAccept,
-    required this.onReject,
-  });
+  const _InvitationCard({required this.invitation, required this.onAccept, required this.onReject});
 
   final TeamInvitationModel invitation;
   final VoidCallback onAccept;
@@ -1483,23 +1413,19 @@ class _InvitationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return _CardShell(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Container(
-              width: 50,
-              height: 50,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                Icons.mail_outline_rounded,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              child: Icon(Icons.mail_outline_rounded, color: Theme.of(context).colorScheme.primary),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -1508,145 +1434,21 @@ class _InvitationCard extends StatelessWidget {
                 children: [
                   Text(
                     'Team #${invitation.teamId}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF171B2E),
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Role: ${invitation.role}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.white60 : const Color(0xFF6C7391),
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF6C7391), fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
             ),
-            _TinyActionButton(
-              label: 'No',
-              color: const Color(0xFFEF4444),
-              onTap: onReject,
-            ),
+            _TinyActionButton(label: 'No', color: const Color(0xFFEF4444), onTap: onReject),
             const SizedBox(width: 8),
-            _TinyActionButton(
-              label: 'Yes',
-              color: const Color(0xFF7C3AED),
-              onTap: onAccept,
-            ),
+            _TinyActionButton(label: 'Yes', color: Theme.of(context).colorScheme.primary, onTap: onAccept),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CreateTeamBanner extends StatelessWidget {
-  const _CreateTeamBanner({required this.isLoading, required this.onPressed});
-
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 94),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF161226), const Color(0xFF0F172A)]
-              : [const Color(0xFFF4EDFF), const Color(0xFFF8F5FF)],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark ? const Color(0xFF31234F) : const Color(0xFFEDE7FF),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.person_add_alt_1_rounded,
-              color: primary,
-              size: 25,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Create a new team',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF171B2E),
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Invite members and collaborate together.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.25,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white60 : const Color(0xFF6C7391),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 96,
-            height: 40,
-            child: Material(
-              color: primary,
-              borderRadius: BorderRadius.circular(12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: isLoading ? null : onPressed,
-                child: Center(
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Create',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1661,13 +1463,13 @@ class _TeamLoadingCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
-          children: [
-            const _SkeletonBox(size: 58),
-            const SizedBox(width: 14),
+          children: const [
+            _SkeletonBox(size: 48),
+            SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   _SkeletonLine(width: 140),
                   SizedBox(height: 10),
                   _SkeletonLine(width: 210),
@@ -1683,54 +1485,8 @@ class _TeamLoadingCard extends StatelessWidget {
   }
 }
 
-class _SkeletonBox extends StatelessWidget {
-  const _SkeletonBox({required this.size});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEDEFF7),
-        borderRadius: BorderRadius.circular(16),
-      ),
-    );
-  }
-}
-
-class _SkeletonLine extends StatelessWidget {
-  const _SkeletonLine({required this.width});
-
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      width: width,
-      height: 10,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEDEFF7),
-        borderRadius: BorderRadius.circular(99),
-      ),
-    );
-  }
-}
-
 class _StateCard extends StatelessWidget {
-  const _StateCard({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionText,
-    this.onAction,
-  });
+  const _StateCard({required this.icon, required this.title, required this.message, this.actionText, this.onAction});
 
   final IconData icon;
   final String title;
@@ -1742,40 +1498,27 @@ class _StateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-
     return _CardShell(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         child: Column(
           children: [
-            Icon(icon, size: 42, color: primary),
+            Icon(icon, size: 40, color: primary),
             const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : const Color(0xFF171B2E),
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
             ),
             const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white60 : const Color(0xFF6C7391),
-              ),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF6C7391)),
             ),
             if (actionText != null && onAction != null) ...[
               const SizedBox(height: 16),
-              _TinyActionButton(
-                label: actionText!,
-                color: primary,
-                onTap: onAction!,
-              ),
+              _TinyActionButton(label: actionText!, color: primary, onTap: onAction!),
             ],
           ],
         ),
@@ -1794,20 +1537,17 @@ class _CardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : Colors.white,
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE8EAF4),
-        ),
+        color: isDark ? const Color(0xFF0B1020) : Colors.white,
+        border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE8EAF4)),
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.045),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.045),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -1816,8 +1556,8 @@ class _CardShell extends StatelessWidget {
   }
 }
 
-class _SmallIconButton extends StatelessWidget {
-  const _SmallIconButton({required this.icon, required this.onPressed});
+class _CircleIconButton extends StatelessWidget {
+  const _CircleIconButton({required this.icon, required this.onPressed});
 
   final IconData icon;
   final VoidCallback onPressed;
@@ -1825,22 +1565,18 @@ class _SmallIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return _CardShell(
-      height: 48,
+      height: 46,
+      borderRadius: 16,
       child: SizedBox(
-        width: 48,
+        width: 46,
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           child: InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             onTap: onPressed,
-            child: Icon(
-              icon,
-              color: isDark ? Colors.white70 : const Color(0xFF68708C),
-              size: 23,
-            ),
+            child: Icon(icon, color: isDark ? Colors.white70 : const Color(0xFF68708C), size: 23),
           ),
         ),
       ),
@@ -1860,13 +1596,11 @@ class _GradientIconButton extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF7C3AED).withValues(alpha: 0.26),
+            color: const Color(0xFF7C3AED).withValues(alpha: 0.28),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1885,12 +1619,8 @@ class _GradientIconButton extends StatelessWidget {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  const _StatItem({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.icon, required this.value, required this.label});
 
   final IconData icon;
   final int value;
@@ -1899,36 +1629,14 @@ class _StatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 15,
-              color: isDark ? Colors.white60 : const Color(0xFF69718D),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              '$value',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                color: isDark ? Colors.white : const Color(0xFF24283B),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
+        Icon(icon, size: 14, color: isDark ? Colors.white54 : const Color(0xFF69718D)),
+        const SizedBox(width: 4),
         Text(
-          label,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white60 : const Color(0xFF6C7391),
-          ),
+          '$value',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF24283B)),
         ),
       ],
     );
@@ -1936,11 +1644,7 @@ class _StatItem extends StatelessWidget {
 }
 
 class _InitialsAvatar extends StatelessWidget {
-  const _InitialsAvatar({
-    required this.label,
-    required this.color,
-    this.size = 34,
-  });
+  const _InitialsAvatar({required this.label, required this.color, this.size = 34});
 
   final String label;
   final Color color;
@@ -1950,7 +1654,6 @@ class _InitialsAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final text = label.trim().isEmpty ? '?' : label.trim();
-
     return Container(
       width: size,
       height: size,
@@ -1958,20 +1661,11 @@ class _InitialsAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: isDark ? const Color(0xFF111827) : Colors.white,
-          width: 2,
-        ),
+        border: Border.all(color: isDark ? const Color(0xFF0B1020) : Colors.white, width: 2),
       ),
       child: Text(
-        text.length > 2
-            ? text.substring(0, 2).toUpperCase()
-            : text.toUpperCase(),
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size <= 28 ? 10 : 12,
-          fontWeight: FontWeight.w900,
-        ),
+        text.length > 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase(),
+        style: TextStyle(color: Colors.white, fontSize: size <= 24 ? 9 : 12, fontWeight: FontWeight.w900),
       ),
     );
   }
@@ -1985,31 +1679,19 @@ class _RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w900,
-          color: primary,
-        ),
+        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: primary),
       ),
     );
   }
 }
 
 class _TinyActionButton extends StatelessWidget {
-  const _TinyActionButton({
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
+  const _TinyActionButton({required this.label, required this.color, required this.onTap});
 
   final String label;
   final Color color;
@@ -2027,11 +1709,7 @@ class _TinyActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
           ),
         ),
       ),
@@ -2040,13 +1718,10 @@ class _TinyActionButton extends StatelessWidget {
 }
 
 class _BottomSheetShell extends StatelessWidget {
-  const _BottomSheetShell({
-    required this.title,
-    required this.child,
-    this.maxHeightFactor,
-  });
+  const _BottomSheetShell({required this.title, required this.child, this.subtitle, this.maxHeightFactor});
 
   final String title;
+  final String? subtitle;
   final Widget child;
   final double? maxHeightFactor;
 
@@ -2060,16 +1735,14 @@ class _BottomSheetShell extends StatelessWidget {
       child: ConstrainedBox(
         constraints: maxHeightFactor == null
             ? const BoxConstraints()
-            : BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * maxHeightFactor!,
-              ),
+            : BoxConstraints(maxHeight: MediaQuery.of(context).size.height * maxHeightFactor!),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF050816) : Colors.white,
             borderRadius: BorderRadius.circular(26),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
+                color: Colors.black.withValues(alpha: 0.20),
                 blurRadius: 28,
                 offset: const Offset(0, 12),
               ),
@@ -2090,11 +1763,13 @@ class _BottomSheetShell extends StatelessWidget {
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 15),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
@@ -2102,6 +1777,20 @@ class _BottomSheetShell extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        subtitle!,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   child,
                 ],
@@ -2115,13 +1804,7 @@ class _BottomSheetShell extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.color,
-  });
+  const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap, this.color});
 
   final IconData icon;
   final String title;
@@ -2133,38 +1816,22 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final itemColor = color ?? Theme.of(context).colorScheme.primary;
-
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(icon, color: itemColor),
       title: Text(
         title,
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: color ?? (isDark ? Colors.white : const Color(0xFF111827)),
-        ),
+        style: TextStyle(fontWeight: FontWeight.w900, color: color ?? (isDark ? Colors.white : const Color(0xFF111827))),
       ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(color: isDark ? Colors.white60 : const Color(0xFF64748B)),
-      ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
-      ),
+      subtitle: Text(subtitle, style: TextStyle(color: isDark ? Colors.white60 : const Color(0xFF64748B))),
+      trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
       onTap: onTap,
     );
   }
 }
 
 class _SheetTextField extends StatelessWidget {
-  const _SheetTextField({
-    required this.controller,
-    required this.label,
-    required this.hintText,
-    required this.icon,
-    this.onSubmitted,
-  });
+  const _SheetTextField({required this.controller, required this.label, required this.hintText, required this.icon, this.onSubmitted});
 
   final TextEditingController controller;
   final String label;
@@ -2176,26 +1843,20 @@ class _SheetTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-
     return TextField(
       controller: controller,
       textInputAction: TextInputAction.done,
       onSubmitted: onSubmitted,
-      style: TextStyle(
-        color: isDark ? Colors.white : const Color(0xFF111827),
-        fontWeight: FontWeight.w700,
-      ),
+      style: TextStyle(color: isDark ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w700),
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
         prefixIcon: Icon(icon, color: primary),
         filled: true,
-        fillColor: isDark ? const Color(0xFF111827) : Colors.white,
+        fillColor: isDark ? const Color(0xFF0B1020) : Colors.white,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-          ),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -2207,11 +1868,7 @@ class _SheetTextField extends StatelessWidget {
 }
 
 class _PrimarySheetButton extends StatelessWidget {
-  const _PrimarySheetButton({
-    required this.label,
-    required this.isLoading,
-    required this.onPressed,
-  });
+  const _PrimarySheetButton({required this.label, required this.isLoading, required this.onPressed});
 
   final String label;
   final bool isLoading;
@@ -2219,35 +1876,23 @@ class _PrimarySheetButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
     return SizedBox(
-      height: 50,
-      child: Material(
-        color: onPressed == null ? const Color(0xFFC4B5FD) : primary,
-        borderRadius: BorderRadius.circular(15),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(15),
-          onTap: onPressed,
-          child: Center(
-            child: isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-          ),
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         ),
+        child: isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+              )
+            : Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
       ),
     );
   }
@@ -2262,32 +1907,20 @@ class _SheetStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Expanded(
-      child: _CardShell(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-          child: Column(
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                  color: isDark ? Colors.white : const Color(0xFF171B2E),
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11,
-                  color: isDark ? Colors.white60 : const Color(0xFF6C7391),
-                ),
-              ),
-            ],
-          ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB)),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
+            const SizedBox(height: 3),
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
+          ],
         ),
       ),
     );
@@ -2295,11 +1928,7 @@ class _SheetStat extends StatelessWidget {
 }
 
 class _SheetSectionHeader extends StatelessWidget {
-  const _SheetSectionHeader({
-    required this.title,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _SheetSectionHeader({required this.title, this.actionLabel, this.onAction});
 
   final String title;
   final String? actionLabel;
@@ -2307,21 +1936,14 @@ class _SheetSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final primary = Theme.of(context).colorScheme.primary;
     return Row(
       children: [
         Expanded(
-          child: Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: isDark ? Colors.white : const Color(0xFF111827),
-            ),
-          ),
+          child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
         ),
         if (actionLabel != null && onAction != null)
-          TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          TextButton(onPressed: onAction, child: Text(actionLabel!, style: TextStyle(color: primary, fontWeight: FontWeight.w900))),
       ],
     );
   }
@@ -2335,113 +1957,97 @@ class _MemberRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: _InitialsAvatar(
-        label: member.initials,
-        color: _avatarColor(member.userId),
-      ),
-      title: Text(
-        member.displayName,
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: isDark ? Colors.white : const Color(0xFF111827),
-        ),
-      ),
-      subtitle: Text(
-        member.roleLabel,
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          color: isDark ? Colors.white60 : const Color(0xFF64748B),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectMiniRow extends StatelessWidget {
-  const _ProjectMiniRow({required this.project});
-
-  final ProjectModel project;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusColor = switch (project.status) {
-      'completed' => const Color(0xFF7C3AED),
-      'in_progress' => const Color(0xFF22C55E),
-      'on_hold' => const Color(0xFFF59E0B),
-      'cancelled' => const Color(0xFFEF4444),
-      _ => const Color(0xFF3B82F6),
-    };
-
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
-        ),
+        color: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB)),
       ),
       child: Row(
         children: [
-          Icon(Icons.folder_rounded, color: statusColor),
+          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 34),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  project.title,
+                  member.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF111827),
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
-                  project.deadlineLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                  ),
+                  member.user?.username ?? 'User #${member.userId}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
                 ),
               ],
             ),
           ),
-          _StatusPill(label: project.statusLabel, color: statusColor),
+          _RoleBadge(label: member.roleLabel),
         ],
       ),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.color});
+class _ProjectMiniRow extends StatelessWidget {
+  const _ProjectMiniRow({required this.project, this.onTap});
 
-  final String label;
-  final Color color;
+  final ProjectModel project;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0B1020) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isDark ? const Color(0xFF263244) : const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.folder_rounded, size: 20, color: primary),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${project.statusLabel} • ${project.deadlineLabel}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
+          ],
         ),
       ),
     );
@@ -2456,21 +2062,52 @@ class _SmallMutedText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Text(
+      text,
+      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
+    );
+  }
+}
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        style: TextStyle(
-          color: isDark ? Colors.white54 : const Color(0xFF6C7391),
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-        ),
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEDEFF7),
+        borderRadius: BorderRadius.circular(16),
       ),
     );
   }
 }
 
+class _SkeletonLine extends StatelessWidget {
+  const _SkeletonLine({required this.width});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: width,
+      height: 10,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEDEFF7),
+        borderRadius: BorderRadius.circular(99),
+      ),
+    );
+  }
+}
+
+@immutable
 class _TeamStats {
   final int memberCount;
   final int projectCount;
@@ -2485,15 +2122,31 @@ class _TeamStats {
   });
 }
 
+IconData _teamIcon(String name) {
+  final normalized = name.toLowerCase();
+  if (normalized.contains('design') || normalized.contains('ui') || normalized.contains('ux')) {
+    return Icons.design_services_outlined;
+  }
+  if (normalized.contains('dev') || normalized.contains('code')) {
+    return Icons.code_rounded;
+  }
+  if (normalized.contains('qa') || normalized.contains('test')) {
+    return Icons.fact_check_outlined;
+  }
+  if (normalized.contains('market')) {
+    return Icons.campaign_outlined;
+  }
+  return Icons.groups_2_rounded;
+}
+
 Color _avatarColor(int seed) {
   const colors = [
-    Color(0xFF7C3AED),
     Color(0xFF3B82F6),
-    Color(0xFF22C55E),
-    Color(0xFFF59E0B),
-    Color(0xFFEF4444),
     Color(0xFF06B6D4),
+    Color(0xFF22C55E),
+    Color(0xFF8B5CF6),
+    Color(0xFFF97316),
+    Color(0xFFEC4899),
   ];
-
   return colors[seed.abs() % colors.length];
 }
