@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:mobile/core/network/api_exception.dart';
 import 'package:mobile/features/auth/data/project_api.dart';
 import 'package:mobile/features/auth/models/project_models.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
@@ -28,6 +30,8 @@ class TeamsScreen extends StatefulWidget {
 }
 
 class _TeamsScreenState extends State<TeamsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+
   int _selectedTabIndex = 0;
   String _searchQuery = '';
 
@@ -38,6 +42,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
   List<TeamModel> _teams = [];
   List<TeamInvitationModel> _invitations = [];
   final Map<int, List<TeamMemberModel>> _membersByTeamId = {};
+  final Map<int, List<ProjectModel>> _projectsByTeamId = {};
   final Map<int, _TeamStats> _statsByTeamId = {};
 
   List<TeamModel> get _visibleTeams {
@@ -48,7 +53,20 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return _teams.where((team) {
-      return team.name.toLowerCase().contains(query);
+      final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+      final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+
+      return team.name.toLowerCase().contains(query) ||
+          members.any(
+            (member) =>
+                member.displayName.toLowerCase().contains(query) ||
+                member.roleLabel.toLowerCase().contains(query),
+          ) ||
+          projects.any(
+            (project) =>
+                project.title.toLowerCase().contains(query) ||
+                project.statusLabel.toLowerCase().contains(query),
+          );
     }).toList();
   }
 
@@ -60,6 +78,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
   void initState() {
     super.initState();
     _loadTeams();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTeams({bool showLoading = true}) async {
@@ -81,8 +105,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
       setState(() {
         _teams = teams;
         _invitations = invitations;
-        _isLoading = false;
         _errorMessage = null;
+        _isLoading = false;
       });
 
       await _loadTeamDetails(teams);
@@ -106,7 +130,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       try {
         final members = await widget.teamsApi.getTeamMembers(team.teamId);
 
-        List<ProjectModel> projects = [];
+        var projects = <ProjectModel>[];
         try {
           projects = await widget.projectsApi.getTeamProjects(team.teamId);
         } catch (error, stackTrace) {
@@ -115,12 +139,17 @@ class _TeamsScreenState extends State<TeamsScreen> {
         }
 
         var taskCount = 0;
+        var completedTaskCount = 0;
+
         for (final project in projects) {
           try {
             final tasks = await widget.tasksApi.getProjectTasks(
               project: TaskProjectSummary.fromProject(project),
             );
             taskCount += tasks.length;
+            completedTaskCount += tasks
+                .where((item) => item.task.isCompleted)
+                .length;
           } catch (error, stackTrace) {
             debugPrint(
               'Team task load failed for team ${team.teamId}, project ${project.projectId}: $error',
@@ -135,10 +164,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
         setState(() {
           _membersByTeamId[team.teamId] = members;
+          _projectsByTeamId[team.teamId] = projects;
           _statsByTeamId[team.teamId] = _TeamStats(
             memberCount: members.length,
             projectCount: projects.length,
             taskCount: taskCount,
+            completedTaskCount: completedTaskCount,
           );
         });
       } catch (error, stackTrace) {
@@ -150,10 +181,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
         }
 
         setState(() {
+          _membersByTeamId[team.teamId] = const [];
+          _projectsByTeamId[team.teamId] = const [];
           _statsByTeamId[team.teamId] = const _TeamStats(
             memberCount: 0,
             projectCount: 0,
             taskCount: 0,
+            completedTaskCount: 0,
           );
         });
       }
@@ -162,6 +196,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF050816) : const Color(0xFFFAFAFF);
+
     final content = RefreshIndicator(
       color: const Color(0xFF7C3AED),
       onRefresh: () => _loadTeams(showLoading: false),
@@ -178,10 +215,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
           ),
           const SizedBox(height: 18),
           _SearchAndFilterRow(
+            controller: _searchController,
             onChanged: (value) => setState(() => _searchQuery = value),
-            onFilterPressed: _openFilterSheet,
+            onClear: _clearSearch,
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
           _Tabs(
             selectedIndex: _selectedTabIndex,
             invitationCount: _pendingInvitations.length,
@@ -190,10 +228,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
           const SizedBox(height: 18),
           if (_selectedTabIndex == 0)
             ..._buildTeamContent()
-          else ...[
+          else
             _buildInvitationContent(),
-          ],
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           _CreateTeamBanner(
             isLoading: _isCreatingTeam,
             onPressed: _openCreateTeamSheet,
@@ -203,11 +240,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
 
     if (!widget.showBackButton) {
-      return content;
+      return ColoredBox(color: background, child: content);
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFF),
+      backgroundColor: background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
@@ -215,6 +252,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
         ),
       ),
     );
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+    });
   }
 
   List<Widget> _buildTeamContent() {
@@ -244,12 +288,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
       return [
         _StateCard(
           icon: Icons.groups_2_outlined,
-          title: _searchQuery.trim().isEmpty
-              ? 'No teams yet'
-              : 'No teams found',
+          title: _searchQuery.trim().isEmpty ? 'No teams yet' : 'No teams found',
           message: _searchQuery.trim().isEmpty
               ? 'Create your first team and start collaborating on Planora projects.'
-              : 'Try a different search keyword.',
+              : 'Try another team, member, project, or role name.',
           actionText: _searchQuery.trim().isEmpty ? 'Create Team' : null,
           onAction: _searchQuery.trim().isEmpty ? _openCreateTeamSheet : null,
         ),
@@ -258,17 +300,38 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
     return [
       for (final team in _visibleTeams) ...[
-        _TeamCard(
-          team: team,
-          members: _membersByTeamId[team.teamId] ?? const [],
-          stats: _statsByTeamId[team.teamId],
-          currentUserId: widget.currentUserId,
-          onTap: () => _openTeamSheet(team),
-          onMenuPressed: () => _openTeamActionsSheet(team),
-        ),
+        _buildSlidableTeamCard(team),
         const SizedBox(height: 14),
       ],
     ];
+  }
+
+  Widget _buildSlidableTeamCard(TeamModel team) {
+    return Slidable(
+      key: ValueKey('team-${team.teamId}'),
+      endActionPane: ActionPane(
+        motion: const StretchMotion(),
+        extentRatio: 0.32,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _confirmDeleteTeam(team),
+            backgroundColor: const Color(0xFFEF4444),
+            foregroundColor: Colors.white,
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ],
+      ),
+      child: _TeamCard(
+        team: team,
+        members: _membersByTeamId[team.teamId] ?? const [],
+        stats: _statsByTeamId[team.teamId],
+        currentUserId: widget.currentUserId,
+        onTap: () => _openTeamDetailsSheet(team),
+        onMenuPressed: () => _openTeamActionsSheet(team),
+      ),
+    );
   }
 
   Widget _buildInvitationContent() {
@@ -315,14 +378,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
+                  _SheetTextField(
                     controller: controller,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Team name',
-                      hintText: 'Example: Design Team',
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Team name',
+                    hintText: 'Example: QA Team',
+                    icon: Icons.groups_2_outlined,
                     onSubmitted: (_) async {
                       await _submitCreateTeam(
                         sheetContext: sheetContext,
@@ -428,6 +488,15 @@ class _TeamsScreenState extends State<TeamsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ActionTile(
+                icon: Icons.info_outline_rounded,
+                title: 'Team details',
+                subtitle: 'Members, projects, and task activity',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _openTeamDetailsSheet(team);
+                },
+              ),
+              _ActionTile(
                 icon: Icons.person_add_alt_1_rounded,
                 title: 'Invite member',
                 subtitle: 'Invite by username',
@@ -445,6 +514,16 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   _loadTeams(showLoading: false);
                 },
               ),
+              _ActionTile(
+                icon: Icons.delete_outline_rounded,
+                title: 'Delete team',
+                subtitle: 'Remove this team if you have permission',
+                color: const Color(0xFFEF4444),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmDeleteTeam(team);
+                },
+              ),
             ],
           ),
         );
@@ -452,9 +531,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
   }
 
-  Future<void> _openTeamSheet(TeamModel team) async {
+  Future<void> _openTeamDetailsSheet(TeamModel team) async {
     final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+    final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
     final stats = _statsByTeamId[team.teamId];
+    final currentMember = _currentMemberForTeam(team);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -463,54 +544,85 @@ class _TeamsScreenState extends State<TeamsScreen> {
       builder: (_) {
         return _BottomSheetShell(
           title: team.name,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+          maxHeightFactor: 0.86,
+          child: Flexible(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SheetStat(
-                    label: 'Members',
-                    value: '${stats?.memberCount ?? members.length}',
+                  _TeamOverviewPanel(
+                    team: team,
+                    currentMember: currentMember,
+                    stats: stats,
                   ),
-                  _SheetStat(
-                    label: 'Projects',
-                    value: '${stats?.projectCount ?? 0}',
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _SheetStat(
+                        label: 'Members',
+                        value: '${stats?.memberCount ?? members.length}',
+                      ),
+                      const SizedBox(width: 10),
+                      _SheetStat(
+                        label: 'Projects',
+                        value: '${stats?.projectCount ?? projects.length}',
+                      ),
+                      const SizedBox(width: 10),
+                      _SheetStat(
+                        label: 'Tasks',
+                        value: '${stats?.taskCount ?? 0}',
+                      ),
+                    ],
                   ),
-                  _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
+                  const SizedBox(height: 20),
+                  _SheetSectionHeader(
+                    title: 'Members',
+                    actionLabel: 'Invite',
+                    onAction: () {
+                      Navigator.of(context).pop();
+                      _openInviteMemberSheet(team);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  if (members.isEmpty)
+                    const _SmallMutedText('Members are loading or unavailable.')
+                  else
+                    for (final member in members)
+                      _MemberRow(member: member),
+                  const SizedBox(height: 18),
+                  const _SheetSectionHeader(title: 'Team projects'),
+                  const SizedBox(height: 10),
+                  if (projects.isEmpty)
+                    const _SmallMutedText('No team projects yet.')
+                  else
+                    for (final project in projects.take(6))
+                      _ProjectMiniRow(project: project),
                 ],
               ),
-              const SizedBox(height: 18),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Members',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (members.isEmpty)
-                const _SmallMutedText('Members are loading or unavailable.')
-              else
-                for (final member in members.take(8))
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: _InitialsAvatar(
-                      label: member.initials,
-                      color: _avatarColor(member.userId),
-                    ),
-                    title: Text(
-                      member.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    subtitle: Text(member.roleLabel),
-                  ),
-            ],
+            ),
           ),
         );
       },
     );
+  }
+
+  TeamMemberModel? _currentMemberForTeam(TeamModel team) {
+    final id = widget.currentUserId;
+
+    if (id == null) {
+      return null;
+    }
+
+    final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+
+    for (final member in members) {
+      if (member.userId == id) {
+        return member;
+      }
+    }
+
+    return null;
   }
 
   Future<void> _openInviteMemberSheet(TeamModel team) async {
@@ -530,14 +642,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
+                  _SheetTextField(
                     controller: controller,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      hintText: 'Enter username',
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Username',
+                    hintText: 'Enter username',
+                    icon: Icons.alternate_email_rounded,
                   ),
                   const SizedBox(height: 16),
                   _PrimarySheetButton(
@@ -595,6 +704,105 @@ class _TeamsScreenState extends State<TeamsScreen> {
     controller.dispose();
   }
 
+  Future<void> _confirmDeleteTeam(TeamModel team) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Text('Delete team?'),
+          content: Text(
+            'This will remove "${team.name}" if your account has permission. Team projects may also be affected.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await _deleteTeam(team);
+  }
+
+  Future<void> _deleteTeam(TeamModel team) async {
+    final oldTeams = List<TeamModel>.from(_teams);
+    final oldMembers = Map<int, List<TeamMemberModel>>.from(_membersByTeamId);
+    final oldProjects = Map<int, List<ProjectModel>>.from(_projectsByTeamId);
+    final oldStats = Map<int, _TeamStats>.from(_statsByTeamId);
+
+    setState(() {
+      _teams.removeWhere((item) => item.teamId == team.teamId);
+      _membersByTeamId.remove(team.teamId);
+      _projectsByTeamId.remove(team.teamId);
+      _statsByTeamId.remove(team.teamId);
+    });
+
+    try {
+      await widget.teamsApi.deleteTeam(team.teamId);
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage('Team deleted.');
+      widget.onTeamsChanged?.call();
+    } catch (error, stackTrace) {
+      debugPrint('Delete team failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _teams = oldTeams;
+        _membersByTeamId
+          ..clear()
+          ..addAll(oldMembers);
+        _projectsByTeamId
+          ..clear()
+          ..addAll(oldProjects);
+        _statsByTeamId
+          ..clear()
+          ..addAll(oldStats);
+      });
+
+      _showMessage(_teamDeleteErrorMessage(error));
+    }
+  }
+
+  String _teamDeleteErrorMessage(Object error) {
+    if (error is ApiException) {
+      if (error.statusCode == 403) {
+        return 'Only team owners/admins can delete this team.';
+      }
+
+      final message = error.message.trim();
+      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
+        return message;
+      }
+    }
+
+    return 'Could not delete team. Try again.';
+  }
+
   Future<void> _respondToInvitation(
     TeamInvitationModel invitation, {
     required bool accept,
@@ -618,40 +826,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
       debugPrintStack(stackTrace: stackTrace);
       _showMessage('Could not update invitation.');
     }
-  }
-
-  void _openFilterSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        return _BottomSheetShell(
-          title: 'Filter teams',
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ActionTile(
-                icon: Icons.groups_2_outlined,
-                title: 'All teams',
-                subtitle: 'Showing all teams you belong to',
-                onTap: () => Navigator.of(context).pop(),
-              ),
-              _ActionTile(
-                icon: Icons.mail_outline_rounded,
-                title: 'Invitations',
-                subtitle: 'View pending invitations',
-                onTap: () {
-                  Navigator.of(context).pop();
-                  setState(() {
-                    _selectedTabIndex = 1;
-                  });
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   void _showMessage(String message) {
@@ -686,6 +860,10 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF141724);
+    final subtitleColor = isDark ? Colors.white60 : const Color(0xFF6C7391);
+
     return Row(
       children: [
         if (showBackButton) ...[
@@ -695,7 +873,7 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(width: 12),
         ],
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -704,19 +882,21 @@ class _Header extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 28,
                   height: 1.05,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                   letterSpacing: -0.8,
-                  color: Color(0xFF141724),
+                  color: titleColor,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
-                'Manage your teams and collaborate',
+                'Manage members, plans, and collaboration',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.2,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF6C7391),
+                  fontWeight: FontWeight.w700,
+                  color: subtitleColor,
                 ),
               ),
             ],
@@ -734,47 +914,62 @@ class _Header extends StatelessWidget {
 
 class _SearchAndFilterRow extends StatelessWidget {
   const _SearchAndFilterRow({
+    required this.controller,
     required this.onChanged,
-    required this.onFilterPressed,
+    required this.onClear,
   });
 
+  final TextEditingController controller;
   final ValueChanged<String> onChanged;
-  final VoidCallback onFilterPressed;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _CardShell(
-            height: 48,
-            child: TextField(
-              onChanged: onChanged,
-              cursorColor: const Color(0xFF7C3AED),
-              decoration: const InputDecoration(
-                hintText: 'Search teams...',
-                hintStyle: TextStyle(
-                  color: Color(0xFF98A0B8),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: Color(0xFF8A91AA),
-                  size: 22,
-                ),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
-              ),
-            ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white60 : const Color(0xFF8A91AA);
+
+    return _CardShell(
+      height: 52,
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        cursorColor: const Color(0xFF7C3AED),
+        style: TextStyle(
+          color: isDark ? Colors.white : const Color(0xFF111827),
+          fontWeight: FontWeight.w700,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search teams, members, projects...',
+          hintStyle: TextStyle(
+            color: isDark ? Colors.white38 : const Color(0xFF98A0B8),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: iconColor,
+            size: 22,
+          ),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, child) {
+              if (value.text.trim().isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return IconButton(
+                onPressed: onClear,
+                icon: Icon(Icons.close_rounded, color: iconColor, size: 20),
+              );
+            },
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 15,
           ),
         ),
-        const SizedBox(width: 10),
-        _SmallIconButton(icon: Icons.tune_rounded, onPressed: onFilterPressed),
-      ],
+      ),
     );
   }
 }
@@ -792,10 +987,17 @@ class _Tabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
-      height: 35,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFE7E9F2), width: 1)),
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111827) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE7E9F2),
+        ),
       ),
       child: Row(
         children: [
@@ -804,7 +1006,6 @@ class _Tabs extends StatelessWidget {
             selected: selectedIndex == 0,
             onTap: () => onChanged(0),
           ),
-          const SizedBox(width: 34),
           _TabButton(
             label: 'Invitations',
             selected: selectedIndex == 1,
@@ -832,65 +1033,63 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? const Color(0xFF7C3AED) : const Color(0xFF6C7391);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: onTap,
-      child: SizedBox(
-        width: 112,
-        child: Stack(
-          children: [
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                  if (badge != null && badge! > 0) ...[
-                    const SizedBox(width: 7),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECE7FF),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$badge',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF7C3AED),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (selected)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  height: 2.5,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C3AED),
-                    borderRadius: BorderRadius.circular(99),
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? primary.withValues(alpha: isDark ? 0.22 : 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: selected
+                        ? primary
+                        : isDark
+                        ? Colors.white70
+                        : const Color(0xFF6C7391),
                   ),
                 ),
               ),
-          ],
+              if (badge != null && badge! > 0) ...[
+                const SizedBox(width: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: primary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -934,58 +1133,28 @@ class _TeamCard extends StatelessWidget {
     final normalized = team.name.toLowerCase();
 
     if (normalized.contains('design')) {
-      return Icons.business_center_outlined;
+      return Icons.design_services_outlined;
     }
 
     if (normalized.contains('dev') || normalized.contains('code')) {
       return Icons.code_rounded;
     }
 
+    if (normalized.contains('qa') || normalized.contains('test')) {
+      return Icons.fact_check_outlined;
+    }
+
     if (normalized.contains('market')) {
       return Icons.campaign_outlined;
     }
 
-    return Icons.rocket_launch_outlined;
-  }
-
-  Color get _iconColor {
-    final normalized = team.name.toLowerCase();
-
-    if (normalized.contains('design')) {
-      return const Color(0xFF3B82F6);
-    }
-
-    if (normalized.contains('dev') || normalized.contains('code')) {
-      return const Color(0xFF22C55E);
-    }
-
-    if (normalized.contains('market')) {
-      return const Color(0xFFF59E0B);
-    }
-
-    return const Color(0xFF7C3AED);
-  }
-
-  Color get _iconBackground {
-    final normalized = team.name.toLowerCase();
-
-    if (normalized.contains('design')) {
-      return const Color(0xFFEAF2FF);
-    }
-
-    if (normalized.contains('dev') || normalized.contains('code')) {
-      return const Color(0xFFEAFBF0);
-    }
-
-    if (normalized.contains('market')) {
-      return const Color(0xFFFFF6E6);
-    }
-
-    return const Color(0xFFF0EAFF);
+    return Icons.groups_2_rounded;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
     final currentMember = _currentMember;
     final memberCount = stats?.memberCount ?? members.length;
     final projectCount = stats?.projectCount ?? 0;
@@ -996,14 +1165,15 @@ class _TeamCard extends StatelessWidget {
         : 0;
 
     return _CardShell(
+      borderRadius: 22,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(22),
         child: InkWell(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(22),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 13),
+            padding: const EdgeInsets.fromLTRB(16, 16, 14, 14),
             child: Column(
               children: [
                 Row(
@@ -1013,15 +1183,15 @@ class _TeamCard extends StatelessWidget {
                       width: 58,
                       height: 58,
                       decoration: BoxDecoration(
-                        color: _iconBackground,
-                        borderRadius: BorderRadius.circular(13),
+                        color: primary.withValues(alpha: isDark ? 0.20 : 0.12),
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      child: Icon(_icon, color: _iconColor, size: 31),
+                      child: Icon(_icon, color: primary, size: 30),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: 1),
+                        padding: const EdgeInsets.only(top: 2),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1032,12 +1202,14 @@ class _TeamCard extends StatelessWidget {
                                     team.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 17,
                                       height: 1.15,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w900,
                                       letterSpacing: -0.25,
-                                      color: Color(0xFF171B2E),
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF171B2E),
                                     ),
                                   ),
                                 ),
@@ -1049,13 +1221,15 @@ class _TeamCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 7),
                             Text(
-                              'Workspace for team projects',
+                              'Tap to see team details',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF6C7391),
+                                fontWeight: FontWeight.w700,
+                                color: isDark
+                                    ? Colors.white60
+                                    : const Color(0xFF6C7391),
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -1071,25 +1245,25 @@ class _TeamCard extends StatelessWidget {
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
-                        minWidth: 32,
-                        minHeight: 32,
+                        minWidth: 34,
+                        minHeight: 34,
                       ),
                       onPressed: onMenuPressed,
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.more_vert_rounded,
-                        color: Color(0xFF626B87),
-                        size: 21,
+                        color: isDark ? Colors.white54 : const Color(0xFF626B87),
+                        size: 22,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 15),
-                const Divider(
+                Divider(
                   height: 1,
                   thickness: 1,
-                  color: Color(0xFFE9EBF4),
+                  color: isDark ? const Color(0xFF263244) : const Color(0xFFE9EBF4),
                 ),
-                const SizedBox(height: 11),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -1124,6 +1298,101 @@ class _TeamCard extends StatelessWidget {
   }
 }
 
+class _TeamOverviewPanel extends StatelessWidget {
+  const _TeamOverviewPanel({
+    required this.team,
+    required this.currentMember,
+    required this.stats,
+  });
+
+  final TeamModel team;
+  final TeamMemberModel? currentMember;
+  final _TeamStats? stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+    final completion = stats == null || stats!.taskCount == 0
+        ? 0.0
+        : stats!.completedTaskCount / stats!.taskCount;
+
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: isDark ? 0.18 : 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: primary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.groups_2_rounded, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      team.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                        color: isDark ? Colors.white : const Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentMember == null
+                          ? 'Team workspace'
+                          : 'Your role: ${currentMember!.roleLabel}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: completion.clamp(0.0, 1.0),
+              minHeight: 7,
+              backgroundColor: isDark ? const Color(0xFF334155) : Colors.white,
+              valueColor: AlwaysStoppedAnimation<Color>(primary),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${(completion * 100).round()}% team tasks completed',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+              color: isDark ? Colors.white70 : const Color(0xFF4B5563),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AvatarStack extends StatelessWidget {
   const _AvatarStack({required this.members, required this.extraCount});
 
@@ -1132,21 +1401,22 @@ class _AvatarStack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double size = 26;
-    const double overlap = 18;
-    final width = (members.length * overlap) + (extraCount > 0 ? 33 : 12);
+    const double size = 28;
+    const double overlap = 19;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final width = (members.length * overlap) + (extraCount > 0 ? 36 : 12);
 
     if (members.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: size,
         child: Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            'No members loaded',
+            'Members loading...',
             style: TextStyle(
               fontSize: 11,
-              color: Color(0xFF8A91AA),
-              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white38 : const Color(0xFF8A91AA),
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -1176,16 +1446,19 @@ class _AvatarStack extends StatelessWidget {
                 height: size,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0EBFF),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF111827) : Colors.white,
+                    width: 2,
+                  ),
                 ),
                 child: Text(
                   '+$extraCount',
-                  style: const TextStyle(
-                    color: Color(0xFF7C3AED),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
                     fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
@@ -1209,6 +1482,8 @@ class _InvitationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return _CardShell(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1218,12 +1493,12 @@ class _InvitationCard extends StatelessWidget {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: const Color(0xFFF0EAFF),
-                borderRadius: BorderRadius.circular(14),
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.mail_outline_rounded,
-                color: Color(0xFF7C3AED),
+                color: Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(width: 13),
@@ -1233,18 +1508,18 @@ class _InvitationCard extends StatelessWidget {
                 children: [
                   Text(
                     'Team #${invitation.teamId}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF171B2E),
+                      color: isDark ? Colors.white : const Color(0xFF171B2E),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Role: ${invitation.role}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF6C7391),
-                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white60 : const Color(0xFF6C7391),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -1276,33 +1551,40 @@ class _CreateTeamBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Container(
-      constraints: const BoxConstraints(minHeight: 92),
+      constraints: const BoxConstraints(minHeight: 94),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF4EDFF), Color(0xFFF8F5FF)],
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF161226), const Color(0xFF0F172A)]
+              : [const Color(0xFFF4EDFF), const Color(0xFFF8F5FF)],
         ),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFFEDE7FF)),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark ? const Color(0xFF31234F) : const Color(0xFFEDE7FF),
+        ),
       ),
       child: Row(
         children: [
           Container(
-            width: 49,
-            height: 49,
-            decoration: const BoxDecoration(
-              color: Color(0xFFE6DAFF),
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.person_add_alt_1_rounded,
-              color: Color(0xFF7C3AED),
+              color: primary,
               size: 25,
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1311,11 +1593,11 @@ class _CreateTeamBanner extends StatelessWidget {
                   'Create a new team',
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF171B2E),
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF171B2E),
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
                   'Invite members and collaborate together.',
                   maxLines: 2,
@@ -1323,8 +1605,8 @@ class _CreateTeamBanner extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11.5,
                     height: 1.25,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF6C7391),
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white60 : const Color(0xFF6C7391),
                   ),
                 ),
               ],
@@ -1335,10 +1617,10 @@ class _CreateTeamBanner extends StatelessWidget {
             width: 96,
             height: 40,
             child: Material(
-              color: const Color(0xFF7C3AED),
-              borderRadius: BorderRadius.circular(9),
+              color: primary,
+              borderRadius: BorderRadius.circular(12),
               child: InkWell(
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(12),
                 onTap: isLoading ? null : onPressed,
                 child: Center(
                   child: isLoading
@@ -1351,13 +1633,13 @@ class _CreateTeamBanner extends StatelessWidget {
                           ),
                         )
                       : const Text(
-                          'Create Team',
+                          'Create',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 12,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                 ),
@@ -1380,29 +1662,42 @@ class _TeamLoadingCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0EAFF),
-                borderRadius: BorderRadius.circular(13),
-              ),
-            ),
-            const SizedBox(width: 16),
-            const Expanded(
+            const _SkeletonBox(size: 58),
+            const SizedBox(width: 14),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SkeletonLine(width: 130),
+                children: const [
+                  _SkeletonLine(width: 140),
                   SizedBox(height: 10),
-                  _SkeletonLine(width: 190),
-                  SizedBox(height: 10),
+                  _SkeletonLine(width: 210),
+                  SizedBox(height: 14),
                   _SkeletonLine(width: 90),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEDEFF7),
+        borderRadius: BorderRadius.circular(16),
       ),
     );
   }
@@ -1415,11 +1710,13 @@ class _SkeletonLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: width,
       height: 10,
       decoration: BoxDecoration(
-        color: const Color(0xFFEDEFF7),
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEDEFF7),
         borderRadius: BorderRadius.circular(99),
       ),
     );
@@ -1443,37 +1740,40 @@ class _StateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+
     return _CardShell(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
         child: Column(
           children: [
-            Icon(icon, size: 42, color: const Color(0xFF7C3AED)),
+            Icon(icon, size: 42, color: primary),
             const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w900,
-                color: Color(0xFF171B2E),
+                color: isDark ? Colors.white : const Color(0xFF171B2E),
               ),
             ),
             const SizedBox(height: 6),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF6C7391),
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white60 : const Color(0xFF6C7391),
               ),
             ),
             if (actionText != null && onAction != null) ...[
               const SizedBox(height: 16),
               _TinyActionButton(
                 label: actionText!,
-                color: const Color(0xFF7C3AED),
+                color: primary,
                 onTap: onAction!,
               ),
             ],
@@ -1485,22 +1785,27 @@ class _StateCard extends StatelessWidget {
 }
 
 class _CardShell extends StatelessWidget {
-  const _CardShell({required this.child, this.height});
+  const _CardShell({required this.child, this.height, this.borderRadius = 18});
 
   final Widget child;
   final double? height;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE8EAF4)),
-        borderRadius: BorderRadius.circular(15),
+        color: isDark ? const Color(0xFF111827) : Colors.white,
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE8EAF4),
+        ),
+        borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.045),
+            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.045),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1519,17 +1824,23 @@ class _SmallIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return _CardShell(
       height: 48,
       child: SizedBox(
         width: 48,
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(18),
           child: InkWell(
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(18),
             onTap: onPressed,
-            child: Icon(icon, color: const Color(0xFF68708C), size: 23),
+            child: Icon(
+              icon,
+              color: isDark ? Colors.white70 : const Color(0xFF68708C),
+              size: 23,
+            ),
           ),
         ),
       ),
@@ -1550,9 +1861,9 @@ class _GradientIconButton extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
         ),
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF7C3AED).withValues(alpha: 0.26),
@@ -1563,9 +1874,9 @@ class _GradientIconButton extends StatelessWidget {
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(16),
           onTap: onPressed,
           child: Icon(icon, color: Colors.white, size: 30),
         ),
@@ -1587,19 +1898,25 @@ class _StatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 15, color: const Color(0xFF69718D)),
+            Icon(
+              icon,
+              size: 15,
+              color: isDark ? Colors.white60 : const Color(0xFF69718D),
+            ),
             const SizedBox(width: 5),
             Text(
               '$value',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF24283B),
+                fontWeight: FontWeight.w900,
+                color: isDark ? Colors.white : const Color(0xFF24283B),
               ),
             ),
           ],
@@ -1607,10 +1924,10 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11.5,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF6C7391),
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white60 : const Color(0xFF6C7391),
           ),
         ),
       ],
@@ -1631,6 +1948,7 @@ class _InitialsAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final text = label.trim().isEmpty ? '?' : label.trim();
 
     return Container(
@@ -1640,7 +1958,10 @@ class _InitialsAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(
+          color: isDark ? const Color(0xFF111827) : Colors.white,
+          width: 2,
+        ),
       ),
       child: Text(
         text.length > 2
@@ -1663,18 +1984,20 @@ class _RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFEDE8FF),
-        borderRadius: BorderRadius.circular(8),
+        color: primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: Color(0xFF7C3AED),
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w900,
+          color: primary,
         ),
       ),
     );
@@ -1696,9 +2019,9 @@ class _TinyActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(11),
       child: InkWell(
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(11),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
@@ -1717,59 +2040,72 @@ class _TinyActionButton extends StatelessWidget {
 }
 
 class _BottomSheetShell extends StatelessWidget {
-  const _BottomSheetShell({required this.title, required this.child});
+  const _BottomSheetShell({
+    required this.title,
+    required this.child,
+    this.maxHeightFactor,
+  });
 
   final String title;
   final Widget child;
+  final double? maxHeightFactor;
 
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding + 16),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.16),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE6E8F2),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF171B2E),
+      child: ConstrainedBox(
+        constraints: maxHeightFactor == null
+            ? const BoxConstraints()
+            : BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * maxHeightFactor!,
+              ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF050816) : Colors.white,
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE6E8F2),
+                      borderRadius: BorderRadius.circular(99),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                child,
-              ],
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : const Color(0xFF171B2E),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  child,
+                ],
+              ),
             ),
           ),
         ),
@@ -1784,22 +2120,88 @@ class _ActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.color,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final itemColor = color ?? Theme.of(context).colorScheme.primary;
+
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: const Color(0xFF7C3AED)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      leading: Icon(icon, color: itemColor),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          color: color ?? (isDark ? Colors.white : const Color(0xFF111827)),
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: isDark ? Colors.white60 : const Color(0xFF64748B)),
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+      ),
       onTap: onTap,
+    );
+  }
+}
+
+class _SheetTextField extends StatelessWidget {
+  const _SheetTextField({
+    required this.controller,
+    required this.label,
+    required this.hintText,
+    required this.icon,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hintText;
+  final IconData icon;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return TextField(
+      controller: controller,
+      textInputAction: TextInputAction.done,
+      onSubmitted: onSubmitted,
+      style: TextStyle(
+        color: isDark ? Colors.white : const Color(0xFF111827),
+        fontWeight: FontWeight.w700,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: Icon(icon, color: primary),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF111827) : Colors.white,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primary, width: 1.4),
+        ),
+      ),
     );
   }
 }
@@ -1817,15 +2219,15 @@ class _PrimarySheetButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return SizedBox(
-      height: 48,
+      height: 50,
       child: Material(
-        color: onPressed == null
-            ? const Color(0xFFC4B5FD)
-            : const Color(0xFF7C3AED),
-        borderRadius: BorderRadius.circular(13),
+        color: onPressed == null ? const Color(0xFFC4B5FD) : primary,
+        borderRadius: BorderRadius.circular(15),
         child: InkWell(
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: BorderRadius.circular(15),
           onTap: onPressed,
           child: Center(
             child: isLoading
@@ -1859,6 +2261,8 @@ class _SheetStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Expanded(
       child: _CardShell(
         child: Padding(
@@ -1867,23 +2271,177 @@ class _SheetStat extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 18,
-                  color: Color(0xFF171B2E),
+                  color: isDark ? Colors.white : const Color(0xFF171B2E),
                 ),
               ),
               const SizedBox(height: 3),
               Text(
                 label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
                   fontSize: 11,
-                  color: Color(0xFF6C7391),
+                  color: isDark ? Colors.white60 : const Color(0xFF6C7391),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetSectionHeader extends StatelessWidget {
+  const _SheetSectionHeader({
+    required this.title,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: isDark ? Colors.white : const Color(0xFF111827),
+            ),
+          ),
+        ),
+        if (actionLabel != null && onAction != null)
+          TextButton(onPressed: onAction, child: Text(actionLabel!)),
+      ],
+    );
+  }
+}
+
+class _MemberRow extends StatelessWidget {
+  const _MemberRow({required this.member});
+
+  final TeamMemberModel member;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: _InitialsAvatar(
+        label: member.initials,
+        color: _avatarColor(member.userId),
+      ),
+      title: Text(
+        member.displayName,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          color: isDark ? Colors.white : const Color(0xFF111827),
+        ),
+      ),
+      subtitle: Text(
+        member.roleLabel,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectMiniRow extends StatelessWidget {
+  const _ProjectMiniRow({required this.project});
+
+  final ProjectModel project;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final statusColor = switch (project.status) {
+      'completed' => const Color(0xFF7C3AED),
+      'in_progress' => const Color(0xFF22C55E),
+      'on_hold' => const Color(0xFFF59E0B),
+      'cancelled' => const Color(0xFFEF4444),
+      _ => const Color(0xFF3B82F6),
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.folder_rounded, color: statusColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  project.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  project.deadlineLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _StatusPill(label: project.statusLabel, color: statusColor),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
@@ -1897,14 +2455,16 @@ class _SmallMutedText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
         text,
-        style: const TextStyle(
-          color: Color(0xFF6C7391),
+        style: TextStyle(
+          color: isDark ? Colors.white54 : const Color(0xFF6C7391),
+          fontWeight: FontWeight.w700,
           fontSize: 13,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -1912,25 +2472,27 @@ class _SmallMutedText extends StatelessWidget {
 }
 
 class _TeamStats {
+  final int memberCount;
+  final int projectCount;
+  final int taskCount;
+  final int completedTaskCount;
+
   const _TeamStats({
     required this.memberCount,
     required this.projectCount,
     required this.taskCount,
+    required this.completedTaskCount,
   });
-
-  final int memberCount;
-  final int projectCount;
-  final int taskCount;
 }
 
 Color _avatarColor(int seed) {
   const colors = [
-    Color(0xFF8B5CF6),
-    Color(0xFFF97316),
-    Color(0xFF0EA5E9),
-    Color(0xFF10B981),
+    Color(0xFF7C3AED),
+    Color(0xFF3B82F6),
+    Color(0xFF22C55E),
+    Color(0xFFF59E0B),
     Color(0xFFEF4444),
-    Color(0xFF6366F1),
+    Color(0xFF06B6D4),
   ];
 
   return colors[seed.abs() % colors.length];
