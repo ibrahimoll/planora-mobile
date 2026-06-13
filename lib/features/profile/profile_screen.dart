@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
-import '../teams/teams_screen.dart';
 import '../tasks/data/tasks_api.dart';
 import 'data/profile_api.dart';
 
@@ -562,14 +561,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       title: 'Workspace',
       items: [
-        _ProfileActionItem(
-          icon: Icons.groups_2_outlined,
-          title: 'Team Members',
-          subtitle: 'Manage team projects and permissions',
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen())),
-        ),
         _ProfileActionItem(
           icon: Icons.workspace_premium_outlined,
           title: 'Subscription',
