@@ -36,7 +36,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
   int _selectedTabIndex = 0;
   String _searchQuery = '';
   bool _isLoading = true;
-  bool _isCreatingTeam = false;
   String? _errorMessage;
 
   List<TeamModel> _teams = [];
@@ -466,10 +465,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
     setSheetState(() => setSubmitting(true));
 
-    if (mounted) {
-      setState(() => _isCreatingTeam = true);
-    }
-
     var wasCreated = false;
 
     try {
@@ -485,9 +480,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
         ),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isCreatingTeam = false);
-      }
       setSheetState(() => setSubmitting(false));
     }
 
