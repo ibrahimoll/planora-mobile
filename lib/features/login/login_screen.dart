@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  bool rememberMe = true;
+  bool rememberMe = false;
   bool obscurePassword = true;
   bool isLoading = false;
 

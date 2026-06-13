@@ -186,11 +186,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _registerWithGoogle() async {
-    if (!acceptTerms) {
-      _showMessage('Please agree to the Terms and Privacy Policy');
-      return;
-    }
-
     setState(() {
       isLoading = true;
     });
@@ -210,8 +205,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      _showMessage('Account created with Google successfully.');
-
+      _showMessage('Continued with Google successfully.');
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => AuthGate(onThemeToggle: widget.onThemeToggle),
@@ -454,7 +448,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         SizedBox(height: metrics.socialGap + 6),
                         PlanoraSocialButton(
                           height: metrics.socialButtonHeight,
-                          label: isLoading ? 'Creating...' : 'Google',
+                          label: isLoading
+                              ? 'Continuing...'
+                              : 'Continue with Google',
                           logo: const PlanoraGoogleLogo(),
                           onTap: isLoading ? null : _registerWithGoogle,
                         ),
