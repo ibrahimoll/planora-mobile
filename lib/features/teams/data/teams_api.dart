@@ -22,6 +22,10 @@ class TeamsApi {
     return TeamModel.fromJson(response as Map<String, dynamic>);
   }
 
+  Future<void> deleteTeam(int teamId) async {
+    await ApiClient.delete('/teams/$teamId');
+  }
+
   Future<List<TeamMemberModel>> getTeamMembers(int teamId) async {
     final response = await ApiClient.get('/teams/$teamId/members');
 
