@@ -12,7 +12,20 @@
           "package_name": "com.planora.mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "179943761921-rmtjp145atbh6sr6adtil2boap46ss3t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.planora.mobile",
+            "certificate_hash": "6863d49ea543373553e2bfcf16858d48448c979f"
+          }
+        },
+        {
+          "client_id": "179943761921-tbqvv0cj5t8cbbn51keo2qs1395llt7d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDfE02TzaQmV57Payivoi94HqPKu7p1X-U"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "179943761921-tbqvv0cj5t8cbbn51keo2qs1395llt7d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

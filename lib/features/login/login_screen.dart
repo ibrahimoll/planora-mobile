@@ -141,11 +141,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       _showMessage(error.message);
     } catch (error, stackTrace) {
-      debugPrint('Google login failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      debugPrint('GOOGLE_LOGIN_ERROR: $error');
+      debugPrintStack(label: 'GOOGLE_LOGIN_STACK', stackTrace: stackTrace);
 
       if (!mounted) return;
-      _showMessage('Google login failed. Please try again.');
+      _showMessage('Google error: $error');
     } finally {
       if (mounted) {
         setState(() {
