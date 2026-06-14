@@ -9,44 +9,60 @@ Widget buildProfileSection(
   required List<dynamic> items,
 }) {
   final isDark = PlanoraTheme.isDark(context);
-  final mutedColor = isDark ? PlanoraTheme.darkTextMuted : PlanoraTheme.textSecondary;
+  final mutedColor = isDark
+      ? PlanoraTheme.darkTextMuted
+      : PlanoraTheme.textSecondary;
 
-  return Container(
-    width: double.infinity,
-    decoration: BoxDecoration(
-      color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(
-        color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-      ),
-      boxShadow: PlanoraTheme.cardShadowFor(context),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
+  return TweenAnimationBuilder<double>(
+    tween: Tween<double>(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 260),
+    curve: Curves.easeOutCubic,
+    builder: (context, value, child) {
+      return Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * 18),
+          child: child,
         ),
-        for (var index = 0; index < items.length; index++) ...[
-          _buildProfileActionTile(
-            context,
-            item: items[index],
-            mutedColor: mutedColor,
-          ),
-          if (index != items.length - 1)
-            Divider(
-              height: 1,
-              indent: 72,
-              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+      );
+    },
+    child: Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+        boxShadow: PlanoraTheme.cardShadowFor(context),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
             ),
+          ),
+          for (var index = 0; index < items.length; index++) ...[
+            _buildProfileActionTile(
+              context,
+              item: items[index],
+              mutedColor: mutedColor,
+            ),
+            if (index != items.length - 1)
+              Divider(
+                height: 1,
+                indent: 72,
+                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+              ),
+          ],
         ],
-      ],
+      ),
     ),
   );
 }
