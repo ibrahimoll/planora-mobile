@@ -89,6 +89,8 @@ class AiPlanGenerateResponse {
   final int planId;
   final String summary;
   final int tasksCreated;
+  final int tasksSkippedAsDuplicates;
+  final String? improvementSummary;
   final List<AiGeneratedTask> tasks;
 
   const AiPlanGenerateResponse({
@@ -96,6 +98,8 @@ class AiPlanGenerateResponse {
     required this.planId,
     required this.summary,
     required this.tasksCreated,
+    required this.tasksSkippedAsDuplicates,
+    required this.improvementSummary,
     required this.tasks,
   });
 
@@ -107,6 +111,11 @@ class AiPlanGenerateResponse {
       planId: _parseInt(json['plan_id']),
       summary: json['summary'] as String? ?? '',
       tasksCreated: _parseInt(json['tasks_created'], fallback: 0),
+      tasksSkippedAsDuplicates: _parseInt(
+        json['tasks_skipped_as_duplicates'],
+        fallback: 0,
+      ),
+      improvementSummary: json['improvement_summary'] as String?,
       tasks: tasks
           .map((item) => AiGeneratedTask.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -302,6 +311,8 @@ class AiPlanPreviewResponse {
       planId: 0,
       summary: summary,
       tasksCreated: tasks.length,
+      tasksSkippedAsDuplicates: 0,
+      improvementSummary: summary,
       tasks: tasks,
     );
   }

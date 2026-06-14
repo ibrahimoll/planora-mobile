@@ -201,6 +201,19 @@ class ProjectsApi {
     return ProjectMemberModel.fromJson(response as Map<String, dynamic>);
   }
 
+  Future<ProjectModel> invitePersonalProjectMemberAndConvert({
+    required ProjectModel project,
+    required String emailOrUsername,
+    String role = 'member',
+  }) async {
+    final response = await ApiClient.postJson(
+      '/projects/${project.projectId}/members/invite-and-convert',
+      data: {'email_or_username': emailOrUsername, 'role': role},
+    );
+
+    return ProjectModel.fromJson(response as Map<String, dynamic>);
+  }
+
   String projectPath(ProjectModel project) {
     if (project.isTeamProject && project.teamId != null) {
       return '/teams/${project.teamId}/projects/${project.projectId}';

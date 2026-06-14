@@ -212,9 +212,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         (_) => false,
       );
-    } on ApiException catch (error) {
+    } on GoogleAuthException catch (error) {
+      debugPrint('GOOGLE_REGISTER_LOCAL_FAILURE: code=${error.code}');
       if (!mounted) return;
       _showMessage(error.message);
+    } on ApiException catch (error) {
+      debugPrint(
+        'GOOGLE_REGISTER_BACKEND_REJECTED: status=${error.statusCode} '
+        'message=${error.message}',
+      );
+      if (!mounted) return;
+      final message =
+          error.statusCode == 401 || error.message == 'Invalid Google token.'
+          ? 'Google registration was rejected by the server. Check the release SHA fingerprints and backend Google Web client ID.'
+          : error.message;
+      _showMessage(message);
     } catch (error, stackTrace) {
       debugPrint('Google registration failed: $error');
       debugPrintStack(stackTrace: stackTrace);

@@ -164,15 +164,27 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         (_) => false,
       );
-    } on ApiException catch (error) {
+    } on GoogleAuthException catch (error) {
+      debugPrint('GOOGLE_LOGIN_LOCAL_FAILURE: code=${error.code}');
       if (!mounted) return;
       _showMessage(error.message);
+    } on ApiException catch (error) {
+      debugPrint(
+        'GOOGLE_LOGIN_BACKEND_REJECTED: status=${error.statusCode} '
+        'message=${error.message}',
+      );
+      if (!mounted) return;
+      final message =
+          error.statusCode == 401 || error.message == 'Invalid Google token.'
+          ? 'Google sign-in was rejected by the server. Check the release SHA fingerprints and backend Google Web client ID.'
+          : error.message;
+      _showMessage(message);
     } catch (error, stackTrace) {
       debugPrint('GOOGLE_LOGIN_ERROR: $error');
       debugPrintStack(label: 'GOOGLE_LOGIN_STACK', stackTrace: stackTrace);
 
       if (!mounted) return;
-      _showMessage('Google error: $error');
+      _showMessage('Google sign-in failed. Please try again.');
     } finally {
       if (mounted) {
         setState(() {

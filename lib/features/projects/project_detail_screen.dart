@@ -1424,12 +1424,57 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   String get defaultAiPrompt {
     final description = project.description?.trim();
+    final currentTasks = _taskPromptList(projectTasks);
+    final completedTasks = _taskPromptList(
+      projectTasks.where((item) => item.task.isCompleted).toList(),
+    );
+    final blockedTasks = _taskPromptList(
+      projectTasks.where((item) => item.task.isBlocked).toList(),
+    );
+    final overdueTasks = _taskPromptList(
+      projectTasks.where((item) => item.task.isOverdue).toList(),
+    );
 
-    if (description != null && description.isNotEmpty) {
-      return 'Create a practical task plan for ${project.title}. Context: $description';
+    return '''
+Improve this Planora project without duplicating existing work.
+
+Project title: ${project.title}
+Description: ${description == null || description.isEmpty ? 'No description provided.' : description}
+Deadline: $formattedDeadline
+Status: ${project.statusLabel}
+
+Current tasks:
+$currentTasks
+
+Completed tasks:
+$completedTasks
+
+Blocked tasks:
+$blockedTasks
+
+Overdue tasks:
+$overdueTasks
+
+Improve means add missing steps, break down vague tasks, identify gaps, adjust priorities, and add useful milestones or risks. If appending tasks, generate only new complementary tasks with different titles, descriptions, and intent from the current tasks.
+'''
+        .trim();
+  }
+
+  String _taskPromptList(List<TaskListItem> items) {
+    if (items.isEmpty) {
+      return '- None';
     }
 
-    return 'Create a practical task plan for ${project.title}.';
+    return items
+        .take(20)
+        .map((item) {
+          final task = item.task;
+          final dueDate = task.dueDate == null
+              ? 'no due date'
+              : 'due ${formatShortDate(task.dueDate!)}';
+          return '- ${task.title} (${task.status.label}, ${task.priority.label}, $dueDate)';
+        })
+        .join('\n');
   }
 
   Future<void> generateAiPlanFromSheet({
@@ -1475,11 +1520,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('AI created ${response.tasksCreated} project tasks.'),
-        ),
-      );
+      final skipped = response.tasksSkippedAsDuplicates;
+      final message = skipped > 0
+          ? 'AI added ${response.tasksCreated} tasks and skipped $skipped duplicates.'
+          : 'AI added ${response.tasksCreated} project tasks.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error, stackTrace) {
       debugPrint('Project AI task generation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -1848,21 +1896,54 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                                   var shouldCloseSheet = false;
 
                                   try {
-                                    await _projectsApi.inviteProjectMember(
-                                      project: project,
-                                      emailOrUsername: emailOrUsername,
-                                      role: selectedRole,
-                                    );
+                                    final wasPersonalProject =
+                                        !project.isTeamProject;
+
+                                    if (wasPersonalProject) {
+                                      final convertedProject = await _projectsApi
+                                          .invitePersonalProjectMemberAndConvert(
+                                            project: project,
+                                            emailOrUsername: emailOrUsername,
+                                            role: selectedRole,
+                                          );
+
+                                      if (!mounted || !sheetContext.mounted) {
+                                        return;
+                                      }
+
+                                      setState(() {
+                                        project = convertedProject;
+                                      });
+
+                                      await Future.wait([
+                                        loadProjectMembers(convertedProject),
+                                        loadProjectTasks(convertedProject),
+                                        loadRiskPreview(convertedProject),
+                                        _projectsApi.getProjects().then((_) {}),
+                                      ]);
+                                    } else {
+                                      await _projectsApi.inviteProjectMember(
+                                        project: project,
+                                        emailOrUsername: emailOrUsername,
+                                        role: selectedRole,
+                                      );
+
+                                      if (!mounted || !sheetContext.mounted) {
+                                        return;
+                                      }
+
+                                      await loadProjectMembers(project);
+                                    }
 
                                     if (!mounted || !sheetContext.mounted) {
                                       return;
                                     }
 
-                                    await loadProjectMembers(project);
-
-                                    if (!mounted) return;
-
-                                    showMessage('Project member added.');
+                                    showMessage(
+                                      wasPersonalProject
+                                          ? 'Project converted to a team plan and member added.'
+                                          : 'Project member added.',
+                                    );
                                     shouldCloseSheet = true;
                                   } on ApiException catch (error) {
                                     if (!mounted) return;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,6 +24,8 @@ class TaskDetailScreen extends StatefulWidget {
 }
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
+  static const Duration _commentPollingInterval = Duration(seconds: 12);
+
   final TasksApi _tasksApi = const TasksApi();
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -46,6 +50,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool isUploadingAttachment = false;
   int? deletingAttachmentId;
   int? deletingCommentId;
+  Timer? _commentPollingTimer;
+  bool _isRefreshingComments = false;
 
   String? errorMessage;
   String? attachmentMessage;
@@ -58,10 +64,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     taskItem = widget.initialTask;
     prepareEditForm();
     loadTaskDetails();
+    _commentPollingTimer = Timer.periodic(
+      _commentPollingInterval,
+      (_) => unawaited(_pollCommentsIfNeeded()),
+    );
   }
 
   @override
   void dispose() {
+    _commentPollingTimer?.cancel();
     titleController.dispose();
     descriptionController.dispose();
     commentController.dispose();
@@ -144,6 +155,74 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     prepareEditForm();
   }
 
+  Future<void> _pollCommentsIfNeeded() async {
+    if (!mounted || selectedTabIndex != 1) {
+      return;
+    }
+
+    if (isSendingComment || deletingCommentId != null) {
+      return;
+    }
+
+    await _refreshCommentsSilently();
+  }
+
+  Future<void> _refreshCommentsSilently() async {
+    if (_isRefreshingComments ||
+        isSendingComment ||
+        deletingCommentId != null) {
+      return;
+    }
+
+    _isRefreshingComments = true;
+
+    try {
+      final loadedComments = await _tasksApi.getTaskComments(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!_commentsMatch(comments, loadedComments) ||
+          activityMessage != null) {
+        setState(() {
+          comments = loadedComments;
+          activityMessage = null;
+        });
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Task comment polling failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      _isRefreshingComments = false;
+    }
+  }
+
+  bool _commentsMatch(
+    List<TaskCommentModel> current,
+    List<TaskCommentModel> next,
+  ) {
+    if (current.length != next.length) {
+      return false;
+    }
+
+    for (var index = 0; index < current.length; index++) {
+      final currentComment = current[index];
+      final nextComment = next[index];
+
+      if (currentComment.commentId != nextComment.commentId ||
+          currentComment.commentText != nextComment.commentText ||
+          currentComment.createdAt != nextComment.createdAt) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   void prepareEditForm() {
     titleController.text = taskItem.task.title;
     descriptionController.text = taskItem.task.description ?? '';
@@ -214,18 +293,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 onTap: () => Navigator.of(context).pop(),
               ),
               const Spacer(),
-              buildCircleButton(
-                context,
-                icon: Icons.info_outline_rounded,
-                onTap: showTaskInfoDialog,
-              ),
-              const SizedBox(width: 6),
-              buildCircleButton(
-                context,
-                icon: Icons.edit_rounded,
-                onTap: showEditTaskSheet,
-              ),
-              const SizedBox(width: 6),
               SizedBox(
                 width: 36,
                 height: 36,
@@ -238,10 +305,19 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                       case 'refresh':
                         loadTaskDetails();
                         break;
+                      case 'info':
+                        showTaskInfoDialog();
+                        break;
+                      case 'edit':
+                        showEditTaskSheet();
+                        break;
                       case 'complete':
                         if (!taskItem.task.isCompleted) {
                           markTaskCompleted();
                         }
+                        break;
+                      case 'delete':
+                        confirmDeleteTask();
                         break;
                     }
                   },
@@ -251,11 +327,23 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                         value: 'refresh',
                         child: Text('Refresh'),
                       ),
+                      const PopupMenuItem(
+                        value: 'info',
+                        child: Text('Task info'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit task'),
+                      ),
                       if (!taskItem.task.isCompleted)
                         const PopupMenuItem(
                           value: 'complete',
                           child: Text('Mark completed'),
                         ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete task'),
+                      ),
                     ];
                   },
                   icon: Icon(
@@ -281,6 +369,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ),
           const SizedBox(height: 10),
           buildMetadataWrap(context),
+          if (!task.isCompleted) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton.icon(
+                onPressed: isCompleting ? null : markTaskCompleted,
+                icon: isCompleting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.check_rounded),
+                label: const Text('Complete Task'),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           buildTabRow(context),
         ],
@@ -311,28 +420,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             : formatShortDate(task.dueDate!),
         color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
       ),
-      buildMetadataChip(
-        context,
-        icon: taskItem.project.isTeamProject
-            ? Icons.groups_2_rounded
-            : Icons.folder_rounded,
-        label: taskItem.project.title,
-        color: mutedColor(context),
-      ),
     ];
-
-    final sectionName = task.sectionName;
-
-    if (sectionName != null && sectionName.trim().isNotEmpty) {
-      chips.add(
-        buildMetadataChip(
-          context,
-          icon: Icons.view_column_outlined,
-          label: sectionName,
-          color: mutedColor(context),
-        ),
-      );
-    }
 
     return Wrap(spacing: 8, runSpacing: 8, children: chips);
   }
@@ -395,7 +483,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Widget buildTabRow(BuildContext context) {
-    final labels = ['Overview', 'Attachments', 'Activity'];
+    final labels = ['Overview', 'Activity', 'Attachments'];
 
     return Row(
       children: [
@@ -415,9 +503,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   int tabCountFor(int index) {
     switch (index) {
       case 1:
-        return attachments.length;
-      case 2:
         return comments.length;
+      case 2:
+        return attachments.length;
       default:
         return 0;
     }
@@ -439,6 +527,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         setState(() {
           selectedTabIndex = index;
         });
+
+        if (index == 1) {
+          unawaited(_refreshCommentsSilently());
+        }
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -600,12 +692,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
 
     addRow(
-      icon: Icons.radio_button_checked_rounded,
-      label: 'Status',
-      value: task.status.label,
-      color: statusColor(task.status),
-    );
-    addRow(
       icon: Icons.flag_rounded,
       label: 'Priority',
       value: task.priority.label,
@@ -618,17 +704,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       color: PlanoraTheme.secondaryPurple,
     );
 
-    final sectionName = task.sectionName;
-
-    if (sectionName != null && sectionName.trim().isNotEmpty) {
-      addRow(
-        icon: Icons.view_column_outlined,
-        label: 'Section',
-        value: sectionName,
-        color: PlanoraTheme.info,
-      );
-    }
-
     addRow(
       icon: Icons.calendar_today_rounded,
       label: 'Due Date',
@@ -637,15 +712,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           : formatShortDate(task.dueDate!),
       color: task.isOverdue ? PlanoraTheme.error : PlanoraTheme.info,
     );
-
-    if (task.startDate != null) {
-      addRow(
-        icon: Icons.event_available_rounded,
-        label: 'Start Date',
-        value: formatShortDate(task.startDate!),
-        color: PlanoraTheme.success,
-      );
-    }
 
     if (task.estimatedHours != null) {
       addRow(
@@ -2035,6 +2101,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       });
 
       commentController.clear();
+      await _refreshCommentsSilently();
     } catch (error, stackTrace) {
       debugPrint('Comment creation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -2106,6 +2173,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Comment deleted.')));
+      await _refreshCommentsSilently();
     } catch (error, stackTrace) {
       debugPrint('Comment delete failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -2773,8 +2841,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               const SizedBox(height: 3),
             const SizedBox(height: 14),
             buildSelectedTabContent(context),
-            const SizedBox(height: 18),
-            buildActions(context),
           ],
         ),
       ),
@@ -2784,9 +2850,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget buildSelectedTabContent(BuildContext context) {
     switch (selectedTabIndex) {
       case 1:
-        return buildAttachmentsTab(context);
-      case 2:
         return buildActivityTab(context);
+      case 2:
+        return buildAttachmentsTab(context);
       default:
         return buildOverviewTab(context);
     }
