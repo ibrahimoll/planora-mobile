@@ -478,44 +478,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Text(
           label,
           textAlign: TextAlign.center,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: mutedColor(context),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildProfileSection(
-    BuildContext context, {
-    required String title,
-    required List<_ProfileActionItem> items,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 8),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        Container(
-          decoration: cardDecoration(context),
-          child: Column(
-            children: [
-              for (var index = 0; index < items.length; index++) ...[
-                buildMenuTile(context, item: items[index]),
-                if (index != items.length - 1) buildDivider(context),
-              ],
-            ],
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],
@@ -834,6 +801,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirmPasswordController = TextEditingController();
     bool obscureOld = true;
     bool obscureNew = true;
+    bool obscureConfirm = true;
     bool isSaving = false;
 
     bool strongPassword(String password) {
@@ -853,19 +821,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return buildSheetSurface(
               sheetContext,
               title: 'Change Password',
-              icon: Icons.lock_outline_rounded,
+              icon: Icons.lock_reset_rounded,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  buildSheetLabel(sheetContext, 'Current Password'),
+                  buildPasswordIntroCard(sheetContext),
+                  const SizedBox(height: 18),
+                  buildSheetLabel(sheetContext, 'Current password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
                     sheetContext,
                     controller: oldPasswordController,
-                    hintText: 'Enter current password',
+                    hintText: 'Enter your current password',
                     icon: Icons.lock_outline_rounded,
                     obscureText: obscureOld,
                     suffixIcon: IconButton(
+                      tooltip: obscureOld ? 'Show password' : 'Hide password',
                       onPressed: () {
                         setSheetState(() {
                           obscureOld = !obscureOld;
@@ -879,15 +850,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  buildSheetLabel(sheetContext, 'New Password'),
+                  buildSheetLabel(sheetContext, 'New password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
                     sheetContext,
                     controller: newPasswordController,
-                    hintText: 'Enter new password',
-                    icon: Icons.lock_reset_rounded,
+                    hintText: 'Create a strong new password',
+                    icon: Icons.password_rounded,
                     obscureText: obscureNew,
                     suffixIcon: IconButton(
+                      tooltip: obscureNew ? 'Show password' : 'Hide password',
                       onPressed: () {
                         setSheetState(() {
                           obscureNew = !obscureNew;
@@ -900,21 +872,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  buildPasswordRulesCard(sheetContext),
                   const SizedBox(height: 16),
-                  buildSheetLabel(sheetContext, 'Confirm Password'),
+                  buildSheetLabel(sheetContext, 'Confirm new password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
                     sheetContext,
                     controller: confirmPasswordController,
-                    hintText: 'Confirm new password',
+                    hintText: 'Re-enter your new password',
                     icon: Icons.verified_user_outlined,
-                    obscureText: obscureNew,
+                    obscureText: obscureConfirm,
+                    suffixIcon: IconButton(
+                      tooltip: obscureConfirm ? 'Show password' : 'Hide password',
+                      onPressed: () {
+                        setSheetState(() {
+                          obscureConfirm = !obscureConfirm;
+                        });
+                      },
+                      icon: Icon(
+                        obscureConfirm
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 22),
                   SizedBox(
                     width: double.infinity,
                     height: 54,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       onPressed: isSaving
                           ? null
                           : () async {
@@ -971,7 +958,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 }
                               }
                             },
-                      child: Text(isSaving ? 'Updating...' : 'Change Password'),
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.lock_reset_rounded),
+                      label: Text(
+                        isSaving ? 'Updating password...' : 'Update Password',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: TextButton(
+                      onPressed: isSaving
+                          ? null
+                          : () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Center(
+                    child: Text(
+                      'You will stay signed in after changing your password.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(sheetContext).textTheme.bodySmall
+                          ?.copyWith(
+                            color: mutedColor(sheetContext),
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
                 ],
@@ -985,6 +1004,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
     oldPasswordController.dispose();
     newPasswordController.dispose();
     confirmPasswordController.dispose();
+  }
+
+  Widget buildPasswordIntroCard(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: isDark ? 0.16 : 0.09),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.shield_outlined, color: primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Keep your account protected',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Use a password that is hard to guess and different from your other accounts.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildPasswordRulesCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: cardDecoration(
+        context,
+      ).copyWith(borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Password requirements',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          buildPasswordRule(context, 'At least 8 characters'),
+          const SizedBox(height: 8),
+          buildPasswordRule(context, 'At least one uppercase letter'),
+          const SizedBox(height: 8),
+          buildPasswordRule(context, 'At least one symbol'),
+        ],
+      ),
+    );
+  }
+
+  Widget buildPasswordRule(BuildContext context, String text) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Row(
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Icon(Icons.check_rounded, size: 14, color: primary),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: mutedColor(context),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> showSettingsSheet() async {
