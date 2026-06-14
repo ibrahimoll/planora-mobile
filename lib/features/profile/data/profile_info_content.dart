@@ -49,7 +49,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For beta support, contact the Planora beta owner at ibrahimolleik3@gmail.com. Include your account email, username, the screen where the problem happened, and the exact error message if one appeared.',
+          'For beta support, contact the Planora beta owner at planora.verify@gmail.com. Include your account email, username, the screen where the problem happened, and the exact error message if one appeared.',
     ),
   ];
 
@@ -103,7 +103,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For privacy questions or support requests, contact Planora support at ibrahimolleik3@gmail.com.',
+          'For privacy questions or support requests, contact Planora support at planora.verify@gmail.com.',
     ),
     ProfileInfoSection(
       title: 'Legal review note',
@@ -122,7 +122,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Account responsibility',
       body:
-          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support at ibrahimolleik3@gmail.com.',
+          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support at planora.verify@gmail.com.',
     ),
     ProfileInfoSection(
       title: 'Workspace and team content',
@@ -162,7 +162,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For questions about these terms, contact Planora support at ibrahimolleik3@gmail.com.',
+          'For questions about these terms, contact Planora support at planora.verify@gmail.com.',
     ),
     ProfileInfoSection(
       title: 'Legal review note',
