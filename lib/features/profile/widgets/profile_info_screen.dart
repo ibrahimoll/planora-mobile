@@ -32,10 +32,10 @@ class ProfileInfoScreen extends StatelessWidget {
         Text(
           body ?? '',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w700,
-            height: 1.45,
-          ),
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+                height: 1.45,
+              ),
         ),
       ];
     }
@@ -45,18 +45,18 @@ class ProfileInfoScreen extends StatelessWidget {
         if (index > 0) const SizedBox(height: 18),
         Text(
           infoSections[index].title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
         ),
         const SizedBox(height: 7),
         Text(
           infoSections[index].body,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w600,
-            height: 1.5,
-          ),
+                color: mutedColor(context),
+                fontWeight: FontWeight.w600,
+                height: 1.5,
+              ),
         ),
       ],
     ];
@@ -120,9 +120,10 @@ class ProfileInfoScreen extends StatelessWidget {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.primary.withValues(alpha: 0.11),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.11),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Icon(
@@ -238,9 +239,9 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
         Expanded(
           child: Text(
             'Subscription',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
       ],
@@ -309,18 +310,18 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
           Text(
             'Planora Beta Access',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
             'Standard beta workspace experience. Free while Planora is in beta.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withValues(alpha: 0.84),
-              fontWeight: FontWeight.w700,
-              height: 1.45,
-            ),
+                  color: Colors.white.withValues(alpha: 0.84),
+                  fontWeight: FontWeight.w700,
+                  height: 1.45,
+                ),
           ),
           const SizedBox(height: 20),
           Container(
@@ -336,7 +337,7 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
                 ),
                 SizedBox(width: 10),
                 Expanded(
-                  child: _HeroMeta(label: 'Billing', value: 'Not required'),
+                  child: _HeroMeta(label: 'Access', value: 'Beta'),
                 ),
               ],
             ),
@@ -356,9 +357,9 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
           sectionTitle(context, Icons.verified_outlined, 'Current plan'),
           const SizedBox(height: 14),
           planRow(context, 'Plan', 'Beta Access'),
+          planRow(context, 'Status', 'Active'),
           planRow(context, 'Price', 'Free during beta'),
           planRow(context, 'Renewal', 'Not applicable'),
-          planRow(context, 'Payment method', 'Not required'),
         ],
       ),
     );
@@ -396,47 +397,15 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
                   child: Text(
                     feature,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      height: 1.35,
-                    ),
+                          fontWeight: FontWeight.w700,
+                          height: 1.35,
+                        ),
                   ),
                 ),
               ],
             ),
             if (feature != _features.last) const SizedBox(height: 12),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget buildBillingCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: cardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          sectionTitle(context, Icons.credit_card_off_rounded, 'Billing status'),
-          const SizedBox(height: 12),
-          Text(
-            'Planora does not currently support mobile payments, invoices, upgrades, downgrades, or subscription cancellation.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w700,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.lock_outline_rounded),
-              label: const Text('Manage billing - Coming soon'),
-            ),
-          ),
         ],
       ),
     );
@@ -454,10 +423,10 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
           Text(
             'Paid plans may be added later for larger teams, advanced AI usage, additional storage, or workspace-level features.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w700,
-              height: 1.45,
-            ),
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w700,
+                  height: 1.45,
+                ),
           ),
           const SizedBox(height: 16),
           Container(
@@ -477,10 +446,10 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
                   child: Text(
                     'Questions about access? Contact ${ProfileInfoContent.betaSupportEmail}.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(context),
-                      fontWeight: FontWeight.w800,
-                      height: 1.35,
-                    ),
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w800,
+                          height: 1.35,
+                        ),
                   ),
                 ),
               ],
@@ -508,8 +477,8 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
       ],
@@ -525,16 +494,16 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w800,
-              ),
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
           ),
           Text(
             value,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ],
       ),
@@ -563,9 +532,7 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
                   const SizedBox(height: 14),
                   animatedItem(index: 2, child: buildFeaturesCard(context)),
                   const SizedBox(height: 14),
-                  animatedItem(index: 3, child: buildBillingCard(context)),
-                  const SizedBox(height: 14),
-                  animatedItem(index: 4, child: buildFutureCard(context)),
+                  animatedItem(index: 3, child: buildFutureCard(context)),
                 ],
               ),
             ),
