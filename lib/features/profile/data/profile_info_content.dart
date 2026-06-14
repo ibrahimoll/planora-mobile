@@ -3,6 +3,8 @@ import '../models/profile_info_section.dart';
 class ProfileInfoContent {
   const ProfileInfoContent._();
 
+  static const String betaSupportEmail = 'ibrahimolleik3@gmail.com';
+
   static const List<ProfileInfoSection> helpSupport = [
     ProfileInfoSection(
       title: 'Beta support',
@@ -47,7 +49,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'Contact Planora support through the official support channel provided by the app or project owner. If this is a test build, send the report directly to the beta owner or developer.',
+          'For beta support, contact the Planora beta owner at ibrahimolleik3@gmail.com. Include your account email, username, the screen where the problem happened, and the exact error message if one appeared.',
     ),
   ];
 
@@ -101,7 +103,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For privacy questions or support requests, contact Planora support through the official support channel provided by the app or project owner.',
+          'For privacy questions or support requests, contact Planora support at ibrahimolleik3@gmail.com.',
     ),
     ProfileInfoSection(
       title: 'Legal review note',
@@ -120,7 +122,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Account responsibility',
       body:
-          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support through the official support channel.',
+          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support at ibrahimolleik3@gmail.com.',
     ),
     ProfileInfoSection(
       title: 'Workspace and team content',
@@ -160,7 +162,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For questions about these terms, contact Planora support through the official support channel provided by the app or project owner.',
+          'For questions about these terms, contact Planora support at ibrahimolleik3@gmail.com.',
     ),
     ProfileInfoSection(
       title: 'Legal review note',
