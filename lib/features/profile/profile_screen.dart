@@ -593,6 +593,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  static const List<ProfileInfoSection> _helpSupportSections = [
+    ProfileInfoSection(
+      title: 'Beta support',
+      body:
+          'Planora is currently in beta. Some features may still be incomplete, limited, or under active testing. If something does not work as expected, report the issue with enough detail so it can be reproduced and fixed.',
+    ),
+    ProfileInfoSection(
+      title: 'What to include in a support request',
+      body:
+          'When reporting an issue, include your account email, username, the screen you were using, the project or task name if relevant, the exact action you tried, and the error message you saw.',
+    ),
+    ProfileInfoSection(
+      title: 'Account and login issues',
+      body:
+          'For login, password, verification, or profile problems, mention whether the issue happened during login, registration, email verification, password reset, profile update, or password change.',
+    ),
+    ProfileInfoSection(
+      title: 'Projects, tasks, and teams',
+      body:
+          'For project, task, team, invitation, or comment issues, include the project name, task title, team member involved if relevant, and whether the issue happened while creating, editing, deleting, assigning, or loading data.',
+    ),
+    ProfileInfoSection(
+      title: 'AI planning issues',
+      body:
+          'For AI chat or AI planning issues, include what you asked Planora AI to do and what result you expected. Do not send passwords, private keys, financial secrets, or sensitive personal data in support messages or AI prompts.',
+    ),
+    ProfileInfoSection(
+      title: 'Attachments and notifications',
+      body:
+          'For attachment problems, mention the file type and the action that failed. For notification issues, mention whether the problem is missing notifications, delayed notifications, or notifications that do not open the expected screen.',
+    ),
+    ProfileInfoSection(
+      title: 'Basic troubleshooting',
+      body:
+          'Before reporting a bug, try refreshing the screen, checking your internet connection, closing and reopening the app, and signing in again if the session appears expired.',
+    ),
+    ProfileInfoSection(
+      title: 'Known beta limitations',
+      body:
+          'Some settings are currently informational only. Advanced email preferences, per-channel notification settings, billing management, subscription management, and full account deletion are not fully exposed in the mobile app yet.',
+    ),
+    ProfileInfoSection(
+      title: 'Contact',
+      body:
+          'Contact Planora support through the official support channel provided by the app or project owner. If this is a test build, send the report directly to the beta owner or developer.',
+    ),
+  ];
+
   static const List<ProfileInfoSection> _privacyPolicySections = [
     ProfileInfoSection(title: 'Last updated', body: 'June 14, 2026'),
     ProfileInfoSection(
