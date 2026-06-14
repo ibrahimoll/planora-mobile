@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_exception.dart';
 import '../../../core/theme/planora_theme.dart';
 import '../models/profile_info_section.dart';
+import 'profile_api.dart';
 
 Widget buildProfileSection(
   BuildContext context, {
@@ -75,7 +77,10 @@ Widget _buildProfileActionTile(
   final icon = item.icon as IconData;
   final title = item.title as String;
   final subtitle = item.subtitle as String;
-  final onTap = item.onTap as VoidCallback;
+  final originalOnTap = item.onTap as VoidCallback;
+  final onTap = title == 'Change Password'
+      ? () => _showLiveChangePasswordSheet(context)
+      : originalOnTap;
 
   return ListTile(
     onTap: onTap,
@@ -104,13 +109,501 @@ Widget _buildProfileActionTile(
       subtitle,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: mutedColor,
-        fontWeight: FontWeight.w600,
-      ),
+      style: TextStyle(color: mutedColor, fontWeight: FontWeight.w600),
     ),
     trailing: Icon(Icons.chevron_right_rounded, color: mutedColor),
   );
+}
+
+Future<void> _showLiveChangePasswordSheet(BuildContext context) async {
+  const profileApi = ProfileApi();
+  final oldPasswordController = TextEditingController();
+  final newPasswordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+  bool obscureOld = true;
+  bool obscureNew = true;
+  bool obscureConfirm = true;
+  bool isSaving = false;
+
+  bool hasMinLength(String value) => value.length >= 8;
+  bool hasUppercase(String value) => RegExp(r'[A-Z]').hasMatch(value);
+  bool hasSymbol(String value) {
+    return RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\\[\];~`]').hasMatch(value);
+  }
+
+  bool isStrong(String value) {
+    return hasMinLength(value) && hasUppercase(value) && hasSymbol(value);
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final newPassword = newPasswordController.text;
+          final confirmPassword = confirmPasswordController.text;
+          final minLengthMet = hasMinLength(newPassword);
+          final uppercaseMet = hasUppercase(newPassword);
+          final symbolMet = hasSymbol(newPassword);
+          final matchMet =
+              confirmPassword.isNotEmpty && newPassword == confirmPassword;
+          final canSubmit = oldPasswordController.text.isNotEmpty &&
+              isStrong(newPassword) &&
+              matchMet &&
+              !isSaving;
+
+          void refreshRules(String _) => setSheetState(() {});
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.92,
+              ),
+              decoration: BoxDecoration(
+                color: PlanoraTheme.isDark(sheetContext)
+                    ? PlanoraTheme.darkBackground
+                    : Colors.white,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(30)),
+                boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: PlanoraTheme.isDark(sheetContext)
+                              ? PlanoraTheme.darkBorder
+                              : PlanoraTheme.border,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Theme.of(sheetContext)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Icon(
+                            Icons.lock_reset_rounded,
+                            color: Theme.of(sheetContext).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Change Password',
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: isSaving
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    _PasswordIntroCard(),
+                    const SizedBox(height: 18),
+                    _SheetLabel('Current password'),
+                    const SizedBox(height: 8),
+                    _PasswordField(
+                      controller: oldPasswordController,
+                      hintText: 'Enter your current password',
+                      icon: Icons.lock_outline_rounded,
+                      obscureText: obscureOld,
+                      onChanged: refreshRules,
+                      onToggleVisibility: () => setSheetState(() {
+                        obscureOld = !obscureOld;
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    _SheetLabel('New password'),
+                    const SizedBox(height: 8),
+                    _PasswordField(
+                      controller: newPasswordController,
+                      hintText: 'Create a strong new password',
+                      icon: Icons.password_rounded,
+                      obscureText: obscureNew,
+                      onChanged: refreshRules,
+                      onToggleVisibility: () => setSheetState(() {
+                        obscureNew = !obscureNew;
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    _PasswordRulesCard(
+                      minLengthMet: minLengthMet,
+                      uppercaseMet: uppercaseMet,
+                      symbolMet: symbolMet,
+                      showMatchRule: confirmPassword.isNotEmpty,
+                      matchMet: matchMet,
+                    ),
+                    const SizedBox(height: 16),
+                    _SheetLabel('Confirm new password'),
+                    const SizedBox(height: 8),
+                    _PasswordField(
+                      controller: confirmPasswordController,
+                      hintText: 'Re-enter your new password',
+                      icon: Icons.verified_user_outlined,
+                      obscureText: obscureConfirm,
+                      onChanged: refreshRules,
+                      onToggleVisibility: () => setSheetState(() {
+                        obscureConfirm = !obscureConfirm;
+                      }),
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        onPressed: canSubmit
+                            ? () async {
+                                setSheetState(() {
+                                  isSaving = true;
+                                });
+
+                                try {
+                                  await profileApi.changePassword(
+                                    oldPassword: oldPasswordController.text,
+                                    newPassword: newPasswordController.text,
+                                  );
+
+                                  if (!sheetContext.mounted) return;
+                                  Navigator.of(sheetContext).pop();
+                                  _showProfileSnack(
+                                    context,
+                                    'Password changed successfully.',
+                                  );
+                                } on ApiException catch (error) {
+                                  _showProfileSnack(context, error.message);
+                                } catch (error, stackTrace) {
+                                  debugPrint('Password change failed: $error');
+                                  debugPrintStack(stackTrace: stackTrace);
+                                  _showProfileSnack(
+                                    context,
+                                    'Could not change password.',
+                                  );
+                                } finally {
+                                  if (sheetContext.mounted) {
+                                    setSheetState(() {
+                                      isSaving = false;
+                                    });
+                                  }
+                                }
+                              }
+                            : null,
+                        icon: isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.lock_reset_rounded),
+                        label: Text(
+                          isSaving
+                              ? 'Updating password...'
+                              : 'Update Password',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: TextButton(
+                        onPressed: isSaving
+                            ? null
+                            : () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        'You will stay signed in after changing your password.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(sheetContext)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: _profileMutedColor(sheetContext),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  oldPasswordController.dispose();
+  newPasswordController.dispose();
+  confirmPasswordController.dispose();
+}
+
+void _showProfileSnack(BuildContext context, String message) {
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+}
+
+Color _profileMutedColor(BuildContext context) {
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkTextMuted
+      : PlanoraTheme.textSecondary;
+}
+
+class _SheetLabel extends StatelessWidget {
+  final String text;
+
+  const _SheetLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: Theme.of(context)
+          .textTheme
+          .bodySmall
+          ?.copyWith(fontWeight: FontWeight.w900),
+    );
+  }
+}
+
+class _PasswordIntroCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: isDark ? 0.16 : 0.09),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.shield_outlined, color: primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Keep your account protected',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Use a password that is hard to guess and different from your other accounts.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _profileMutedColor(context),
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PasswordField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final IconData icon;
+  final bool obscureText;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onToggleVisibility;
+
+  const _PasswordField({
+    required this.controller,
+    required this.hintText,
+    required this.icon,
+    required this.obscureText,
+    required this.onChanged,
+    required this.onToggleVisibility,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: Icon(icon),
+        suffixIcon: IconButton(
+          tooltip: obscureText ? 'Show password' : 'Hide password',
+          onPressed: onToggleVisibility,
+          icon: Icon(
+            obscureText
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordRulesCard extends StatelessWidget {
+  final bool minLengthMet;
+  final bool uppercaseMet;
+  final bool symbolMet;
+  final bool showMatchRule;
+  final bool matchMet;
+
+  const _PasswordRulesCard({
+    required this.minLengthMet,
+    required this.uppercaseMet,
+    required this.symbolMet,
+    required this.showMatchRule,
+    required this.matchMet,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+        boxShadow: PlanoraTheme.cardShadowFor(context),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Password requirements',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          _PasswordRule(text: 'At least 8 characters', isMet: minLengthMet),
+          const SizedBox(height: 8),
+          _PasswordRule(
+            text: 'At least one uppercase letter',
+            isMet: uppercaseMet,
+          ),
+          const SizedBox(height: 8),
+          _PasswordRule(text: 'At least one symbol', isMet: symbolMet),
+          if (showMatchRule) ...[
+            const SizedBox(height: 8),
+            _PasswordRule(text: 'Passwords match', isMet: matchMet),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PasswordRule extends StatelessWidget {
+  final String text;
+  final bool isMet;
+
+  const _PasswordRule({required this.text, required this.isMet});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final inactiveColor = _profileMutedColor(context);
+    final color = isMet ? primary : inactiveColor;
+
+    return Row(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: isMet ? 0.14 : 0.08),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: Icon(
+              isMet ? Icons.check_rounded : Icons.close_rounded,
+              key: ValueKey(isMet),
+              size: 14,
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 160),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ) ??
+                TextStyle(color: color, fontWeight: FontWeight.w700),
+            child: Text(text),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class ProfileInfoContent {
@@ -135,26 +628,6 @@ class ProfileInfoContent {
           'For login, password, verification, or profile problems, mention whether the issue happened during login, registration, email verification, password reset, profile update, or password change.',
     ),
     ProfileInfoSection(
-      title: 'Projects, tasks, and teams',
-      body:
-          'For project, task, team, invitation, or comment issues, include the project name, task title, team member involved if relevant, and whether the issue happened while creating, editing, deleting, assigning, or loading data.',
-    ),
-    ProfileInfoSection(
-      title: 'AI planning issues',
-      body:
-          'For AI chat or AI planning issues, include what you asked Planora AI to do and what result you expected. Do not send passwords, private keys, financial secrets, or sensitive personal data in support messages or AI prompts.',
-    ),
-    ProfileInfoSection(
-      title: 'Attachments and notifications',
-      body:
-          'For attachment problems, mention the file type and the action that failed. For notification issues, mention whether the problem is missing notifications, delayed notifications, or notifications that do not open the expected screen.',
-    ),
-    ProfileInfoSection(
-      title: 'Basic troubleshooting',
-      body:
-          'Before reporting a bug, try refreshing the screen, checking your internet connection, closing and reopening the app, and signing in again if the session appears expired.',
-    ),
-    ProfileInfoSection(
       title: 'Known beta limitations',
       body:
           'Some settings are currently informational only. Advanced email preferences, per-channel notification settings, billing management, subscription management, and full account deletion are not fully exposed in the mobile app yet.',
@@ -162,7 +635,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For beta support, contact the Planora beta owner at planora.verify@gmail.com. Include your account email, username, the screen where the problem happened, and the exact error message if one appeared.',
+          'For beta support, contact Planora support at planora.verify@gmail.com. Include your account email, username, the screen where the problem happened, and the exact error message if one appeared.',
     ),
   ];
 
@@ -174,33 +647,17 @@ class ProfileInfoContent {
     ),
     ProfileInfoSection(
       title: 'Current plan',
-      body:
-          'Plan: Beta Access\nPrice: Free during beta\nBilling: Not required\nRenewal: Not applicable\nPayment method: Not required',
+      body: 'Plan: Beta Access\nPrice: Free during beta\nRenewal: Not applicable',
     ),
     ProfileInfoSection(
       title: 'Included in beta',
       body:
-          'Projects and task management\nTeam collaboration\nInvitations and comments\nNotifications\nProfile and account settings\nAttachments, when enabled by the backend\nAI planning features, when available',
-    ),
-    ProfileInfoSection(
-      title: 'Billing status',
-      body:
-          'No payment method is required for the current beta version. Planora does not currently support mobile payments, invoices, upgrades, downgrades, or subscription cancellation.',
-    ),
-    ProfileInfoSection(
-      title: 'Beta limitations',
-      body:
-          'Some features may be limited, unavailable, or changed during beta. This page is informational only because production billing has not been released yet.',
+          'Projects and task management\nTeam collaboration\nInvitations and comments\nNotifications\nProfile and account settings\nAttachments, when enabled\nAI planning features, when available',
     ),
     ProfileInfoSection(
       title: 'Future subscription plans',
       body:
-          'Paid plans may be added later for larger teams, advanced AI usage, additional storage, or workspace-level features. Until then, the mobile app should not show fake Free, Pro, Premium, pricing, invoices, or payment method screens.',
-    ),
-    ProfileInfoSection(
-      title: 'Questions about access?',
-      body:
-          'Contact Planora support from Profile > Help & Support, or email planora.verify@gmail.com with your account email and username.',
+          'Paid plans may be added later for larger teams, advanced AI usage, additional storage, or workspace-level features.',
     ),
   ];
 
@@ -214,11 +671,6 @@ class ProfileInfoContent {
       title: 'Current beta status',
       body:
           'No payment method is required for Planora beta access. Billing history and invoice downloads will only make sense after production billing is added to the backend.',
-    ),
-    ProfileInfoSection(
-      title: 'Future billing support',
-      body:
-          'When Planora introduces production subscriptions, this page can be connected to the backend billing provider and updated to show invoices, payment methods, and plan management.',
     ),
   ];
 
@@ -235,36 +687,6 @@ class ProfileInfoContent {
           'Planora may store account and profile information such as username, email address, full name, role, email verification status, profile picture, and account creation date. Planora also stores the content you create or share, including projects, tasks, teams, invitations, comments, attachments, notifications, and AI chat or planning messages.',
     ),
     ProfileInfoSection(
-      title: 'How we use information',
-      body:
-          'Planora uses this information to authenticate users, load your profile, manage projects and tasks, support team collaboration, send in-app notifications, handle attachments, and provide AI-assisted planning responses based on the content you choose to submit.',
-    ),
-    ProfileInfoSection(
-      title: 'AI-assisted planning',
-      body:
-          'When you use AI planning or chat features, the information you enter may be used to generate task suggestions, project breakdowns, summaries, or productivity recommendations. Do not include passwords, private keys, financial secrets, or sensitive personal information in AI messages, project descriptions, task details, or comments.',
-    ),
-    ProfileInfoSection(
-      title: 'Team collaboration and shared content',
-      body:
-          'Content added to shared workspaces, teams, projects, tasks, comments, invitations, and attachments may be visible to other authorized users who are part of the same workspace or collaboration flow.',
-    ),
-    ProfileInfoSection(
-      title: 'Local device storage',
-      body:
-          'Planora may store authentication tokens and remembered login identifiers locally using secure device storage so the app can keep you signed in and restore your session safely.',
-    ),
-    ProfileInfoSection(
-      title: 'Security',
-      body:
-          'Planora uses the configured backend API and secure local storage patterns to protect account access. No app can guarantee absolute security, so users should keep their credentials private and avoid sharing sensitive secrets inside workspace content.',
-    ),
-    ProfileInfoSection(
-      title: 'Data retention',
-      body:
-          'Planora keeps account, workspace, project, task, team, comment, attachment, notification, and AI planning data for as long as needed to provide the app experience, maintain collaboration history, troubleshoot issues, or satisfy operational requirements.',
-    ),
-    ProfileInfoSection(
       title: 'Your choices',
       body:
           'You can update supported profile information from the Profile page and change your password through the password screen. Features such as full account deletion, advanced privacy settings, and per-channel notification preferences are not currently exposed in the mobile app.',
@@ -273,11 +695,6 @@ class ProfileInfoContent {
       title: 'Contact',
       body:
           'For privacy questions or support requests, contact Planora support at planora.verify@gmail.com.',
-    ),
-    ProfileInfoSection(
-      title: 'Legal review note',
-      body:
-          'This policy is provided for transparency inside Planora. For production release, review it with a qualified legal professional.',
     ),
   ];
 
@@ -294,49 +711,14 @@ class ProfileInfoContent {
           'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support at planora.verify@gmail.com.',
     ),
     ProfileInfoSection(
-      title: 'Workspace and team content',
-      body:
-          'You are responsible for the projects, tasks, teams, invitations, comments, attachments, and other content you create or share in Planora. Only upload or share content that you own or have permission to use.',
-    ),
-    ProfileInfoSection(
-      title: 'AI-generated suggestions',
-      body:
-          'Planora may generate AI-assisted suggestions, project plans, task breakdowns, or productivity guidance. AI output should be reviewed before use and should not be treated as guaranteed, professional, legal, financial, medical, or security advice.',
-    ),
-    ProfileInfoSection(
       title: 'Acceptable use',
       body:
           'Do not use Planora to upload illegal content, abuse other users, share malware, expose secrets, violate intellectual property rights, disrupt the service, or attempt unauthorized access to accounts, systems, projects, teams, or backend data.',
     ),
     ProfileInfoSection(
-      title: 'Attachments and shared files',
-      body:
-          'Attachments and shared files should only include content that is safe, relevant, and permitted to be shared with the intended workspace or team members.',
-    ),
-    ProfileInfoSection(
-      title: 'Service availability',
-      body:
-          'Planora depends on mobile app services, the configured backend API, storage, and network availability. Some features may be unavailable during maintenance, outages, development changes, or unsupported backend states.',
-    ),
-    ProfileInfoSection(
-      title: 'Limitation of responsibility',
-      body:
-          'Planora is provided to help organize work and improve productivity. You remain responsible for reviewing your plans, tasks, shared content, and decisions before relying on them.',
-    ),
-    ProfileInfoSection(
-      title: 'Updates to these terms',
-      body:
-          'These terms may be updated as Planora evolves. Continued use of the app after updates means you accept the revised terms shown in the app.',
-    ),
-    ProfileInfoSection(
       title: 'Contact',
       body:
           'For questions about these terms, contact Planora support at planora.verify@gmail.com.',
-    ),
-    ProfileInfoSection(
-      title: 'Legal review note',
-      body:
-          'This policy is provided for transparency inside Planora. For production release, review it with a qualified legal professional.',
     ),
   ];
 
