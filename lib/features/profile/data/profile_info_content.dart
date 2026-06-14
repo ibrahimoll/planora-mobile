@@ -53,6 +53,62 @@ class ProfileInfoContent {
     ),
   ];
 
+  static const List<ProfileInfoSection> subscription = [
+    ProfileInfoSection(
+      title: 'Planora Beta Access',
+      body:
+          'Your account is currently using the standard Planora beta workspace experience. During beta, paid plans, upgrades, downgrades, billing, and invoices are not available in the mobile app.',
+    ),
+    ProfileInfoSection(
+      title: 'Current plan',
+      body:
+          'Plan: Beta Access\nPrice: Free during beta\nBilling: Not required\nRenewal: Not applicable\nPayment method: Not required',
+    ),
+    ProfileInfoSection(
+      title: 'Included in beta',
+      body:
+          'Projects and task management\nTeam collaboration\nInvitations and comments\nNotifications\nProfile and account settings\nAttachments, when enabled by the backend\nAI planning features, when available',
+    ),
+    ProfileInfoSection(
+      title: 'Billing status',
+      body:
+          'No payment method is required for the current beta version. Planora does not currently support mobile payments, invoices, upgrades, downgrades, or subscription cancellation.',
+    ),
+    ProfileInfoSection(
+      title: 'Beta limitations',
+      body:
+          'Some features may be limited, unavailable, or changed during beta. This page is informational only because production billing has not been released yet.',
+    ),
+    ProfileInfoSection(
+      title: 'Future subscription plans',
+      body:
+          'Paid plans may be added later for larger teams, advanced AI usage, additional storage, or workspace-level features. Until then, the mobile app should not show fake Free, Pro, Premium, pricing, invoices, or payment method screens.',
+    ),
+    ProfileInfoSection(
+      title: 'Questions about access?',
+      body:
+          'Contact Planora support from Profile > Help & Support, or email planora.verify@gmail.com with your account email and username.',
+    ),
+  ];
+
+  static const List<ProfileInfoSection> billingAndInvoices = [
+    ProfileInfoSection(
+      title: 'Billing is not available',
+      body:
+          'Planora does not currently expose billing, payment methods, invoices, upgrades, downgrades, or subscription cancellation in the mobile app.',
+    ),
+    ProfileInfoSection(
+      title: 'Current beta status',
+      body:
+          'No payment method is required for Planora beta access. Billing history and invoice downloads will only make sense after production billing is added to the backend.',
+    ),
+    ProfileInfoSection(
+      title: 'Future billing support',
+      body:
+          'When Planora introduces production subscriptions, this page can be connected to the backend billing provider and updated to show invoices, payment methods, and plan management.',
+    ),
+  ];
+
   static const List<ProfileInfoSection> privacyPolicy = [
     ProfileInfoSection(title: 'Last updated', body: 'June 14, 2026'),
     ProfileInfoSection(
@@ -170,4 +226,21 @@ class ProfileInfoContent {
           'This policy is provided for transparency inside Planora. For production release, review it with a qualified legal professional.',
     ),
   ];
+
+  static List<ProfileInfoSection>? sectionsForTitle(String title) {
+    switch (title) {
+      case 'Help & Support':
+        return helpSupport;
+      case 'Subscription':
+        return subscription;
+      case 'Billing & Invoices':
+        return billingAndInvoices;
+      case 'Privacy Policy':
+        return privacyPolicy;
+      case 'Terms of Service':
+        return terms;
+      default:
+        return null;
+    }
+  }
 }
