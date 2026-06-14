@@ -78,9 +78,11 @@ Widget _buildProfileActionTile(
   final title = item.title as String;
   final subtitle = item.subtitle as String;
   final originalOnTap = item.onTap as VoidCallback;
-  final onTap = title == 'Change Password'
-      ? () => _showLiveChangePasswordSheet(context)
-      : originalOnTap;
+  final onTap = title == 'Edit Profile'
+      ? () => _showLiveEditProfileSheet(context, fallbackOnTap: originalOnTap)
+      : title == 'Change Password'
+          ? () => _showLiveChangePasswordSheet(context)
+          : originalOnTap;
 
   return ListTile(
     onTap: onTap,
@@ -113,6 +115,262 @@ Widget _buildProfileActionTile(
     ),
     trailing: Icon(Icons.chevron_right_rounded, color: mutedColor),
   );
+}
+
+void _showLiveEditProfileSheet(
+  BuildContext context, {
+  required VoidCallback fallbackOnTap,
+}) {
+  const profileApi = ProfileApi();
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final dynamic profileState =
+      context.findAncestorStateOfType<State<StatefulWidget>>();
+
+  dynamic user;
+  try {
+    user = profileState?.user;
+  } catch (_) {
+    user = null;
+  }
+
+  if (profileState == null || user == null) {
+    fallbackOnTap();
+    return;
+  }
+
+  final initialUsername = (user.username as String? ?? '').trim();
+  final initialFullName = (user.fullName as String? ?? '').trim();
+  final email = (user.email as String? ?? '').trim();
+  final usernameController = TextEditingController(text: initialUsername);
+  final fullNameController = TextEditingController(text: initialFullName);
+
+  bool isSaving = false;
+  bool isSheetClosing = false;
+
+  bool validUsername(String value) {
+    return RegExp(r'^[A-Za-z0-9_]{3,50}$').hasMatch(value.trim());
+  }
+
+  void closeSheet(NavigatorState sheetNavigator) {
+    if (isSheetClosing) return;
+    isSheetClosing = true;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (sheetNavigator.canPop()) {
+      sheetNavigator.pop();
+    }
+  }
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    isDismissible: false,
+    enableDrag: false,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      final sheetNavigator = Navigator.of(sheetContext);
+
+      return StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final fullName = fullNameController.text.trim();
+          final username = usernameController.text.trim();
+          final fullNameValid = fullName.isNotEmpty;
+          final usernameValid = validUsername(username);
+          final hasChanges = fullName != initialFullName ||
+              username != initialUsername;
+          final canSave = fullNameValid &&
+              usernameValid &&
+              hasChanges &&
+              !isSaving &&
+              !isSheetClosing;
+
+          void refresh(String _) {
+            if (isSheetClosing) return;
+            setSheetState(() {});
+          }
+
+          Future<void> submitProfileUpdate() async {
+            if (!canSave) return;
+
+            FocusManager.instance.primaryFocus?.unfocus();
+            setSheetState(() {
+              isSaving = true;
+            });
+
+            var saved = false;
+
+            try {
+              final updatedUser = await profileApi.updateProfile(
+                username: username,
+                fullName: fullName,
+              );
+
+              saved = true;
+
+              try {
+                if (profileState.mounted == true) {
+                  profileState.setState(() {
+                    profileState.user = updatedUser;
+                  });
+                  profileState.widget.onUserUpdated?.call(updatedUser);
+                }
+              } catch (error, stackTrace) {
+                debugPrint('Profile state refresh failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+              }
+
+              closeSheet(sheetNavigator);
+              messenger?.showSnackBar(
+                const SnackBar(content: Text('Profile updated successfully.')),
+              );
+            } on ApiException catch (error) {
+              messenger?.showSnackBar(SnackBar(content: Text(error.message)));
+            } catch (error, stackTrace) {
+              debugPrint('Profile update failed: $error');
+              debugPrintStack(stackTrace: stackTrace);
+              messenger?.showSnackBar(
+                const SnackBar(content: Text('Could not update profile.')),
+              );
+            } finally {
+              if (!saved && !isSheetClosing && sheetContext.mounted) {
+                setSheetState(() {
+                  isSaving = false;
+                });
+              }
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.92,
+              ),
+              decoration: BoxDecoration(
+                color: PlanoraTheme.isDark(sheetContext)
+                    ? PlanoraTheme.darkBackground
+                    : Colors.white,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(30)),
+                boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: Transform.translate(
+                        offset: Offset(0, (1 - value) * 18),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _SheetGrabber(),
+                      const SizedBox(height: 20),
+                      _SheetHeader(
+                        title: 'Edit Profile',
+                        icon: Icons.edit_outlined,
+                        onClose: isSaving
+                            ? null
+                            : () => closeSheet(sheetNavigator),
+                      ),
+                      const SizedBox(height: 22),
+                      _ProfilePreviewCard(
+                        fullName: fullNameValid ? fullName : initialFullName,
+                        username: usernameValid ? username : initialUsername,
+                        email: email,
+                      ),
+                      const SizedBox(height: 18),
+                      const _SheetLabel('Full name'),
+                      const SizedBox(height: 8),
+                      _ProfileTextField(
+                        controller: fullNameController,
+                        hintText: 'Enter your full name',
+                        icon: Icons.person_outline_rounded,
+                        onChanged: refresh,
+                      ),
+                      const SizedBox(height: 8),
+                      _EditProfileHint(
+                        isValid: fullNameValid,
+                        text: fullNameValid
+                            ? 'This name will be shown on your profile.'
+                            : 'Full name is required.',
+                      ),
+                      const SizedBox(height: 16),
+                      const _SheetLabel('Username'),
+                      const SizedBox(height: 8),
+                      _ProfileTextField(
+                        controller: usernameController,
+                        hintText: 'Choose a username',
+                        icon: Icons.alternate_email_rounded,
+                        onChanged: refresh,
+                      ),
+                      const SizedBox(height: 8),
+                      _EditProfileHint(
+                        isValid: usernameValid,
+                        text: usernameValid
+                            ? 'Username looks good.'
+                            : 'Use 3-50 letters, numbers, or underscores.',
+                      ),
+                      const SizedBox(height: 22),
+                      AnimatedOpacity(
+                        duration: const Duration(milliseconds: 180),
+                        opacity: canSave || isSaving ? 1 : 0.55,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: ElevatedButton.icon(
+                            onPressed: canSave ? submitProfileUpdate : null,
+                            icon: isSaving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: Text(
+                              isSaving ? 'Saving profile...' : 'Save Changes',
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: TextButton(
+                          onPressed: isSaving
+                              ? null
+                              : () => closeSheet(sheetNavigator),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  ).whenComplete(() {
+    usernameController.dispose();
+    fullNameController.dispose();
+  });
 }
 
 void _showLiveChangePasswordSheet(BuildContext context) {
@@ -237,51 +495,12 @@ void _showLiveChangePasswordSheet(BuildContext context) {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: PlanoraTheme.isDark(sheetContext)
-                              ? PlanoraTheme.darkBorder
-                              : PlanoraTheme.border,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
+                    _SheetGrabber(),
                     const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Theme.of(sheetContext)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Icon(
-                            Icons.lock_reset_rounded,
-                            color: Theme.of(sheetContext).colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Change Password',
-                            style: Theme.of(sheetContext)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: isSaving ? null : closeSheet,
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
+                    _SheetHeader(
+                      title: 'Change Password',
+                      icon: Icons.lock_reset_rounded,
+                      onClose: isSaving ? null : closeSheet,
                     ),
                     const SizedBox(height: 22),
                     const _PasswordIntroCard(),
@@ -400,6 +619,63 @@ Color _profileMutedColor(BuildContext context) {
       : PlanoraTheme.textSecondary;
 }
 
+class _SheetGrabber extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 44,
+        height: 5,
+        decoration: BoxDecoration(
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkBorder
+              : PlanoraTheme.border,
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback? onClose;
+
+  const _SheetHeader({
+    required this.title,
+    required this.icon,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+        ),
+        IconButton(onPressed: onClose, icon: const Icon(Icons.close_rounded)),
+      ],
+    );
+  }
+}
+
 class _SheetLabel extends StatelessWidget {
   final String text;
 
@@ -413,6 +689,173 @@ class _SheetLabel extends StatelessWidget {
           .textTheme
           .bodySmall
           ?.copyWith(fontWeight: FontWeight.w900),
+    );
+  }
+}
+
+class _ProfilePreviewCard extends StatelessWidget {
+  final String fullName;
+  final String username;
+  final String email;
+
+  const _ProfilePreviewCard({
+    required this.fullName,
+    required this.username,
+    required this.email,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final initialsSource = fullName.trim().isNotEmpty ? fullName.trim() : username;
+    final initials = initialsSource.isEmpty
+        ? 'P'
+        : initialsSource
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.isDark(context)
+            ? PlanoraTheme.darkSurface
+            : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkBorder
+              : PlanoraTheme.border,
+        ),
+        boxShadow: PlanoraTheme.cardShadowFor(context),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: PlanoraTheme.primaryGradientFor(context),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fullName.isNotEmpty ? fullName : 'Planora User',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  username.isNotEmpty ? '@$username' : '@username',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: _profileMutedColor(context),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final IconData icon;
+  final ValueChanged<String> onChanged;
+
+  const _ProfileTextField({
+    required this.controller,
+    required this.hintText,
+    required this.icon,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.next,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: Icon(icon),
+      ),
+    );
+  }
+}
+
+class _EditProfileHint extends StatelessWidget {
+  final bool isValid;
+  final String text;
+
+  const _EditProfileHint({required this.isValid, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isValid ? PlanoraTheme.success : PlanoraTheme.error;
+
+    return AnimatedDefaultTextStyle(
+      duration: const Duration(milliseconds: 180),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ) ??
+          TextStyle(color: color, fontWeight: FontWeight.w700),
+      child: Row(
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: Icon(
+              isValid ? Icons.check_circle_rounded : Icons.info_rounded,
+              key: ValueKey(isValid),
+              size: 15,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text)),
+        ],
+      ),
     );
   }
 }
@@ -612,9 +1055,9 @@ class _PasswordRule extends StatelessWidget {
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 160),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w700,
-                ) ??
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                    ) ??
                 TextStyle(color: color, fontWeight: FontWeight.w700),
             child: Text(text),
           ),
@@ -638,12 +1081,7 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'What to include in a support request',
       body:
-          'When reporting an issue, include your account email, username, the screen you were using, the project or task name if relevant, the exact action you tried, and the error message you saw.',
-    ),
-    ProfileInfoSection(
-      title: 'Account and login issues',
-      body:
-          'For login, password, verification, or profile problems, mention whether the issue happened during login, registration, email verification, password reset, profile update, or password change.',
+          'When reporting an issue, include your account email, username, the screen you were using, the exact action you tried, and the error message you saw.',
     ),
     ProfileInfoSection(
       title: 'Known beta limitations',
@@ -726,12 +1164,12 @@ class ProfileInfoContent {
     ProfileInfoSection(
       title: 'Account responsibility',
       body:
-          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support at planora.verify@gmail.com.',
+          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support.',
     ),
     ProfileInfoSection(
-      title: 'Acceptable use',
+      title: 'AI-generated suggestions',
       body:
-          'Do not use Planora to upload illegal content, abuse other users, share malware, expose secrets, violate intellectual property rights, disrupt the service, or attempt unauthorized access to accounts, systems, projects, teams, or backend data.',
+          'Planora may generate AI-assisted suggestions, project plans, task breakdowns, or productivity guidance. AI output should be reviewed before use and should not be treated as guaranteed professional advice.',
     ),
     ProfileInfoSection(
       title: 'Contact',
@@ -742,12 +1180,12 @@ class ProfileInfoContent {
 
   static List<ProfileInfoSection>? sectionsForTitle(String title) {
     switch (title) {
-      case 'Help & Support':
-        return helpSupport;
       case 'Subscription':
         return subscription;
       case 'Billing & Invoices':
         return billingAndInvoices;
+      case 'Help & Support':
+        return helpSupport;
       case 'Privacy Policy':
         return privacyPolicy;
       case 'Terms of Service':
