@@ -63,7 +63,29 @@ class ProfileInfoScreen extends StatelessWidget {
     }
 
     if (title == 'Billing & Invoices') {
-      return const _BillingInvoicesInfoScreen();
+      return const _UnavailableInfoScreen(
+        title: 'Billing & Invoices',
+        icon: Icons.credit_card_outlined,
+        loadingTitle: 'Loading billing details...',
+        loadingBody:
+            'Checking whether invoices and payment details are available for this account.',
+        errorTitle: 'Billing is unavailable',
+        errorBody:
+            'Billing and invoices could not be loaded because payment management is not active in the current beta version of Planora.',
+      );
+    }
+
+    if (title == 'Email Preferences') {
+      return const _UnavailableInfoScreen(
+        title: 'Email Preferences',
+        icon: Icons.mail_outline_rounded,
+        loadingTitle: 'Loading email preferences...',
+        loadingBody:
+            'Checking whether email notification preferences are available for this account.',
+        errorTitle: 'Email preferences are unavailable',
+        errorBody:
+            'Email preferences could not be loaded because backend preference endpoints are not active in the current beta version of Planora.',
+      );
     }
 
     final isDark = PlanoraTheme.isDark(context);
@@ -359,20 +381,37 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
   }
 }
 
-class _BillingInvoicesInfoScreen extends StatefulWidget {
-  const _BillingInvoicesInfoScreen();
+class _UnavailableInfoScreen extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final String loadingTitle;
+  final String loadingBody;
+  final String errorTitle;
+  final String errorBody;
+
+  const _UnavailableInfoScreen({
+    required this.title,
+    required this.icon,
+    required this.loadingTitle,
+    required this.loadingBody,
+    required this.errorTitle,
+    required this.errorBody,
+  });
 
   @override
-  State<_BillingInvoicesInfoScreen> createState() =>
-      _BillingInvoicesInfoScreenState();
+  State<_UnavailableInfoScreen> createState() => _UnavailableInfoScreenState();
 }
 
-class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> {
+class _UnavailableInfoScreenState extends State<_UnavailableInfoScreen> {
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _finishLoading();
+  }
+
+  void _finishLoading() {
     Future<void>.delayed(const Duration(milliseconds: 700), () {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -381,10 +420,7 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> 
 
   void retry() {
     setState(() => _isLoading = true);
-    Future<void>.delayed(const Duration(milliseconds: 700), () {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    });
+    _finishLoading();
   }
 
   Widget buildLoadingCard(BuildContext context) {
@@ -402,7 +438,7 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> 
           ),
           const SizedBox(height: 18),
           Text(
-            'Loading billing details...',
+            widget.loadingTitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w900,
@@ -410,7 +446,7 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> 
           ),
           const SizedBox(height: 8),
           Text(
-            'Checking whether invoices and payment details are available for this account.',
+            widget.loadingBody,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: _mutedColor(context),
@@ -442,20 +478,20 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> 
               borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(
-              Icons.error_outline_rounded,
+              widget.icon,
               color: colorScheme.error,
             ),
           ),
           const SizedBox(height: 18),
           Text(
-            'Billing is unavailable',
+            widget.errorTitle,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Billing and invoices could not be loaded because payment management is not active in the current beta version of Planora.',
+            widget.errorBody,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: _mutedColor(context),
                   fontWeight: FontWeight.w700,
@@ -496,7 +532,7 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> 
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                 children: [
                   _PageHeader(
-                    title: 'Billing & Invoices',
+                    title: widget.title,
                     onBack: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(height: 18),
@@ -504,11 +540,11 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> 
                     duration: const Duration(milliseconds: 220),
                     child: _isLoading
                         ? KeyedSubtree(
-                            key: const ValueKey('billing-loading'),
+                            key: ValueKey('${widget.title}-loading'),
                             child: buildLoadingCard(context),
                           )
                         : KeyedSubtree(
-                            key: const ValueKey('billing-error'),
+                            key: ValueKey('${widget.title}-error'),
                             child: buildErrorCard(context),
                           ),
                   ),
