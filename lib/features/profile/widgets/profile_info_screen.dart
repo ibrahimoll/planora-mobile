@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/planora_theme.dart';
+import '../data/profile_info_content.dart';
 import '../models/profile_info_section.dart';
 
 class ProfileInfoScreen extends StatelessWidget {
@@ -24,7 +25,7 @@ class ProfileInfoScreen extends StatelessWidget {
   }
 
   List<Widget> buildContent(BuildContext context) {
-    final infoSections = sections;
+    final infoSections = sections ?? ProfileInfoContent.sectionsForTitle(title);
 
     if (infoSections == null || infoSections.isEmpty) {
       return [
