@@ -80,21 +80,9 @@ class ProfileInfoScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                      ),
-                    ],
+                  _PageHeader(
+                    title: title,
+                    onBack: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(height: 18),
                   Container(
@@ -184,13 +172,6 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  Widget buildHeader(BuildContext context) {
-    return _PageHeader(
-      title: 'Subscription',
-      onBack: () => Navigator.of(context).pop(),
-    );
   }
 
   Widget buildHeroCard(BuildContext context) {
@@ -340,7 +321,10 @@ class _SubscriptionInfoScreenState extends State<_SubscriptionInfoScreen>
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                 children: [
-                  buildHeader(context),
+                  _PageHeader(
+                    title: 'Subscription',
+                    onBack: () => Navigator.of(context).pop(),
+                  ),
                   const SizedBox(height: 18),
                   _Reveal(
                     controller: _controller,
@@ -383,195 +367,114 @@ class _BillingInvoicesInfoScreen extends StatefulWidget {
       _BillingInvoicesInfoScreenState();
 }
 
-class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  static const List<String> _availabilityNotes = [
-    'No payment method is required during beta',
-    'No invoices have been generated yet',
-    'No upgrade, downgrade, or cancellation flow is active',
-    'Billing can be connected later when the backend exposes it',
-  ];
+class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen> {
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 850),
-    )..forward();
+    Future<void>.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    });
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void retry() {
+    setState(() => _isLoading = true);
+    Future<void>.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    });
   }
 
-  Widget buildHeroCard(BuildContext context) {
+  Widget buildLoadingCard(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: PlanoraTheme.primaryGradientFor(context),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.22),
-            blurRadius: 24,
-            offset: const Offset(0, 14),
-          ),
-        ],
-      ),
+      decoration: _cardDecoration(context),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _HeroIcon(icon: Icons.receipt_long_rounded),
-              const Spacer(),
-              const _LightPill(
-                icon: Icons.info_outline_rounded,
-                label: 'Beta',
-              ),
-            ],
+          const SizedBox(height: 6),
+          const SizedBox(
+            width: 34,
+            height: 34,
+            child: CircularProgressIndicator(strokeWidth: 3),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
           Text(
-            'Billing is not available yet',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
+            'Loading billing details...',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Planora beta does not require payments. Invoice history will appear here only after production billing is added.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.84),
-                  fontWeight: FontWeight.w700,
-                  height: 1.45,
-                ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Row(
-              children: [
-                Expanded(child: _HeroMeta(label: 'Payment', value: 'Not needed')),
-                SizedBox(width: 10),
-                Expanded(child: _HeroMeta(label: 'Invoices', value: 'None')),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildStatusCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(context),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionTitle(
-            icon: Icons.account_balance_wallet_outlined,
-            title: 'Billing status',
-          ),
-          SizedBox(height: 14),
-          _InfoRow(label: 'Billing', value: 'Inactive in beta'),
-          _InfoRow(label: 'Payment method', value: 'None required'),
-          _InfoRow(label: 'Invoice history', value: 'Unavailable'),
-          _InfoRow(label: 'Charges', value: '0 during beta'),
-        ],
-      ),
-    );
-  }
-
-  Widget buildAvailabilityCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(
-            icon: Icons.fact_check_outlined,
-            title: 'What this means',
-          ),
-          const SizedBox(height: 14),
-          for (final note in _availabilityNotes) ...[
-            _CheckLine(text: note),
-            if (note != _availabilityNotes.last) const SizedBox(height: 12),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget buildFutureCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(
-            icon: Icons.upcoming_outlined,
-            title: 'Future billing support',
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'When Planora introduces production billing, this page can show payment methods, invoice downloads, billing history, subscription charges, and plan management actions.',
+            'Checking whether invoices and payment details are available for this account.',
+            textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: _mutedColor(context),
                   fontWeight: FontWeight.w700,
                   height: 1.45,
                 ),
           ),
-          const SizedBox(height: 16),
-          _SupportNote(
-            text:
-                'Billing questions? Contact ${ProfileInfoContent.betaSupportEmail}.',
-          ),
+          const SizedBox(height: 6),
         ],
       ),
     );
   }
 
-  Widget buildComingSoonCard(BuildContext context) {
+  Widget buildErrorCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
-        ),
-      ),
-      child: Row(
+      padding: const EdgeInsets.all(22),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.construction_rounded,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Invoice downloads and payment management are coming later with backend billing support.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: _mutedColor(context),
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
-                  ),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colorScheme.error.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(18),
             ),
+            child: Icon(
+              Icons.error_outline_rounded,
+              color: colorScheme.error,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Billing is unavailable',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Billing and invoices could not be loaded because payment management is not active in the current beta version of Planora.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _mutedColor(context),
+                  fontWeight: FontWeight.w700,
+                  height: 1.5,
+                ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: retry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SupportNote(
+            text:
+                'Need help? Contact ${ProfileInfoContent.betaSupportEmail}.',
           ),
         ],
       ),
@@ -597,34 +500,17 @@ class _BillingInvoicesInfoScreenState extends State<_BillingInvoicesInfoScreen>
                     onBack: () => Navigator.of(context).pop(),
                   ),
                   const SizedBox(height: 18),
-                  _Reveal(
-                    controller: _controller,
-                    index: 0,
-                    child: buildHeroCard(context),
-                  ),
-                  const SizedBox(height: 18),
-                  _Reveal(
-                    controller: _controller,
-                    index: 1,
-                    child: buildStatusCard(context),
-                  ),
-                  const SizedBox(height: 14),
-                  _Reveal(
-                    controller: _controller,
-                    index: 2,
-                    child: buildAvailabilityCard(context),
-                  ),
-                  const SizedBox(height: 14),
-                  _Reveal(
-                    controller: _controller,
-                    index: 3,
-                    child: buildComingSoonCard(context),
-                  ),
-                  const SizedBox(height: 14),
-                  _Reveal(
-                    controller: _controller,
-                    index: 4,
-                    child: buildFutureCard(context),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    child: _isLoading
+                        ? KeyedSubtree(
+                            key: const ValueKey('billing-loading'),
+                            child: buildLoadingCard(context),
+                          )
+                        : KeyedSubtree(
+                            key: const ValueKey('billing-error'),
+                            child: buildErrorCard(context),
+                          ),
                   ),
                 ],
               ),
@@ -813,7 +699,11 @@ class _SectionTitle extends StatelessWidget {
             color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          child: Icon(
+            icon,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -843,22 +733,23 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: _mutedColor(context),
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Flexible(
             child: Text(
               value,
-              textAlign: TextAlign.end,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
             ),
@@ -879,25 +770,17 @@ class _CheckLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 22,
-          height: 22,
-          margin: const EdgeInsets.only(top: 1),
-          decoration: BoxDecoration(
-            color: PlanoraTheme.success.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: const Icon(
-            Icons.check_rounded,
-            size: 15,
-            color: PlanoraTheme.success,
-          ),
+        Icon(
+          Icons.check_circle_rounded,
+          size: 19,
+          color: Theme.of(context).colorScheme.primary,
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: _mutedColor(context),
                   fontWeight: FontWeight.w700,
                   height: 1.35,
                 ),
@@ -916,38 +799,25 @@ class _SupportNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+        ),
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.support_agent_rounded,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: _mutedColor(context),
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
-                  ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: _mutedColor(context),
+              fontWeight: FontWeight.w800,
+              height: 1.35,
             ),
-          ),
-        ],
       ),
     );
   }
-}
-
-Color _mutedColor(BuildContext context) {
-  return PlanoraTheme.isDark(context)
-      ? PlanoraTheme.darkTextMuted
-      : PlanoraTheme.textSecondary;
 }
 
 BoxDecoration _cardDecoration(BuildContext context) {
@@ -955,10 +825,16 @@ BoxDecoration _cardDecoration(BuildContext context) {
 
   return BoxDecoration(
     color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-    borderRadius: BorderRadius.circular(24),
+    borderRadius: BorderRadius.circular(22),
     border: Border.all(
       color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
     ),
     boxShadow: PlanoraTheme.cardShadowFor(context),
   );
+}
+
+Color _mutedColor(BuildContext context) {
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkTextMuted
+      : PlanoraTheme.textSecondary;
 }
