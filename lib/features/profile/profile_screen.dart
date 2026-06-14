@@ -771,8 +771,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onTap: () => openProfileInfoPage(
             title: 'Help & Support',
             icon: Icons.help_outline_rounded,
-            body:
-                'For support, include your account email, the project or task name, and the exact action that failed. The mobile app now logs API failures with debugPrint to make reports easier to diagnose.',
+            sections: _helpSupportSections,
           ),
         ),
         _ProfileActionItem(
