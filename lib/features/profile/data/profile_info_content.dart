@@ -115,8 +115,9 @@ Widget _buildProfileActionTile(
   );
 }
 
-Future<void> _showLiveChangePasswordSheet(BuildContext context) async {
+void _showLiveChangePasswordSheet(BuildContext context) {
   const profileApi = ProfileApi();
+  final messenger = ScaffoldMessenger.maybeOf(context);
   final oldPasswordController = TextEditingController();
   final newPasswordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
@@ -137,265 +138,260 @@ Future<void> _showLiveChangePasswordSheet(BuildContext context) async {
     return hasMinLength(value) && hasUppercase(value) && hasSymbol(value);
   }
 
-  try {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        void closeSheet() {
-          if (isSheetClosing) return;
-          isSheetClosing = true;
-          FocusManager.instance.primaryFocus?.unfocus();
-          if (Navigator.canPop(sheetContext)) {
-            Navigator.of(sheetContext).pop();
-          }
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    isDismissible: false,
+    enableDrag: false,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      final sheetNavigator = Navigator.of(sheetContext);
+
+      void closeSheet() {
+        if (isSheetClosing) return;
+        isSheetClosing = true;
+        FocusManager.instance.primaryFocus?.unfocus();
+        if (sheetNavigator.canPop()) {
+          sheetNavigator.pop();
         }
+      }
 
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            final newPassword = newPasswordController.text;
-            final confirmPassword = confirmPasswordController.text;
-            final minLengthMet = hasMinLength(newPassword);
-            final uppercaseMet = hasUppercase(newPassword);
-            final symbolMet = hasSymbol(newPassword);
-            final matchMet =
-                confirmPassword.isNotEmpty && newPassword == confirmPassword;
-            final canSubmit = oldPasswordController.text.isNotEmpty &&
-                isStrong(newPassword) &&
-                matchMet &&
-                !isSaving &&
-                !isSheetClosing;
+      return StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final newPassword = newPasswordController.text;
+          final confirmPassword = confirmPasswordController.text;
+          final minLengthMet = hasMinLength(newPassword);
+          final uppercaseMet = hasUppercase(newPassword);
+          final symbolMet = hasSymbol(newPassword);
+          final matchMet =
+              confirmPassword.isNotEmpty && newPassword == confirmPassword;
+          final canSubmit = oldPasswordController.text.isNotEmpty &&
+              isStrong(newPassword) &&
+              matchMet &&
+              !isSaving &&
+              !isSheetClosing;
 
-            void refreshRules(String _) {
-              if (isSheetClosing) return;
-              setSheetState(() {});
-            }
+          void refreshRules(String _) {
+            if (isSheetClosing) return;
+            setSheetState(() {});
+          }
 
-            Future<void> submitPasswordChange() async {
-              if (!canSubmit) return;
+          Future<void> submitPasswordChange() async {
+            if (!canSubmit) return;
 
-              setSheetState(() {
-                isSaving = true;
-              });
+            setSheetState(() {
+              isSaving = true;
+            });
 
-              var changedPassword = false;
+            var changedPassword = false;
 
-              try {
-                await profileApi.changePassword(
-                  oldPassword: oldPasswordController.text,
-                  newPassword: newPasswordController.text,
-                );
+            try {
+              await profileApi.changePassword(
+                oldPassword: oldPasswordController.text,
+                newPassword: newPasswordController.text,
+              );
 
-                changedPassword = true;
-                closeSheet();
-                _showProfileSnack(context, 'Password changed successfully.');
-              } on ApiException catch (error) {
-                _showProfileSnack(context, error.message);
-              } catch (error, stackTrace) {
-                debugPrint('Password change failed: $error');
-                debugPrintStack(stackTrace: stackTrace);
-                _showProfileSnack(context, 'Could not change password.');
-              } finally {
-                if (!changedPassword && !isSheetClosing && sheetContext.mounted) {
-                  setSheetState(() {
-                    isSaving = false;
-                  });
-                }
+              changedPassword = true;
+              closeSheet();
+              messenger?.showSnackBar(
+                const SnackBar(content: Text('Password changed successfully.')),
+              );
+            } on ApiException catch (error) {
+              messenger?.showSnackBar(SnackBar(content: Text(error.message)));
+            } catch (error, stackTrace) {
+              debugPrint('Password change failed: $error');
+              debugPrintStack(stackTrace: stackTrace);
+              messenger?.showSnackBar(
+                const SnackBar(content: Text('Could not change password.')),
+              );
+            } finally {
+              if (!changedPassword && !isSheetClosing && sheetContext.mounted) {
+                setSheetState(() {
+                  isSaving = false;
+                });
               }
             }
+          }
 
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetContext).size.height * 0.92,
               ),
-              child: Container(
-                width: double.infinity,
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(sheetContext).size.height * 0.92,
-                ),
-                decoration: BoxDecoration(
-                  color: PlanoraTheme.isDark(sheetContext)
-                      ? PlanoraTheme.darkBackground
-                      : Colors.white,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(30)),
-                  boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Center(
-                        child: Container(
+              decoration: BoxDecoration(
+                color: PlanoraTheme.isDark(sheetContext)
+                    ? PlanoraTheme.darkBackground
+                    : Colors.white,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(30)),
+                boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: PlanoraTheme.isDark(sheetContext)
+                              ? PlanoraTheme.darkBorder
+                              : PlanoraTheme.border,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Container(
                           width: 44,
-                          height: 5,
+                          height: 44,
                           decoration: BoxDecoration(
-                            color: PlanoraTheme.isDark(sheetContext)
-                                ? PlanoraTheme.darkBorder
-                                : PlanoraTheme.border,
-                            borderRadius: BorderRadius.circular(999),
+                            color: Theme.of(sheetContext)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Icon(
+                            Icons.lock_reset_rounded,
+                            color: Theme.of(sheetContext).colorScheme.primary,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Theme.of(sheetContext)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Icon(
-                              Icons.lock_reset_rounded,
-                              color: Theme.of(sheetContext).colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Change Password',
-                              style: Theme.of(sheetContext)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: isSaving ? null : closeSheet,
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 22),
-                      const _PasswordIntroCard(),
-                      const SizedBox(height: 18),
-                      const _SheetLabel('Current password'),
-                      const SizedBox(height: 8),
-                      _PasswordField(
-                        controller: oldPasswordController,
-                        hintText: 'Enter your current password',
-                        icon: Icons.lock_outline_rounded,
-                        obscureText: obscureOld,
-                        onChanged: refreshRules,
-                        onToggleVisibility: () {
-                          if (isSheetClosing) return;
-                          setSheetState(() {
-                            obscureOld = !obscureOld;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      const _SheetLabel('New password'),
-                      const SizedBox(height: 8),
-                      _PasswordField(
-                        controller: newPasswordController,
-                        hintText: 'Create a strong new password',
-                        icon: Icons.password_rounded,
-                        obscureText: obscureNew,
-                        onChanged: refreshRules,
-                        onToggleVisibility: () {
-                          if (isSheetClosing) return;
-                          setSheetState(() {
-                            obscureNew = !obscureNew;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      _PasswordRulesCard(
-                        minLengthMet: minLengthMet,
-                        uppercaseMet: uppercaseMet,
-                        symbolMet: symbolMet,
-                        showMatchRule: confirmPassword.isNotEmpty,
-                        matchMet: matchMet,
-                      ),
-                      const SizedBox(height: 16),
-                      const _SheetLabel('Confirm new password'),
-                      const SizedBox(height: 8),
-                      _PasswordField(
-                        controller: confirmPasswordController,
-                        hintText: 'Re-enter your new password',
-                        icon: Icons.verified_user_outlined,
-                        obscureText: obscureConfirm,
-                        onChanged: refreshRules,
-                        onToggleVisibility: () {
-                          if (isSheetClosing) return;
-                          setSheetState(() {
-                            obscureConfirm = !obscureConfirm;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: ElevatedButton.icon(
-                          onPressed: canSubmit ? submitPasswordChange : null,
-                          icon: isSaving
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.lock_reset_rounded),
-                          label: Text(
-                            isSaving
-                                ? 'Updating password...'
-                                : 'Update Password',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Change Password',
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: TextButton(
+                        IconButton(
                           onPressed: isSaving ? null : closeSheet,
-                          child: const Text('Cancel'),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    const _PasswordIntroCard(),
+                    const SizedBox(height: 18),
+                    const _SheetLabel('Current password'),
+                    const SizedBox(height: 8),
+                    _PasswordField(
+                      controller: oldPasswordController,
+                      hintText: 'Enter your current password',
+                      icon: Icons.lock_outline_rounded,
+                      obscureText: obscureOld,
+                      onChanged: refreshRules,
+                      onToggleVisibility: () {
+                        if (isSheetClosing) return;
+                        setSheetState(() {
+                          obscureOld = !obscureOld;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const _SheetLabel('New password'),
+                    const SizedBox(height: 8),
+                    _PasswordField(
+                      controller: newPasswordController,
+                      hintText: 'Create a strong new password',
+                      icon: Icons.password_rounded,
+                      obscureText: obscureNew,
+                      onChanged: refreshRules,
+                      onToggleVisibility: () {
+                        if (isSheetClosing) return;
+                        setSheetState(() {
+                          obscureNew = !obscureNew;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _PasswordRulesCard(
+                      minLengthMet: minLengthMet,
+                      uppercaseMet: uppercaseMet,
+                      symbolMet: symbolMet,
+                      showMatchRule: confirmPassword.isNotEmpty,
+                      matchMet: matchMet,
+                    ),
+                    const SizedBox(height: 16),
+                    const _SheetLabel('Confirm new password'),
+                    const SizedBox(height: 8),
+                    _PasswordField(
+                      controller: confirmPasswordController,
+                      hintText: 'Re-enter your new password',
+                      icon: Icons.verified_user_outlined,
+                      obscureText: obscureConfirm,
+                      onChanged: refreshRules,
+                      onToggleVisibility: () {
+                        if (isSheetClosing) return;
+                        setSheetState(() {
+                          obscureConfirm = !obscureConfirm;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        onPressed: canSubmit ? submitPasswordChange : null,
+                        icon: isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.lock_reset_rounded),
+                        label: Text(
+                          isSaving ? 'Updating password...' : 'Update Password',
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Center(
-                        child: Text(
-                          'You will stay signed in after changing your password.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(sheetContext)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: _profileMutedColor(sheetContext),
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: TextButton(
+                        onPressed: isSaving ? null : closeSheet,
+                        child: const Text('Cancel'),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 6),
+                    Center(
+                      child: Text(
+                        'You will stay signed in after changing your password.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                              color: _profileMutedColor(sheetContext),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  } finally {
+            ),
+          );
+        },
+      );
+    },
+  ).whenComplete(() {
     oldPasswordController.dispose();
     newPasswordController.dispose();
     confirmPasswordController.dispose();
-  }
-}
-
-void _showProfileSnack(BuildContext context, String message) {
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  });
 }
 
 Color _profileMutedColor(BuildContext context) {
