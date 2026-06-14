@@ -146,6 +146,56 @@ class TaskModel {
     };
   }
 
+  TaskModel copyWith({
+    int? taskId,
+    int? projectId,
+    int? assignedTo,
+    String? assignedToName,
+    String? assignedToEmail,
+    String? assignedToAvatarUrl,
+    List<TaskMemberPreview>? members,
+    List<TaskMemberPreview>? followers,
+    List<TaskSubtaskPreview>? subtasks,
+    List<String>? tags,
+    int? createdBy,
+    String? title,
+    String? description,
+    String? sectionName,
+    TaskPriority? priority,
+    double? estimatedHours,
+    double? actualHours,
+    TaskStatus? status,
+    DateTime? startDate,
+    DateTime? dueDate,
+    DateTime? completedAt,
+    DateTime? createdAt,
+  }) {
+    return TaskModel(
+      taskId: taskId ?? this.taskId,
+      projectId: projectId ?? this.projectId,
+      assignedTo: assignedTo ?? this.assignedTo,
+      assignedToName: assignedToName ?? this.assignedToName,
+      assignedToEmail: assignedToEmail ?? this.assignedToEmail,
+      assignedToAvatarUrl: assignedToAvatarUrl ?? this.assignedToAvatarUrl,
+      members: members ?? this.members,
+      followers: followers ?? this.followers,
+      subtasks: subtasks ?? this.subtasks,
+      tags: tags ?? this.tags,
+      createdBy: createdBy ?? this.createdBy,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      sectionName: sectionName ?? this.sectionName,
+      priority: priority ?? this.priority,
+      estimatedHours: estimatedHours ?? this.estimatedHours,
+      actualHours: actualHours ?? this.actualHours,
+      status: status ?? this.status,
+      startDate: startDate ?? this.startDate,
+      dueDate: dueDate ?? this.dueDate,
+      completedAt: completedAt ?? this.completedAt,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   bool get isCompleted {
     return status == TaskStatus.completed;
   }
@@ -1058,6 +1108,13 @@ class TaskListItem {
 
   Map<String, dynamic> toJson() {
     return {'task': task.toJson(), 'project': project.toJson()};
+  }
+
+  TaskListItem copyWith({TaskModel? task, TaskProjectSummary? project}) {
+    return TaskListItem(
+      task: task ?? this.task,
+      project: project ?? this.project,
+    );
   }
 }
 

@@ -15,6 +15,7 @@ class ProjectDetailScreen extends StatefulWidget {
   final TasksApi tasksApi;
   final AiPlanApi aiPlanApi;
   final ProjectInsightsApi insightsApi;
+  final VoidCallback? onProjectChanged;
 
   const ProjectDetailScreen({
     super.key,
@@ -23,6 +24,7 @@ class ProjectDetailScreen extends StatefulWidget {
     this.tasksApi = const TasksApi(),
     this.aiPlanApi = const AiPlanApi(),
     this.insightsApi = const ProjectInsightsApi(),
+    this.onProjectChanged,
   });
 
   @override
@@ -51,6 +53,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   List<ProjectMemberModel> members = [];
   List<TaskListItem> projectTasks = [];
   RiskAnalysisPreviewModel? riskPreview;
+
+  bool get isCollaborativePersonalProject {
+    return !project.isTeamProject && members.length > 1;
+  }
+
+  String get projectTypeDisplayLabel {
+    if (isCollaborativePersonalProject) {
+      return 'Collaborative';
+    }
+
+    return project.projectTypeLabel;
+  }
 
   @override
   void initState() {
@@ -429,7 +443,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      project.projectTypeLabel,
+                      projectTypeDisplayLabel,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: mutedColor(context),
                         fontWeight: FontWeight.w700,
@@ -1521,9 +1535,9 @@ Improve means add missing steps, break down vague tasks, identify gaps, adjust p
       if (!mounted) return;
 
       final skipped = response.tasksSkippedAsDuplicates;
-      final message = skipped > 0
-          ? 'AI added ${response.tasksCreated} tasks and skipped $skipped duplicates.'
-          : 'AI added ${response.tasksCreated} project tasks.';
+      final message = response.tasksCreated == 0
+          ? 'No new useful tasks were added because the plan already covers this.'
+          : 'Added ${response.tasksCreated} useful tasks. Skipped $skipped duplicates.';
 
       ScaffoldMessenger.of(
         context,
@@ -1921,6 +1935,7 @@ Improve means add missing steps, break down vague tasks, identify gaps, adjust p
                                         loadRiskPreview(convertedProject),
                                         _projectsApi.getProjects().then((_) {}),
                                       ]);
+                                      widget.onProjectChanged?.call();
                                     } else {
                                       await _projectsApi.inviteProjectMember(
                                         project: project,
@@ -1932,7 +1947,8 @@ Improve means add missing steps, break down vague tasks, identify gaps, adjust p
                                         return;
                                       }
 
-                                      await loadProjectMembers(project);
+                                      await loadProjectDetails();
+                                      widget.onProjectChanged?.call();
                                     }
 
                                     if (!mounted || !sheetContext.mounted) {

@@ -14,6 +14,7 @@ class NotificationsScreen extends StatefulWidget {
   final NotificationsApi notificationsApi;
   final ProjectsApi projectsApi;
   final TasksApi tasksApi;
+  final int? currentUserId;
   final ValueChanged<NotificationNavigationTarget>? onNavigateForTest;
 
   const NotificationsScreen({
@@ -21,6 +22,7 @@ class NotificationsScreen extends StatefulWidget {
     this.notificationsApi = const NotificationsApi(),
     this.projectsApi = const ProjectsApi(),
     this.tasksApi = const TasksApi(),
+    this.currentUserId,
     this.onNavigateForTest,
   });
 
@@ -160,9 +162,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         await openProjectTarget(target);
         break;
       case NotificationRouteKind.team:
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const TeamsScreen()));
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => TeamsScreen(
+              showBackButton: true,
+              openInvitations:
+                  notification.type == 'invite' ||
+                  notification.type == 'invitation',
+              currentUserId: widget.currentUserId ?? notification.userId,
+            ),
+          ),
+        );
         break;
       case NotificationRouteKind.detail:
         showNotificationDetail(notification);

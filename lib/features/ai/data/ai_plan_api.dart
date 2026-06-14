@@ -90,6 +90,7 @@ class AiPlanGenerateResponse {
   final String summary;
   final int tasksCreated;
   final int tasksSkippedAsDuplicates;
+  final int rejectedGenericCount;
   final String? improvementSummary;
   final List<AiGeneratedTask> tasks;
 
@@ -99,6 +100,7 @@ class AiPlanGenerateResponse {
     required this.summary,
     required this.tasksCreated,
     required this.tasksSkippedAsDuplicates,
+    required this.rejectedGenericCount,
     required this.improvementSummary,
     required this.tasks,
   });
@@ -113,6 +115,10 @@ class AiPlanGenerateResponse {
       tasksCreated: _parseInt(json['tasks_created'], fallback: 0),
       tasksSkippedAsDuplicates: _parseInt(
         json['tasks_skipped_as_duplicates'],
+        fallback: 0,
+      ),
+      rejectedGenericCount: _parseInt(
+        json['rejected_generic_count'],
         fallback: 0,
       ),
       improvementSummary: json['improvement_summary'] as String?,
@@ -312,6 +318,7 @@ class AiPlanPreviewResponse {
       summary: summary,
       tasksCreated: tasks.length,
       tasksSkippedAsDuplicates: 0,
+      rejectedGenericCount: 0,
       improvementSummary: summary,
       tasks: tasks,
     );

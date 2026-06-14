@@ -220,11 +220,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
         isGeneratingPlan = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('AI created ${response.tasksCreated} project tasks.'),
-        ),
-      );
+      final skipped = response.tasksSkippedAsDuplicates;
+      final message = response.tasksCreated == 0
+          ? 'No new useful tasks were added because the plan already covers this.'
+          : 'Added ${response.tasksCreated} useful tasks. Skipped $skipped duplicates.';
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error, stackTrace) {
       logAiChatError('generate plan', error, stackTrace);
 

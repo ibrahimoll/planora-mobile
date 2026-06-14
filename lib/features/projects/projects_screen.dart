@@ -216,7 +216,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   int get totalProjectsCount => projects.length;
-  int get activeProjectsCount => projects.where((project) => project.isActive).length;
+  int get activeProjectsCount =>
+      projects.where((project) => project.isActive).length;
   int get completedProjectsCount =>
       projects.where((project) => project.isCompleted).length;
 
@@ -232,7 +233,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   int completedTasksForProject(ProjectModel project) {
-    return tasksForProject(project).where((item) => item.task.isCompleted).length;
+    return tasksForProject(
+      project,
+    ).where((item) => item.task.isCompleted).length;
   }
 
   double getProjectProgress(ProjectModel project) {
@@ -256,10 +259,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   TaskListItem? nextTaskForProject(ProjectModel project) {
-    final tasks = tasksForProject(project)
-        .where((item) => !item.task.isCompleted)
-        .toList()
-      ..sort(compareUpcomingTaskItems);
+    final tasks =
+        tasksForProject(
+            project,
+          ).where((item) => !item.task.isCompleted).toList()
+          ..sort(compareUpcomingTaskItems);
 
     if (tasks.isEmpty) return null;
     return tasks.first;
@@ -402,7 +406,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       restoreDeletedProject(key, removedProject, removedTasks);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete plan. Please try again.')),
+        const SnackBar(
+          content: Text('Could not delete plan. Please try again.'),
+        ),
       );
     }
   }
@@ -494,9 +500,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               children: [
                 Text(
                   'Start a Plan',
-                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 14),
                 buildCreateModeTile(
@@ -553,7 +559,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: primary ? color.withValues(alpha: 0.35) : borderColor(context),
+            color: primary
+                ? color.withValues(alpha: 0.35)
+                : borderColor(context),
           ),
         ),
         child: Row(
@@ -564,7 +572,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                   const SizedBox(height: 4),
                   Text(subtitle, style: TextStyle(color: mutedColor(context))),
                 ],
@@ -696,7 +707,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     if (title.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project title must be at least 2 letters.')),
+        const SnackBar(
+          content: Text('Project title must be at least 2 letters.'),
+        ),
       );
       return;
     }
@@ -903,7 +916,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: selected
-                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.12)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -944,7 +959,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             SizedBox(width: 6),
             Text(
               'New Plan',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
         ),
@@ -1064,7 +1082,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final visibleProjects = filteredProjects;
 
     if (visibleProjects.isEmpty) {
-      if (projects.isNotEmpty && (hasActiveSearch || selectedFilterIndex != 0)) {
+      if (projects.isNotEmpty &&
+          (hasActiveSearch || selectedFilterIndex != 0)) {
         return buildMessageState(
           context,
           icon: Icons.search_off_rounded,
@@ -1079,7 +1098,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         context,
         icon: Icons.folder_open_rounded,
         title: 'No plans yet',
-        message: 'Describe an idea or create a manual plan to start organizing it.',
+        message:
+            'Describe an idea or create a manual plan to start organizing it.',
         buttonText: 'Start Plan',
         onPressed: showCreateProjectSheet,
       );
@@ -1119,7 +1139,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             SizedBox(width: 8),
             Text(
               'Delete',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
         ),
@@ -1139,7 +1162,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       onTap: () async {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => ProjectDetailScreen(project: project),
+            builder: (_) => ProjectDetailScreen(
+              project: project,
+              onProjectChanged: loadProjects,
+            ),
           ),
         );
 
@@ -1181,7 +1207,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: isDark ? Colors.white : const Color(0xFF1E1B4B),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF1E1B4B),
                         ),
                       ),
                       const SizedBox(height: 5),
@@ -1191,10 +1219,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                             : 'Next: ${nextTask.task.title}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: mutedColor(context),
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: mutedColor(context),
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
                     ],
                   ),
@@ -1218,8 +1247,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 5,
-                      backgroundColor:
-                          isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB),
+                      backgroundColor: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE5E7EB),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         project.isCompleted
                             ? const Color(0xFF7C3AED)
@@ -1241,7 +1271,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const SizedBox(height: 14),
             Row(
               children: [
-                Icon(Icons.calendar_today_rounded, size: 14, color: mutedColor(context)),
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 14,
+                  color: mutedColor(context),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -1284,11 +1318,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       context,
       project.isTeamProject ? 'Team' : 'Personal',
       project.isTeamProject ? const Color(0xFF8B5CF6) : const Color(0xFF64748B),
-      icon: project.isTeamProject ? Icons.groups_2_rounded : Icons.person_rounded,
+      icon: project.isTeamProject
+          ? Icons.groups_2_rounded
+          : Icons.person_rounded,
     );
   }
 
-  Widget buildChip(BuildContext context, String label, Color color, {IconData? icon}) {
+  Widget buildChip(
+    BuildContext context,
+    String label,
+    Color color, {
+    IconData? icon,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -1367,7 +1408,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFF59E0B).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.18)),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+        ),
       ),
       child: Row(
         children: [

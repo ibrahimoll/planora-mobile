@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
@@ -56,6 +57,7 @@ class _TasksScreenState extends State<TasksScreen> {
   int? selectedCreateProjectId;
   int? selectedAssignedUserId;
   int? completingTaskId;
+  int? deletingTaskId;
   int? completionFeedbackTaskId;
   TaskSortOrder selectedSortOrder = TaskSortOrder.overdueFirst;
 
@@ -1688,6 +1690,53 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
         );
       },
+      child: buildSlidableTaskCard(context, item),
+    );
+  }
+
+  Widget buildSlidableTaskCard(BuildContext context, TaskListItem item) {
+    final task = item.task;
+    final isCompleted = task.isCompleted;
+    final isCompleting = completingTaskId == task.taskId;
+    final isDeleting = deletingTaskId == task.taskId;
+
+    return Slidable(
+      key: ValueKey('task-slidable-${task.taskId}-${task.status.value}'),
+      closeOnScroll: true,
+      startActionPane: ActionPane(
+        motion: const StretchMotion(),
+        extentRatio: 0.34,
+        children: [
+          SlidableAction(
+            onPressed: isCompleted || isCompleting || isDeleting
+                ? null
+                : (_) => markTaskCompleted(item),
+            backgroundColor: PlanoraTheme.success,
+            foregroundColor: Colors.white,
+            icon: isCompleted
+                ? Icons.check_circle_rounded
+                : Icons.check_rounded,
+            label: isCompleted ? 'Completed' : 'Complete',
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ],
+      ),
+      endActionPane: ActionPane(
+        motion: const StretchMotion(),
+        extentRatio: 0.34,
+        children: [
+          SlidableAction(
+            onPressed: isDeleting
+                ? null
+                : (_) => confirmDeleteTaskFromList(item),
+            backgroundColor: PlanoraTheme.error,
+            foregroundColor: Colors.white,
+            icon: Icons.delete_outline_rounded,
+            label: isDeleting ? 'Deleting' : 'Delete',
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ],
+      ),
       child: buildTaskCard(context, item),
     );
   }
@@ -2068,9 +2117,22 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> markTaskCompleted(TaskListItem item) async {
+    if (item.task.isCompleted || completingTaskId == item.task.taskId) {
+      return;
+    }
+
+    final previousItem = item;
+    final optimisticItem = item.copyWith(
+      task: item.task.copyWith(
+        status: TaskStatus.completed,
+        completedAt: DateTime.now(),
+      ),
+    );
+
     setState(() {
       completingTaskId = item.task.taskId;
     });
+    replaceTask(optimisticItem);
 
     try {
       final updatedTask = await _tasksApi.markTaskCompleted(
@@ -2106,6 +2168,7 @@ class _TasksScreenState extends State<TasksScreen> {
         return;
       }
 
+      replaceTask(previousItem);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not complete task. Try again.')),
       );
@@ -2113,6 +2176,81 @@ class _TasksScreenState extends State<TasksScreen> {
       if (mounted) {
         setState(() {
           completingTaskId = null;
+        });
+      }
+    }
+  }
+
+  Future<void> confirmDeleteTaskFromList(TaskListItem item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete task?'),
+          content: Text('Remove "${item.task.title}" from this project?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(foregroundColor: PlanoraTheme.error),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await deleteTaskFromList(item);
+    }
+  }
+
+  Future<void> deleteTaskFromList(TaskListItem item) async {
+    final previousTasks = List<TaskListItem>.from(tasks);
+
+    setState(() {
+      deletingTaskId = item.task.taskId;
+      tasks = tasks
+          .where((taskItem) => taskItem.task.taskId != item.task.taskId)
+          .toList();
+    });
+
+    try {
+      await _tasksApi.deleteTask(
+        project: item.project,
+        taskId: item.task.taskId,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      widget.onTasksChanged?.call();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Task deleted.')));
+    } catch (error, stackTrace) {
+      debugPrint('Task delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        tasks = previousTasks;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete task. Try again.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          deletingTaskId = null;
         });
       }
     }

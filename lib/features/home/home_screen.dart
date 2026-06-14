@@ -337,7 +337,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> openNotifications() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => const NotificationsScreen(),
+        builder: (context) =>
+            NotificationsScreen(currentUserId: widget.user.userId),
       ),
     );
 
@@ -346,6 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     loadUnreadNotificationCount();
+    loadPendingTeamInvitationCount();
   }
 
   Future<void> openReports() async {

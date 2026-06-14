@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/theme/planora_theme.dart';
+import '../auth/data/auth_api.dart';
 import 'data/tasks_api.dart';
 import 'models/task_models.dart';
 
@@ -41,6 +42,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   List<TaskAttachmentModel> attachments = [];
   List<TaskCommentModel> comments = [];
+  TaskMemberPreview? currentUserPreview = const TaskMemberPreview(
+    userId: null,
+    name: 'P',
+    email: null,
+    avatarUrl: null,
+    fallbackLabel: 'You',
+  );
 
   bool isRefreshing = false;
   bool isSaving = false;
@@ -63,11 +71,48 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     super.initState();
     taskItem = widget.initialTask;
     prepareEditForm();
+    unawaited(loadCurrentUserPreview());
     loadTaskDetails();
     _commentPollingTimer = Timer.periodic(
       _commentPollingInterval,
       (_) => unawaited(_pollCommentsIfNeeded()),
     );
+  }
+
+  Future<void> loadCurrentUserPreview() async {
+    try {
+      final user = await AuthApi.getCurrentUser();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        currentUserPreview = TaskMemberPreview(
+          userId: user.userId,
+          name: user.fullName,
+          email: user.email,
+          avatarUrl: user.profilePic,
+        );
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Current user preview load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        currentUserPreview = const TaskMemberPreview(
+          userId: null,
+          name: 'P',
+          email: null,
+          avatarUrl: null,
+          fallbackLabel: 'You',
+        );
+      });
+    }
   }
 
   @override
@@ -406,20 +451,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         label: task.status.label,
         color: statusColor(task.status),
       ),
-      buildMetadataChip(
-        context,
-        icon: Icons.flag_rounded,
-        label: '${task.priority.label} Priority',
-        color: priorityColor(task.priority),
-      ),
-      buildMetadataChip(
-        context,
-        icon: Icons.calendar_today_rounded,
-        label: task.dueDate == null
-            ? 'No due date'
-            : formatShortDate(task.dueDate!),
-        color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
-      ),
     ];
 
     return Wrap(spacing: 8, runSpacing: 8, children: chips);
@@ -651,10 +682,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         buildDescriptionCard(context),
         const SizedBox(height: 14),
         buildInfoGrid(context),
-        const SizedBox(height: 14),
-        buildAssigneeCard(context),
-        buildTagsSection(context),
-        buildFollowersSection(context),
+        if (detailAssigneePreview() != null) ...[
+          const SizedBox(height: 14),
+          buildAssigneeCard(context),
+        ],
       ],
     );
   }
@@ -1767,7 +1798,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
     return Row(
       children: [
-        buildMemberAvatar(context, detailAssigneePreview(), size: 34),
+        buildMemberAvatar(context, currentUserPreview, size: 34),
         const SizedBox(width: 10),
         Expanded(
           child: TextField(

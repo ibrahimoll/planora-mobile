@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:mobile/core/network/api_exception.dart';
+import 'package:mobile/core/theme/planora_theme.dart';
 import 'package:mobile/features/auth/data/project_api.dart';
 import 'package:mobile/features/auth/models/project_models.dart';
 import 'package:mobile/features/projects/project_detail_screen.dart';
@@ -13,6 +14,7 @@ class TeamsScreen extends StatefulWidget {
   final ProjectsApi projectsApi;
   final TasksApi tasksApi;
   final bool showBackButton;
+  final bool openInvitations;
   final VoidCallback? onTeamsChanged;
   final int? currentUserId;
 
@@ -22,6 +24,7 @@ class TeamsScreen extends StatefulWidget {
     this.projectsApi = const ProjectsApi(),
     this.tasksApi = const TasksApi(),
     this.showBackButton = false,
+    this.openInvitations = false,
     this.onTeamsChanged,
     this.currentUserId,
   });
@@ -47,6 +50,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTabIndex = widget.openInvitations ? 1 : 0;
     _loadTeams();
   }
 
@@ -193,11 +197,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark
-        ? const Color(0xFF0B0820)
-        : const Color(0xFFFAFAFF);
-
     final content = RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
       onRefresh: () => _loadTeams(showLoading: false),
@@ -238,11 +237,21 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
-          child: content,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: content,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -600,8 +609,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                         Navigator.of(sheetContext).pop();
                         await Navigator.of(context).push(
                           MaterialPageRoute<void>(
-                            builder: (_) =>
-                                ProjectDetailScreen(project: project),
+                            builder: (_) => ProjectDetailScreen(
+                              project: project,
+                              onProjectChanged: () {
+                                _loadTeams(showLoading: false);
+                              },
+                            ),
                           ),
                         );
                         if (mounted) _loadTeams(showLoading: false);
@@ -885,7 +898,6 @@ class _TeamsHeader extends StatelessWidget {
                   fontSize: 28,
                   height: 1.05,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: -0.8,
                   color: titleColor,
                 ),
               ),
@@ -1207,7 +1219,6 @@ class _TeamCard extends StatelessWidget {
                                     fontSize: 16.5,
                                     height: 1.15,
                                     fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.2,
                                     color: isDark
                                         ? Colors.white
                                         : const Color(0xFF171B2E),
@@ -1222,7 +1233,7 @@ class _TeamCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            '${(completion * 100).round()}% complete • Tap for details',
+                            '${(completion * 100).round()}% complete - Tap for details',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
