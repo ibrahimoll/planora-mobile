@@ -87,20 +87,28 @@ class AiPlanApi {
 class AiPlanGenerateResponse {
   final int projectId;
   final int planId;
+  final bool success;
+  final String message;
   final String summary;
   final int tasksCreated;
   final int tasksSkippedAsDuplicates;
   final int rejectedGenericCount;
+  final int rejectedUnrelatedCount;
+  final String aiGenerationStatus;
   final String? improvementSummary;
   final List<AiGeneratedTask> tasks;
 
   const AiPlanGenerateResponse({
     required this.projectId,
     required this.planId,
+    required this.success,
+    required this.message,
     required this.summary,
     required this.tasksCreated,
     required this.tasksSkippedAsDuplicates,
     required this.rejectedGenericCount,
+    required this.rejectedUnrelatedCount,
+    required this.aiGenerationStatus,
     required this.improvementSummary,
     required this.tasks,
   });
@@ -111,6 +119,8 @@ class AiPlanGenerateResponse {
     return AiPlanGenerateResponse(
       projectId: _parseInt(json['project_id']),
       planId: _parseInt(json['plan_id']),
+      success: _parseBool(json['success'], fallback: true),
+      message: json['message'] as String? ?? '',
       summary: json['summary'] as String? ?? '',
       tasksCreated: _parseInt(json['tasks_created'], fallback: 0),
       tasksSkippedAsDuplicates: _parseInt(
@@ -121,6 +131,12 @@ class AiPlanGenerateResponse {
         json['rejected_generic_count'],
         fallback: 0,
       ),
+      rejectedUnrelatedCount: _parseInt(
+        json['rejected_unrelated_count'],
+        fallback: 0,
+      ),
+      aiGenerationStatus:
+          json['ai_generation_status'] as String? ?? 'generated',
       improvementSummary: json['improvement_summary'] as String?,
       tasks: tasks
           .map((item) => AiGeneratedTask.fromJson(item as Map<String, dynamic>))
@@ -134,6 +150,24 @@ class AiPlanGenerateResponse {
     }
 
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static bool _parseBool(dynamic value, {required bool fallback}) {
+    if (value is bool) {
+      return value;
+    }
+
+    final normalized = value?.toString().toLowerCase().trim();
+
+    if (normalized == 'true') {
+      return true;
+    }
+
+    if (normalized == 'false') {
+      return false;
+    }
+
+    return fallback;
   }
 }
 
@@ -211,6 +245,9 @@ class AiGeneratedTask {
 }
 
 class AiPlanPreviewResponse {
+  final bool success;
+  final String message;
+  final String aiGenerationStatus;
   final String source;
   final String domain;
   final String projectTitle;
@@ -227,8 +264,13 @@ class AiPlanPreviewResponse {
   final String? requirements;
   final int availableHoursPerWeek;
   final int preferredTaskCount;
+  final int rejectedGenericCount;
+  final int rejectedUnrelatedCount;
 
   const AiPlanPreviewResponse({
+    required this.success,
+    required this.message,
+    required this.aiGenerationStatus,
     required this.source,
     required this.domain,
     required this.projectTitle,
@@ -245,6 +287,8 @@ class AiPlanPreviewResponse {
     required this.requirements,
     required this.availableHoursPerWeek,
     required this.preferredTaskCount,
+    required this.rejectedGenericCount,
+    required this.rejectedUnrelatedCount,
   });
 
   factory AiPlanPreviewResponse.fromJson(Map<String, dynamic> json) {
@@ -254,7 +298,11 @@ class AiPlanPreviewResponse {
     final recommendations = json['recommendations'] as List? ?? [];
 
     return AiPlanPreviewResponse(
-      source: json['source'] as String? ?? 'local_rule_based_v1',
+      success: _parseBool(json['success'], fallback: true),
+      message: json['message'] as String? ?? '',
+      aiGenerationStatus:
+          json['ai_generation_status'] as String? ?? 'generated',
+      source: json['source'] as String? ?? 'ai_provider',
       domain: json['domain'] as String? ?? 'general',
       projectTitle: json['project_title'] as String? ?? 'AI Generated Plan',
       description: json['description'] as String?,
@@ -291,6 +339,14 @@ class AiPlanPreviewResponse {
         json['preferred_task_count'],
         fallback: tasks.length,
       ),
+      rejectedGenericCount: _parseInt(
+        json['rejected_generic_count'],
+        fallback: 0,
+      ),
+      rejectedUnrelatedCount: _parseInt(
+        json['rejected_unrelated_count'],
+        fallback: 0,
+      ),
     );
   }
 
@@ -315,10 +371,14 @@ class AiPlanPreviewResponse {
     return AiPlanGenerateResponse(
       projectId: 0,
       planId: 0,
+      success: success,
+      message: message,
       summary: summary,
       tasksCreated: tasks.length,
       tasksSkippedAsDuplicates: 0,
-      rejectedGenericCount: 0,
+      rejectedGenericCount: rejectedGenericCount,
+      rejectedUnrelatedCount: rejectedUnrelatedCount,
+      aiGenerationStatus: aiGenerationStatus,
       improvementSummary: summary,
       tasks: tasks,
     );
@@ -326,6 +386,9 @@ class AiPlanPreviewResponse {
 
   Map<String, dynamic> toJson() {
     return {
+      'success': success,
+      'message': message,
+      'ai_generation_status': aiGenerationStatus,
       'source': source,
       'domain': domain,
       'project_title': projectTitle,
@@ -353,6 +416,8 @@ class AiPlanPreviewResponse {
       'requirements': requirements,
       'available_hours_per_week': availableHoursPerWeek,
       'preferred_task_count': preferredTaskCount,
+      'rejected_generic_count': rejectedGenericCount,
+      'rejected_unrelated_count': rejectedUnrelatedCount,
     };
   }
 
@@ -362,6 +427,24 @@ class AiPlanPreviewResponse {
     }
 
     return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
+  static bool _parseBool(dynamic value, {required bool fallback}) {
+    if (value is bool) {
+      return value;
+    }
+
+    final normalized = value?.toString().toLowerCase().trim();
+
+    if (normalized == 'true') {
+      return true;
+    }
+
+    if (normalized == 'false') {
+      return false;
+    }
+
+    return fallback;
   }
 
   static int? _parseOptionalInt(dynamic value) {

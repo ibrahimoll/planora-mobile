@@ -25,6 +25,9 @@ class AiProjectWizardScreen extends StatefulWidget {
   State<AiProjectWizardScreen> createState() => _AiProjectWizardScreenState();
 }
 
+const _aiPlanningUnavailableMessage =
+    'AI planning is unavailable right now. Please try again.';
+
 class AiPlanPreviewContent extends StatelessWidget {
   final ProjectModel project;
   final AiPlanGenerateResponse plan;
@@ -698,6 +701,11 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       return;
     }
 
+    if (!preview.success || preview.aiGenerationStatus == 'failed') {
+      showMessage(_aiPlanningUnavailableMessage);
+      return;
+    }
+
     setState(() {
       isGeneratingPlan = true;
       generationMessageIndex = 0;
@@ -721,7 +729,13 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       });
       stopGenerationLoadingSequence();
       widget.onPlanCreated?.call();
-      showMessage('Project created with AI tasks.');
+      final skipped = accepted.plan.tasksSkippedAsDuplicates;
+      final created = accepted.plan.tasksCreated;
+      showMessage(
+        created == 0
+            ? 'No new useful tasks were added because the plan already covers this.'
+            : 'Added $created useful tasks. Skipped $skipped duplicates.',
+      );
 
       await openCreatedProject();
     } catch (error, stackTrace) {
@@ -827,10 +841,8 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         requirements,
       ],
       '',
-      'Create tasks that directly depend on the project idea and domain.',
-      'Do not default to software, app, coding, or implementation tasks unless the user idea is actually about software.',
-      'For a clothing business, include niche research, budget, suppliers, brand name, collection planning, store or social media setup, launch plan, delivery, legal, and operations tasks.',
-      'Do not suggest extreme physical asset tasks such as owning land, buying land, or building a factory unless the user specifically says they need land, a physical location, a factory, or manufacturing site.',
+      'Create tasks that directly depend on the exact project idea.',
+      'Do not assume a different project type or add unrelated activities.',
       'Return a practical plan with milestones, priorities, estimated hours, due dates, risks, and next-step recommendations when available.',
     ].join('\n');
   }
@@ -1121,7 +1133,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     return InkWell(
       onTap: () {
         ideaController.text =
-            'I want to start a clothing business with a small first collection, online sales, social media marketing, and delivery planning.';
+            'I want to turn a personal idea into a clear project with practical steps, a deadline, and a way to measure progress.';
         setState(() {});
       },
       borderRadius: BorderRadius.circular(18),
@@ -1148,7 +1160,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Example: I want to start a clothing business with a small first collection, online sales, social media marketing, and delivery planning.',
+                'Example: I want to turn a personal idea into a clear project with practical steps, a deadline, and a way to measure progress.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: isDark
                       ? PlanoraTheme.darkTextPrimary
@@ -1625,6 +1637,31 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         icon: Icons.auto_awesome_rounded,
         title: 'Ready to generate',
         message: 'Review your context and generate a plan.',
+      );
+    }
+
+    if (!plan.success || plan.aiGenerationStatus == 'failed') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildResultState(
+            context,
+            icon: Icons.wifi_off_rounded,
+            title: 'AI plan could not be generated',
+            message: _aiPlanningUnavailableMessage,
+          ),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            onPressed: () {
+              setState(() {
+                currentStep = 1;
+                generationError = null;
+              });
+            },
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Review Again'),
+          ),
+        ],
       );
     }
 
