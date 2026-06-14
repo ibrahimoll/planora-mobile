@@ -355,25 +355,74 @@ class _ExpandableTaskDescriptionState
     extends State<_ExpandableTaskDescription> {
   bool isExpanded = false;
 
+  bool get isSmartDescription {
+    final description = widget.description;
+
+    return description.contains('Goal:') &&
+        description.contains('Steps:') &&
+        description.contains('Deliverable:') &&
+        description.contains('Done when:');
+  }
+
   bool get shouldShowToggle {
     return widget.description.trim().length > 180 ||
         widget.description.trim().split(RegExp(r'\s+')).length > 26;
   }
 
+  List<TextSpan> _descriptionSpans(BuildContext context, TextStyle baseStyle) {
+    final labelPattern = RegExp(
+      r'^(Goal:|Steps:|Deliverable:|Done when:|Customer benefit:|Assumption:)(.*)$',
+    );
+    final lines = widget.description.trim().split('\n');
+    final spans = <TextSpan>[];
+
+    for (var index = 0; index < lines.length; index++) {
+      final line = lines[index];
+      final match = labelPattern.firstMatch(line.trim());
+
+      if (match == null) {
+        spans.add(TextSpan(text: line));
+      } else {
+        spans.add(
+          TextSpan(
+            text: match.group(1),
+            style: baseStyle.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        );
+        spans.add(TextSpan(text: match.group(2)));
+      }
+
+      if (index < lines.length - 1) {
+        spans.add(const TextSpan(text: '\n'));
+      }
+    }
+
+    return spans;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final baseStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: widget.color,
+      height: 1.45,
+      fontWeight: FontWeight.w600,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.description,
-          maxLines: isExpanded ? null : 4,
-          overflow: isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: widget.color,
-            height: 1.4,
-            fontWeight: FontWeight.w600,
+        Text.rich(
+          TextSpan(
+            style: baseStyle,
+            children: isSmartDescription && baseStyle != null
+                ? _descriptionSpans(context, baseStyle)
+                : [TextSpan(text: widget.description)],
           ),
+          maxLines: isExpanded ? null : (isSmartDescription ? 7 : 4),
+          overflow: isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
         ),
         if (shouldShowToggle)
           TextButton(
