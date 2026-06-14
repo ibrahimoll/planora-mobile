@@ -1,4 +1,101 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/planora_theme.dart';
 import '../models/profile_info_section.dart';
+
+Widget buildProfileSection(
+  BuildContext context, {
+  required String title,
+  required List<dynamic> items,
+}) {
+  final isDark = PlanoraTheme.isDark(context);
+  final mutedColor = isDark ? PlanoraTheme.darkTextMuted : PlanoraTheme.textSecondary;
+
+  return Container(
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+      ),
+      boxShadow: PlanoraTheme.cardShadowFor(context),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+        ),
+        for (var index = 0; index < items.length; index++) ...[
+          _buildProfileActionTile(
+            context,
+            item: items[index],
+            mutedColor: mutedColor,
+          ),
+          if (index != items.length - 1)
+            Divider(
+              height: 1,
+              indent: 72,
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
+        ],
+      ],
+    ),
+  );
+}
+
+Widget _buildProfileActionTile(
+  BuildContext context, {
+  required dynamic item,
+  required Color mutedColor,
+}) {
+  final icon = item.icon as IconData;
+  final title = item.title as String;
+  final subtitle = item.subtitle as String;
+  final onTap = item.onTap as VoidCallback;
+
+  return ListTile(
+    onTap: onTap,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+    minVerticalPadding: 8,
+    leading: Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        icon,
+        size: 19,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    ),
+    title: Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontWeight: FontWeight.w900),
+    ),
+    subtitle: Text(
+      subtitle,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: mutedColor,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    trailing: Icon(Icons.chevron_right_rounded, color: mutedColor),
+  );
+}
 
 class ProfileInfoContent {
   const ProfileInfoContent._();
