@@ -3,7 +3,7 @@ import '../models/profile_info_section.dart';
 class ProfileInfoContent {
   const ProfileInfoContent._();
 
-  static const String betaSupportEmail = 'ibrahimolleik3@gmail.com';
+  static const String betaSupportEmail = 'planora.verify@gmail.com';
 
   static const List<ProfileInfoSection> helpSupport = [
     ProfileInfoSection(
