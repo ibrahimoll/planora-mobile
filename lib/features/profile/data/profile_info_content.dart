@@ -46,9 +46,9 @@ Widget buildProfileSection(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
             ),
           ),
           for (var index = 0; index < items.length; index++) ...[
@@ -81,9 +81,6 @@ Widget _buildProfileActionTile(
   final originalOnTap = item.onTap as VoidCallback;
   final onTap = title == 'Edit Profile'
       ? () => _showLiveEditProfileSheet(context, fallbackOnTap: originalOnTap)
-      : title == 'Change Password'
-      ? () =>
-            _showLiveChangePasswordSheet(context, fallbackOnTap: originalOnTap)
       : originalOnTap;
 
   return ListTile(
@@ -208,7 +205,6 @@ void _showLiveEditProfileSheet(
 
           Future<void> pickAndUploadPicture() async {
             if (isSaving || isUploadingPicture || isSheetClosing) return;
-
             FocusManager.instance.primaryFocus?.unfocus();
 
             final pickedFile = await picker.pickImage(
@@ -230,12 +226,10 @@ void _showLiveEditProfileSheet(
               final updatedUser = await profileApi.uploadProfilePicture(
                 file: pickedFile,
               );
-
               currentProfilePic = updatedUser.profilePic;
               applyUpdatedUser(updatedUser);
 
               if (!sheetContext.mounted || isSheetClosing) return;
-
               setSheetState(() {
                 isUploadingPicture = false;
               });
@@ -252,7 +246,6 @@ void _showLiveEditProfileSheet(
             } catch (error, stackTrace) {
               debugPrint('Profile picture upload failed: $error');
               debugPrintStack(stackTrace: stackTrace);
-
               if (sheetContext.mounted && !isSheetClosing) {
                 setSheetState(() {
                   isUploadingPicture = false;
@@ -268,24 +261,20 @@ void _showLiveEditProfileSheet(
 
           Future<void> submitProfileUpdate() async {
             if (!canSave) return;
-
             FocusManager.instance.primaryFocus?.unfocus();
             setSheetState(() {
               isSaving = true;
             });
 
             var saved = false;
-
             try {
               final updatedUser = await profileApi.updateProfile(
                 username: username,
                 fullName: fullName,
               );
-
               saved = true;
               currentProfilePic = updatedUser.profilePic;
               applyUpdatedUser(updatedUser);
-
               closeSheet(sheetNavigator);
               messenger?.showSnackBar(
                 const SnackBar(content: Text('Profile updated successfully.')),
@@ -344,7 +333,7 @@ void _showLiveEditProfileSheet(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _SheetGrabber(),
+                      const _SheetGrabber(),
                       const SizedBox(height: 20),
                       _SheetHeader(
                         title: 'Edit Profile',
@@ -456,13 +445,6 @@ void _showLiveEditProfileSheet(
   });
 }
 
-void _showLiveChangePasswordSheet(
-  BuildContext context, {
-  required VoidCallback fallbackOnTap,
-}) {
-  fallbackOnTap();
-}
-
 Color _profileMutedColor(BuildContext context) {
   return PlanoraTheme.isDark(context)
       ? PlanoraTheme.darkTextMuted
@@ -470,6 +452,8 @@ Color _profileMutedColor(BuildContext context) {
 }
 
 class _SheetGrabber extends StatelessWidget {
+  const _SheetGrabber();
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -506,9 +490,7 @@ class _SheetHeader extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.10),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(15),
           ),
           child: Icon(icon, color: Theme.of(context).colorScheme.primary),
@@ -517,9 +499,9 @@ class _SheetHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
         IconButton(onPressed: onClose, icon: const Icon(Icons.close_rounded)),
@@ -537,9 +519,9 @@ class _SheetLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
     );
   }
 }
@@ -562,9 +544,7 @@ class _ProfilePreviewCard extends StatelessWidget {
   });
 
   String get initials {
-    final source = fullName.trim().isNotEmpty
-        ? fullName.trim()
-        : username.trim();
+    final source = fullName.trim().isNotEmpty ? fullName.trim() : username.trim();
     if (source.isEmpty) return 'P';
     final parts = source.split(RegExp(r'\s+'));
     if (parts.length >= 2) {
@@ -661,9 +641,9 @@ class _ProfilePreviewCard extends StatelessWidget {
                   fullName.isNotEmpty ? fullName : 'Planora User',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -671,9 +651,9 @@ class _ProfilePreviewCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: primary,
-                    fontWeight: FontWeight.w800,
-                  ),
+                        color: primary,
+                        fontWeight: FontWeight.w800,
+                      ),
                 ),
                 if (email.isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -682,9 +662,9 @@ class _ProfilePreviewCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: _profileMutedColor(context),
-                      fontWeight: FontWeight.w600,
-                    ),
+                          color: _profileMutedColor(context),
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
                 ],
               ],
@@ -747,7 +727,10 @@ class _ProfileTextField extends StatelessWidget {
       controller: controller,
       onChanged: onChanged,
       textInputAction: TextInputAction.next,
-      decoration: InputDecoration(hintText: hintText, prefixIcon: Icon(icon)),
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: Icon(icon),
+      ),
     );
   }
 }
@@ -764,11 +747,10 @@ class _EditProfileHint extends StatelessWidget {
 
     return AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 180),
-      style:
-          Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ) ??
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w700,
+              ) ??
           TextStyle(color: color, fontWeight: FontWeight.w700),
       child: Row(
         children: [
@@ -794,6 +776,27 @@ class ProfileInfoContent {
 
   static const String betaSupportEmail = 'planora.verify@gmail.com';
 
+  static List<ProfileInfoSection>? sectionsForTitle(String title) {
+    switch (title) {
+      case 'Help & Support':
+        return helpSupport;
+      case 'Subscription':
+        return subscription;
+      case 'Billing & Invoices':
+        return billingAndInvoices;
+      case 'Email Preferences':
+        return emailPreferences;
+      case 'Notification Settings':
+        return notificationSettings;
+      case 'Privacy Policy':
+        return privacyPolicy;
+      case 'Terms of Service':
+        return terms;
+      default:
+        return null;
+    }
+  }
+
   static const List<ProfileInfoSection> helpSupport = [
     ProfileInfoSection(
       title: 'Beta support',
@@ -806,14 +809,9 @@ class ProfileInfoContent {
           'When reporting an issue, include your account email, username, the screen you were using, the exact action you tried, and the error message you saw.',
     ),
     ProfileInfoSection(
-      title: 'Known beta limitations',
-      body:
-          'Some settings are currently informational only. Advanced email preferences, per-channel notification settings, billing management, subscription management, and full account deletion are not fully exposed in the mobile app yet.',
-    ),
-    ProfileInfoSection(
       title: 'Contact',
       body:
-          'For beta support, contact Planora support at planora.verify@gmail.com. Include your account email, username, the screen where the problem happened, and the exact error message if one appeared.',
+          'For beta support, contact Planora support at planora.verify@gmail.com.',
     ),
   ];
 
@@ -825,8 +823,7 @@ class ProfileInfoContent {
     ),
     ProfileInfoSection(
       title: 'Current plan',
-      body:
-          'Plan: Beta Access\nPrice: Free during beta\nRenewal: Not applicable',
+      body: 'Plan: Beta Access\nPrice: Free during beta\nRenewal: Not applicable',
     ),
     ProfileInfoSection(
       title: 'Included in beta',
@@ -845,6 +842,22 @@ class ProfileInfoContent {
       title: 'Billing unavailable',
       body:
           'Billing and invoice history are not available in the beta mobile app yet.',
+    ),
+  ];
+
+  static const List<ProfileInfoSection> emailPreferences = [
+    ProfileInfoSection(
+      title: 'Email preferences unavailable',
+      body:
+          'Email preference controls are not available in the beta mobile app yet. Notification delivery is managed by the current backend defaults.',
+    ),
+  ];
+
+  static const List<ProfileInfoSection> notificationSettings = [
+    ProfileInfoSection(
+      title: 'Notification settings unavailable',
+      body:
+          'Per-channel notification controls are not exposed by the backend yet. In-app notifications continue to use the current default behavior.',
     ),
   ];
 
