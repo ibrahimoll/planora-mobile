@@ -1,3 +1,6 @@
+import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../../core/network/api_client.dart';
 import '../../auth/models/auth_models.dart';
 
@@ -17,6 +20,20 @@ class ProfileApi {
     final response = await ApiClient.patchJson(
       '/profile',
       data: {'username': username, 'full_name': fullName},
+    );
+
+    final data = response as Map<String, dynamic>;
+
+    return UserResponse.fromJson(data['user'] as Map<String, dynamic>);
+  }
+
+  Future<UserResponse> uploadProfilePicture({required XFile file}) async {
+    final bytes = await file.readAsBytes();
+    final response = await ApiClient.postMultipart(
+      '/profile/picture',
+      data: FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: file.name),
+      }),
     );
 
     final data = response as Map<String, dynamic>;
