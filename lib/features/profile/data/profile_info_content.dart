@@ -46,9 +46,9 @@ Widget buildProfileSection(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
           for (var index = 0; index < items.length; index++) ...[
@@ -82,8 +82,9 @@ Widget _buildProfileActionTile(
   final onTap = title == 'Edit Profile'
       ? () => _showLiveEditProfileSheet(context, fallbackOnTap: originalOnTap)
       : title == 'Change Password'
-          ? () => _showLiveChangePasswordSheet(context, fallbackOnTap: originalOnTap)
-          : originalOnTap;
+      ? () =>
+            _showLiveChangePasswordSheet(context, fallbackOnTap: originalOnTap)
+      : originalOnTap;
 
   return ListTile(
     onTap: onTap,
@@ -96,11 +97,7 @@ Widget _buildProfileActionTile(
         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(
-        icon,
-        size: 19,
-        color: Theme.of(context).colorScheme.primary,
-      ),
+      child: Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary),
     ),
     title: Text(
       title,
@@ -124,8 +121,8 @@ void _showLiveEditProfileSheet(
 }) {
   const profileApi = ProfileApi();
   final messenger = ScaffoldMessenger.maybeOf(context);
-  final dynamic profileState =
-      context.findAncestorStateOfType<State<StatefulWidget>>();
+  final dynamic profileState = context
+      .findAncestorStateOfType<State<StatefulWidget>>();
 
   dynamic user;
   try {
@@ -194,9 +191,10 @@ void _showLiveEditProfileSheet(
           final username = usernameController.text.trim();
           final fullNameValid = fullName.isNotEmpty;
           final usernameValid = validUsername(username);
-          final hasChanges = fullName != initialFullName ||
-              username != initialUsername;
-          final canSave = fullNameValid &&
+          final hasChanges =
+              fullName != initialFullName || username != initialUsername;
+          final canSave =
+              fullNameValid &&
               usernameValid &&
               hasChanges &&
               !isSaving &&
@@ -261,7 +259,9 @@ void _showLiveEditProfileSheet(
                 });
               }
               messenger?.showSnackBar(
-                const SnackBar(content: Text('Could not upload profile picture.')),
+                const SnackBar(
+                  content: Text('Could not upload profile picture.'),
+                ),
               );
             }
           }
@@ -320,8 +320,9 @@ void _showLiveEditProfileSheet(
                 color: PlanoraTheme.isDark(sheetContext)
                     ? PlanoraTheme.darkBackground
                     : Colors.white,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(30)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(30),
+                ),
                 boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
               ),
               child: SingleChildScrollView(
@@ -366,7 +367,8 @@ void _showLiveEditProfileSheet(
                         child: Text(
                           'Your profile picture is saved to your account and appears on other devices.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(sheetContext).textTheme.bodySmall
+                              ?.copyWith(
                                 color: _profileMutedColor(sheetContext),
                                 fontWeight: FontWeight.w600,
                               ),
@@ -504,7 +506,9 @@ class _SheetHeader extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(15),
           ),
           child: Icon(icon, color: Theme.of(context).colorScheme.primary),
@@ -513,9 +517,9 @@ class _SheetHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         IconButton(onPressed: onClose, icon: const Icon(Icons.close_rounded)),
@@ -533,9 +537,9 @@ class _SheetLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
     );
   }
 }
@@ -558,7 +562,9 @@ class _ProfilePreviewCard extends StatelessWidget {
   });
 
   String get initials {
-    final source = fullName.trim().isNotEmpty ? fullName.trim() : username.trim();
+    final source = fullName.trim().isNotEmpty
+        ? fullName.trim()
+        : username.trim();
     if (source.isEmpty) return 'P';
     final parts = source.split(RegExp(r'\s+'));
     if (parts.length >= 2) {
@@ -600,10 +606,8 @@ class _ProfilePreviewCard extends StatelessWidget {
                           width: 58,
                           height: 58,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _AvatarInitials(
-                            initials: initials,
-                            size: 58,
-                          ),
+                          errorBuilder: (_, _, _) =>
+                              _AvatarInitials(initials: initials, size: 58),
                         ),
                       )
                     : _AvatarInitials(
@@ -657,9 +661,9 @@ class _ProfilePreviewCard extends StatelessWidget {
                   fullName.isNotEmpty ? fullName : 'Planora User',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -667,9 +671,9 @@ class _ProfilePreviewCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: primary,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    color: primary,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 if (email.isNotEmpty) ...[
                   const SizedBox(height: 3),
@@ -678,9 +682,9 @@ class _ProfilePreviewCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _profileMutedColor(context),
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: _profileMutedColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ],
@@ -696,7 +700,11 @@ class _AvatarInitials extends StatelessWidget {
   final String initials;
   final double size;
 
-  const _AvatarInitials({super.key, required this.initials, required this.size});
+  const _AvatarInitials({
+    super.key,
+    required this.initials,
+    required this.size,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -739,10 +747,7 @@ class _ProfileTextField extends StatelessWidget {
       controller: controller,
       onChanged: onChanged,
       textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        hintText: hintText,
-        prefixIcon: Icon(icon),
-      ),
+      decoration: InputDecoration(hintText: hintText, prefixIcon: Icon(icon)),
     );
   }
 }
@@ -759,10 +764,11 @@ class _EditProfileHint extends StatelessWidget {
 
     return AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 180),
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w700,
-              ) ??
+      style:
+          Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ) ??
           TextStyle(color: color, fontWeight: FontWeight.w700),
       child: Row(
         children: [
@@ -819,7 +825,8 @@ class ProfileInfoContent {
     ),
     ProfileInfoSection(
       title: 'Current plan',
-      body: 'Plan: Beta Access\nPrice: Free during beta\nRenewal: Not applicable',
+      body:
+          'Plan: Beta Access\nPrice: Free during beta\nRenewal: Not applicable',
     ),
     ProfileInfoSection(
       title: 'Included in beta',
