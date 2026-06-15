@@ -81,7 +81,9 @@ Widget _buildProfileActionTile(
   final originalOnTap = item.onTap as VoidCallback;
   final onTap = title == 'Edit Profile'
       ? () => _showLiveEditProfileSheet(context, fallbackOnTap: originalOnTap)
-      : originalOnTap;
+      : title == 'Change Password'
+          ? () => _showLiveChangePasswordSheet(context, fallbackOnTap: originalOnTap)
+          : originalOnTap;
 
   return ListTile(
     onTap: onTap,
@@ -450,6 +452,13 @@ void _showLiveEditProfileSheet(
     usernameController.dispose();
     fullNameController.dispose();
   });
+}
+
+void _showLiveChangePasswordSheet(
+  BuildContext context, {
+  required VoidCallback fallbackOnTap,
+}) {
+  fallbackOnTap();
 }
 
 Color _profileMutedColor(BuildContext context) {
