@@ -12,7 +12,9 @@ Widget buildProfileSection(
   required List<dynamic> items,
 }) {
   final isDark = PlanoraTheme.isDark(context);
-  final mutedColor = isDark ? PlanoraTheme.darkTextMuted : PlanoraTheme.textSecondary;
+  final mutedColor = isDark
+      ? PlanoraTheme.darkTextMuted
+      : PlanoraTheme.textSecondary;
 
   return TweenAnimationBuilder<double>(
     tween: Tween<double>(begin: 0, end: 1),
@@ -79,12 +81,9 @@ Widget _buildProfileActionTile(
   final originalOnTap = item.onTap as VoidCallback;
   final onTap = title == 'Edit Profile'
       ? () => _showLiveEditProfileSheet(context, fallbackOnTap: originalOnTap)
-<<<<<<< HEAD
       : title == 'Change Password'
       ? () =>
             _showLiveChangePasswordSheet(context, fallbackOnTap: originalOnTap)
-=======
->>>>>>> 3fc385feee631d4ce2af3ee94746538f0cd6c82d
       : originalOnTap;
 
   return ListTile(
@@ -120,14 +119,10 @@ void _showLiveEditProfileSheet(
   BuildContext context, {
   required VoidCallback fallbackOnTap,
 }) {
-  final profileApi = ProfileApi();
+  const profileApi = ProfileApi();
   final messenger = ScaffoldMessenger.maybeOf(context);
-<<<<<<< HEAD
   final dynamic profileState = context
       .findAncestorStateOfType<State<StatefulWidget>>();
-=======
-  final dynamic profileState = context.findAncestorStateOfType<State<StatefulWidget>>();
->>>>>>> 3fc385feee631d4ce2af3ee94746538f0cd6c82d
 
   dynamic user;
   try {
@@ -196,15 +191,10 @@ void _showLiveEditProfileSheet(
           final username = usernameController.text.trim();
           final fullNameValid = fullName.isNotEmpty;
           final usernameValid = validUsername(username);
-<<<<<<< HEAD
           final hasChanges =
               fullName != initialFullName || username != initialUsername;
           final canSave =
               fullNameValid &&
-=======
-          final hasChanges = fullName != initialFullName || username != initialUsername;
-          final canSave = fullNameValid &&
->>>>>>> 3fc385feee631d4ce2af3ee94746538f0cd6c82d
               usernameValid &&
               hasChanges &&
               !isSaving &&
@@ -218,6 +208,7 @@ void _showLiveEditProfileSheet(
 
           Future<void> pickAndUploadPicture() async {
             if (isSaving || isUploadingPicture || isSheetClosing) return;
+
             FocusManager.instance.primaryFocus?.unfocus();
 
             final pickedFile = await picker.pickImage(
@@ -231,28 +222,41 @@ void _showLiveEditProfileSheet(
               return;
             }
 
-            setSheetState(() => isUploadingPicture = true);
+            setSheetState(() {
+              isUploadingPicture = true;
+            });
 
             try {
-              final updatedUser = await profileApi.uploadProfilePicture(file: pickedFile);
+              final updatedUser = await profileApi.uploadProfilePicture(
+                file: pickedFile,
+              );
+
               currentProfilePic = updatedUser.profilePic;
               applyUpdatedUser(updatedUser);
 
               if (!sheetContext.mounted || isSheetClosing) return;
-              setSheetState(() => isUploadingPicture = false);
+
+              setSheetState(() {
+                isUploadingPicture = false;
+              });
               messenger?.showSnackBar(
                 const SnackBar(content: Text('Profile picture updated.')),
               );
             } on ApiException catch (error) {
               if (sheetContext.mounted && !isSheetClosing) {
-                setSheetState(() => isUploadingPicture = false);
+                setSheetState(() {
+                  isUploadingPicture = false;
+                });
               }
               messenger?.showSnackBar(SnackBar(content: Text(error.message)));
             } catch (error, stackTrace) {
               debugPrint('Profile picture upload failed: $error');
               debugPrintStack(stackTrace: stackTrace);
+
               if (sheetContext.mounted && !isSheetClosing) {
-                setSheetState(() => isUploadingPicture = false);
+                setSheetState(() {
+                  isUploadingPicture = false;
+                });
               }
               messenger?.showSnackBar(
                 const SnackBar(
@@ -266,7 +270,10 @@ void _showLiveEditProfileSheet(
             if (!canSave) return;
 
             FocusManager.instance.primaryFocus?.unfocus();
-            setSheetState(() => isSaving = true);
+            setSheetState(() {
+              isSaving = true;
+            });
+
             var saved = false;
 
             try {
@@ -293,7 +300,9 @@ void _showLiveEditProfileSheet(
               );
             } finally {
               if (!saved && !isSheetClosing && sheetContext.mounted) {
-                setSheetState(() => isSaving = false);
+                setSheetState(() {
+                  isSaving = false;
+                });
               }
             }
           }
@@ -311,13 +320,9 @@ void _showLiveEditProfileSheet(
                 color: PlanoraTheme.isDark(sheetContext)
                     ? PlanoraTheme.darkBackground
                     : Colors.white,
-<<<<<<< HEAD
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(30),
                 ),
-=======
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
->>>>>>> 3fc385feee631d4ce2af3ee94746538f0cd6c82d
                 boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
               ),
               child: SingleChildScrollView(
@@ -414,10 +419,14 @@ void _showLiveEditProfileSheet(
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.save_outlined),
-                            label: Text(isSaving ? 'Saving profile...' : 'Save Changes'),
+                            label: Text(
+                              isSaving ? 'Saving profile...' : 'Save Changes',
+                            ),
                           ),
                         ),
                       ),
@@ -445,6 +454,13 @@ void _showLiveEditProfileSheet(
     usernameController.dispose();
     fullNameController.dispose();
   });
+}
+
+void _showLiveChangePasswordSheet(
+  BuildContext context, {
+  required VoidCallback fallbackOnTap,
+}) {
+  fallbackOnTap();
 }
 
 Color _profileMutedColor(BuildContext context) {
@@ -777,23 +793,6 @@ class ProfileInfoContent {
   const ProfileInfoContent._();
 
   static const String betaSupportEmail = 'planora.verify@gmail.com';
-
-  static List<ProfileInfoSection>? sectionsForTitle(String title) {
-    switch (title) {
-      case 'Help & Support':
-        return helpSupport;
-      case 'Subscription':
-        return subscription;
-      case 'Billing & Invoices':
-        return billingAndInvoices;
-      case 'Privacy Policy':
-        return privacyPolicy;
-      case 'Terms of Service':
-        return terms;
-      default:
-        return null;
-    }
-  }
 
   static const List<ProfileInfoSection> helpSupport = [
     ProfileInfoSection(
