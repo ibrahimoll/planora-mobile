@@ -118,8 +118,7 @@ void _showLiveEditProfileSheet(
 }) {
   const profileApi = ProfileApi();
   final messenger = ScaffoldMessenger.maybeOf(context);
-  final dynamic profileState = context
-      .findAncestorStateOfType<State<StatefulWidget>>();
+  final dynamic profileState = context.findAncestorStateOfType<State<StatefulWidget>>();
 
   dynamic user;
   try {
@@ -252,9 +251,7 @@ void _showLiveEditProfileSheet(
                 });
               }
               messenger?.showSnackBar(
-                const SnackBar(
-                  content: Text('Could not upload profile picture.'),
-                ),
+                const SnackBar(content: Text('Could not upload profile picture.')),
               );
             }
           }
@@ -354,12 +351,12 @@ void _showLiveEditProfileSheet(
                       const SizedBox(height: 10),
                       Center(
                         child: Text(
-                          'Your profile picture is saved to your account and appears on other devices.',
+                          'Tap the avatar or press Change picture to upload a profile photo.',
                           textAlign: TextAlign.center,
                           style: Theme.of(sheetContext).textTheme.bodySmall
                               ?.copyWith(
                                 color: _profileMutedColor(sheetContext),
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                               ),
                         ),
                       ),
@@ -558,6 +555,7 @@ class _ProfilePreviewCard extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     final isDark = PlanoraTheme.isDark(context);
     final imageUrl = profilePic?.trim();
+    final canTap = !isUploadingPicture;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
@@ -571,103 +569,136 @@ class _ProfilePreviewCard extends StatelessWidget {
         ),
         boxShadow: PlanoraTheme.cardShadowFor(context),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
+          Row(
             children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? ClipOval(
-                        key: ValueKey(imageUrl),
-                        child: Image.network(
-                          imageUrl,
-                          width: 58,
-                          height: 58,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              _AvatarInitials(initials: initials, size: 58),
-                        ),
-                      )
-                    : _AvatarInitials(
-                        key: ValueKey(initials),
-                        initials: initials,
-                        size: 58,
-                      ),
-              ),
-              Positioned(
-                right: -4,
-                bottom: -4,
+              Material(
+                color: Colors.transparent,
                 child: InkWell(
-                  onTap: isUploadingPicture ? null : onChangePicture,
+                  onTap: canTap ? onChangePicture : null,
                   borderRadius: BorderRadius.circular(999),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: primary,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-                        width: 2,
-                      ),
-                    ),
-                    child: isUploadingPicture
-                        ? const Padding(
-                            padding: EdgeInsets.all(6),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: imageUrl != null && imageUrl.isNotEmpty
+                              ? ClipOval(
+                                  key: ValueKey(imageUrl),
+                                  child: Image.network(
+                                    imageUrl,
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => _AvatarInitials(
+                                      initials: initials,
+                                      size: 72,
+                                    ),
+                                  ),
+                                )
+                              : _AvatarInitials(
+                                  key: ValueKey(initials),
+                                  initials: initials,
+                                  size: 72,
+                                ),
+                        ),
+                        Positioned(
+                          right: -2,
+                          bottom: -2,
+                          child: IgnorePointer(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: primary,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: isDark
+                                      ? PlanoraTheme.darkSurface
+                                      : Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: isUploadingPicture
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(7),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.photo_camera_outlined,
+                                      color: Colors.white,
+                                      size: 15,
+                                    ),
                             ),
-                          )
-                        : const Icon(
-                            Icons.photo_camera_outlined,
-                            color: Colors.white,
-                            size: 14,
                           ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fullName.isNotEmpty ? fullName : 'Planora User',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      username.isNotEmpty ? '@$username' : '@username',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    if (email.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _profileMutedColor(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fullName.isNotEmpty ? fullName : 'Planora User',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  username.isNotEmpty ? '@$username' : '@username',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: primary,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    email,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _profileMutedColor(context),
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ],
-              ],
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: canTap ? onChangePicture : null,
+              icon: isUploadingPicture
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(
+                isUploadingPicture ? 'Uploading picture...' : 'Change picture',
+              ),
             ),
           ),
         ],
