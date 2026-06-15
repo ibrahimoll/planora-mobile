@@ -81,9 +81,7 @@ Widget _buildProfileActionTile(
   final originalOnTap = item.onTap as VoidCallback;
   final onTap = title == 'Edit Profile'
       ? () => _showLiveEditProfileSheet(context, fallbackOnTap: originalOnTap)
-      : title == 'Change Password'
-          ? () => _showLiveChangePasswordSheet(context)
-          : originalOnTap;
+      : originalOnTap;
 
   return ListTile(
     onTap: onTap,
