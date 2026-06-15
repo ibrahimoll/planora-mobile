@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/planora_theme.dart';
@@ -143,8 +144,11 @@ void _showLiveEditProfileSheet(
   final email = (user.email as String? ?? '').trim();
   final usernameController = TextEditingController(text: initialUsername);
   final fullNameController = TextEditingController(text: initialFullName);
+  final picker = ImagePicker();
 
+  String? currentProfilePic = user.profilePic as String?;
   bool isSaving = false;
+  bool isUploadingPicture = false;
   bool isSheetClosing = false;
 
   bool validUsername(String value) {
@@ -157,6 +161,20 @@ void _showLiveEditProfileSheet(
     FocusManager.instance.primaryFocus?.unfocus();
     if (sheetNavigator.canPop()) {
       sheetNavigator.pop();
+    }
+  }
+
+  void applyUpdatedUser(dynamic updatedUser) {
+    try {
+      if (profileState.mounted == true) {
+        profileState.setState(() {
+          profileState.user = updatedUser;
+        });
+        profileState.widget.onUserUpdated?.call(updatedUser);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Profile state refresh failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -182,11 +200,70 @@ void _showLiveEditProfileSheet(
               usernameValid &&
               hasChanges &&
               !isSaving &&
+              !isUploadingPicture &&
               !isSheetClosing;
 
           void refresh(String _) {
             if (isSheetClosing) return;
             setSheetState(() {});
+          }
+
+          Future<void> pickAndUploadPicture() async {
+            if (isSaving || isUploadingPicture || isSheetClosing) return;
+
+            FocusManager.instance.primaryFocus?.unfocus();
+
+            final pickedFile = await picker.pickImage(
+              source: ImageSource.gallery,
+              imageQuality: 85,
+              maxWidth: 1200,
+              maxHeight: 1200,
+            );
+
+            if (pickedFile == null || !sheetContext.mounted || isSheetClosing) {
+              return;
+            }
+
+            setSheetState(() {
+              isUploadingPicture = true;
+            });
+
+            try {
+              final updatedUser = await profileApi.uploadProfilePicture(
+                file: pickedFile,
+              );
+
+              currentProfilePic = updatedUser.profilePic;
+              applyUpdatedUser(updatedUser);
+
+              if (!sheetContext.mounted || isSheetClosing) return;
+
+              setSheetState(() {
+                isUploadingPicture = false;
+              });
+              messenger?.showSnackBar(
+                const SnackBar(content: Text('Profile picture updated.')),
+              );
+            } on ApiException catch (error) {
+              if (sheetContext.mounted && !isSheetClosing) {
+                setSheetState(() {
+                  isUploadingPicture = false;
+                });
+              }
+              messenger?.showSnackBar(SnackBar(content: Text(error.message)));
+            } catch (error, stackTrace) {
+              debugPrint('Profile picture upload failed: $error');
+              debugPrintStack(stackTrace: stackTrace);
+
+              if (sheetContext.mounted && !isSheetClosing) {
+                setSheetState(() {
+                  isUploadingPicture = false;
+                });
+              }
+              messenger?.showSnackBar(
+                const SnackBar(content: Text('Could not upload profile picture.')),
+              );
+            }
           }
 
           Future<void> submitProfileUpdate() async {
@@ -206,18 +283,8 @@ void _showLiveEditProfileSheet(
               );
 
               saved = true;
-
-              try {
-                if (profileState.mounted == true) {
-                  profileState.setState(() {
-                    profileState.user = updatedUser;
-                  });
-                  profileState.widget.onUserUpdated?.call(updatedUser);
-                }
-              } catch (error, stackTrace) {
-                debugPrint('Profile state refresh failed: $error');
-                debugPrintStack(stackTrace: stackTrace);
-              }
+              currentProfilePic = updatedUser.profilePic;
+              applyUpdatedUser(updatedUser);
 
               closeSheet(sheetNavigator);
               messenger?.showSnackBar(
@@ -281,7 +348,7 @@ void _showLiveEditProfileSheet(
                       _SheetHeader(
                         title: 'Edit Profile',
                         icon: Icons.edit_outlined,
-                        onClose: isSaving
+                        onClose: isSaving || isUploadingPicture
                             ? null
                             : () => closeSheet(sheetNavigator),
                       ),
@@ -290,6 +357,20 @@ void _showLiveEditProfileSheet(
                         fullName: fullNameValid ? fullName : initialFullName,
                         username: usernameValid ? username : initialUsername,
                         email: email,
+                        profilePic: currentProfilePic,
+                        isUploadingPicture: isUploadingPicture,
+                        onChangePicture: pickAndUploadPicture,
+                      ),
+                      const SizedBox(height: 10),
+                      Center(
+                        child: Text(
+                          'Your profile picture is saved to your account and appears on other devices.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                                color: _profileMutedColor(sheetContext),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
                       ),
                       const SizedBox(height: 18),
                       const _SheetLabel('Full name'),
@@ -352,7 +433,7 @@ void _showLiveEditProfileSheet(
                         width: double.infinity,
                         height: 48,
                         child: TextButton(
-                          onPressed: isSaving
+                          onPressed: isSaving || isUploadingPicture
                               ? null
                               : () => closeSheet(sheetNavigator),
                           child: const Text('Cancel'),
@@ -677,18 +758,17 @@ class _SheetHeader extends StatelessWidget {
 }
 
 class _SheetLabel extends StatelessWidget {
-  final String text;
+  final String label;
 
-  const _SheetLabel(this.text);
+  const _SheetLabel(this.label);
 
   @override
   Widget build(BuildContext context) {
     return Text(
-      text,
-      style: Theme.of(context)
-          .textTheme
-          .bodySmall
-          ?.copyWith(fontWeight: FontWeight.w900),
+      label,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
     );
   }
 }
@@ -697,61 +777,109 @@ class _ProfilePreviewCard extends StatelessWidget {
   final String fullName;
   final String username;
   final String email;
+  final String? profilePic;
+  final bool isUploadingPicture;
+  final VoidCallback onChangePicture;
 
   const _ProfilePreviewCard({
     required this.fullName,
     required this.username,
     required this.email,
+    required this.profilePic,
+    required this.isUploadingPicture,
+    required this.onChangePicture,
   });
+
+  String get initials {
+    final source = fullName.trim().isNotEmpty ? fullName.trim() : username.trim();
+    if (source.isEmpty) return 'P';
+    final parts = source.split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return source[0].toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    final initialsSource = fullName.trim().isNotEmpty ? fullName.trim() : username;
-    final initials = initialsSource.isEmpty
-        ? 'P'
-        : initialsSource
-            .split(RegExp(r'\s+'))
-            .where((part) => part.isNotEmpty)
-            .take(2)
-            .map((part) => part[0].toUpperCase())
-            .join();
+    final isDark = PlanoraTheme.isDark(context);
+    final imageUrl = profilePic?.trim();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? PlanoraTheme.darkSurface
-            : PlanoraTheme.surface,
+        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: PlanoraTheme.isDark(context)
-              ? PlanoraTheme.darkBorder
-              : PlanoraTheme.border,
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
         ),
         boxShadow: PlanoraTheme.cardShadowFor(context),
       ),
       child: Row(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: PlanoraTheme.primaryGradientFor(context),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? ClipOval(
+                        key: ValueKey(imageUrl),
+                        child: Image.network(
+                          imageUrl,
+                          width: 58,
+                          height: 58,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _AvatarInitials(
+                            initials: initials,
+                            size: 58,
+                          ),
+                        ),
+                      )
+                    : _AvatarInitials(
+                        key: ValueKey(initials),
+                        initials: initials,
+                        size: 58,
+                      ),
+              ),
+              Positioned(
+                right: -4,
+                bottom: -4,
+                child: InkWell(
+                  onTap: isUploadingPicture ? null : onChangePicture,
+                  borderRadius: BorderRadius.circular(999),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+                        width: 2,
+                      ),
+                    ),
+                    child: isUploadingPicture
+                        ? const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.photo_camera_outlined,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -792,6 +920,34 @@ class _ProfilePreviewCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AvatarInitials extends StatelessWidget {
+  final String initials;
+  final double size;
+
+  const _AvatarInitials({super.key, required this.initials, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.31,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -1119,79 +1275,65 @@ class ProfileInfoContent {
 
   static const List<ProfileInfoSection> billingAndInvoices = [
     ProfileInfoSection(
-      title: 'Billing is not available',
+      title: 'Billing unavailable',
       body:
-          'Planora does not currently expose billing, payment methods, invoices, upgrades, downgrades, or subscription cancellation in the mobile app.',
-    ),
-    ProfileInfoSection(
-      title: 'Current beta status',
-      body:
-          'No payment method is required for Planora beta access. Billing history and invoice downloads will only make sense after production billing is added to the backend.',
+          'Billing and invoice history are not available in the beta mobile app yet.',
     ),
   ];
 
   static const List<ProfileInfoSection> privacyPolicy = [
-    ProfileInfoSection(title: 'Last updated', body: 'June 14, 2026'),
     ProfileInfoSection(
-      title: 'Overview',
+      title: 'Account information',
       body:
-          'Planora is an AI-powered project planning and collaboration app. This policy explains what information Planora handles to provide accounts, projects, tasks, teams, notifications, attachments, comments, and AI-assisted planning features.',
+          'Planora stores account details such as your name, username, email, profile picture, role, verification status, and account creation date so your workspace can function across devices.',
     ),
     ProfileInfoSection(
-      title: 'Information we collect',
+      title: 'Workspace data',
       body:
-          'Planora may store account and profile information such as username, email address, full name, role, email verification status, profile picture, and account creation date. Planora also stores the content you create or share, including projects, tasks, teams, invitations, comments, attachments, notifications, and AI chat or planning messages.',
+          'Planora stores projects, tasks, teams, invitations, comments, attachments, notifications, activity logs, AI planning requests, and related collaboration data needed to provide the service.',
     ),
     ProfileInfoSection(
-      title: 'Your choices',
+      title: 'Profile pictures',
       body:
-          'You can update supported profile information from the Profile page and change your password through the password screen. Features such as full account deletion, advanced privacy settings, and per-channel notification preferences are not currently exposed in the mobile app.',
+          'Profile pictures are uploaded to your Planora account and may be shown to you and other workspace members where your profile appears.',
+    ),
+    ProfileInfoSection(
+      title: 'AI features',
+      body:
+          'When you use AI planning features, the task or project details you provide may be processed to generate schedules, plans, summaries, or suggestions.',
     ),
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For privacy questions or support requests, contact Planora support at planora.verify@gmail.com.',
+          'For privacy questions, contact Planora support at planora.verify@gmail.com.',
     ),
   ];
 
   static const List<ProfileInfoSection> terms = [
-    ProfileInfoSection(title: 'Last updated', body: 'June 14, 2026'),
     ProfileInfoSection(
-      title: 'Acceptance of terms',
+      title: 'Beta software',
       body:
-          'By using Planora, you agree to use the app responsibly for lawful project planning, task management, team collaboration, and AI-assisted productivity workflows.',
+          'Planora is currently beta software. Features may change, be limited, or be temporarily unavailable while the app is being tested and improved.',
     ),
     ProfileInfoSection(
       title: 'Account responsibility',
       body:
-          'You are responsible for keeping your login credentials secure and for all activity performed through your account. If you believe your account is no longer secure, change your password and contact support.',
+          'You are responsible for keeping your login credentials secure and for the activity that happens under your account.',
     ),
     ProfileInfoSection(
-      title: 'AI-generated suggestions',
+      title: 'Acceptable use',
       body:
-          'Planora may generate AI-assisted suggestions, project plans, task breakdowns, or productivity guidance. AI output should be reviewed before use and should not be treated as guaranteed professional advice.',
+          'Do not misuse Planora, attempt unauthorized access, upload harmful content, or interfere with other users, workspaces, or backend services.',
+    ),
+    ProfileInfoSection(
+      title: 'Uploads and profile content',
+      body:
+          'Only upload files and profile pictures that you have the right to use and that are appropriate for a project management workspace.',
     ),
     ProfileInfoSection(
       title: 'Contact',
       body:
-          'For questions about these terms, contact Planora support at planora.verify@gmail.com.',
+          'For terms or access questions, contact Planora support at planora.verify@gmail.com.',
     ),
   ];
-
-  static List<ProfileInfoSection>? sectionsForTitle(String title) {
-    switch (title) {
-      case 'Subscription':
-        return subscription;
-      case 'Billing & Invoices':
-        return billingAndInvoices;
-      case 'Help & Support':
-        return helpSupport;
-      case 'Privacy Policy':
-        return privacyPolicy;
-      case 'Terms of Service':
-        return terms;
-      default:
-        return null;
-    }
-  }
 }
