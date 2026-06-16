@@ -5,9 +5,6 @@ import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
 import '../tasks/data/tasks_api.dart';
 import 'data/profile_api.dart';
-import 'data/profile_info_content.dart';
-import 'models/profile_info_section.dart';
-import 'widgets/profile_info_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final UserResponse user;
@@ -45,41 +42,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String get initials => initialsFor(displayName);
 
-  String initialsFor(String value) {
-    final source = value.trim();
-
-    if (source.isEmpty) return 'P';
-
-    final parts = source.split(RegExp(r'\s+'));
-
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-
-    return source[0].toUpperCase();
-  }
-
   int get daysActive {
     final created = user.createdAt.toLocal();
     final startDay = DateTime(created.year, created.month, created.day);
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final days = today.difference(startDay).inDays + 1;
-
     return days < 1 ? 1 : days;
   }
 
   String get accountBadgeLabel {
-    if (!user.isEmailVerified) {
-      return 'Email pending';
-    }
-
+    if (!user.isEmailVerified) return 'Email pending';
     final role = user.role.trim();
-
-    if (role.isEmpty) {
-      return 'Verified';
-    }
-
+    if (role.isEmpty) return 'Verified';
     return '${role[0].toUpperCase()}${role.substring(1)}';
   }
 
@@ -90,6 +65,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     loadProfileStats();
   }
 
+  String initialsFor(String value) {
+    final source = value.trim();
+    if (source.isEmpty) return 'P';
+
+    final parts = source.split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+
+    return source[0].toUpperCase();
+  }
+
   Future<void> loadProfile() async {
     setState(() {
       isLoading = true;
@@ -98,24 +85,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final loadedUser = await _profileApi.getProfile();
-
       if (!mounted) return;
 
       setState(() {
         user = loadedUser;
         isLoading = false;
       });
-
       widget.onUserUpdated?.call(loadedUser);
     } catch (error, stackTrace) {
       debugPrint('Profile refresh failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-
       if (!mounted) return;
 
       setState(() {
-        errorMessage = 'Could not refresh profile.';
         isLoading = false;
+        errorMessage = 'Could not refresh profile.';
       });
     }
   }
@@ -127,7 +111,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final board = await _tasksApi.getTasks();
-
       if (!mounted) return;
 
       setState(() {
@@ -140,7 +123,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (error, stackTrace) {
       debugPrint('Profile stats load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-
       if (!mounted) return;
 
       setState(() {
@@ -167,10 +149,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   BoxDecoration cardDecoration(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
-
     return BoxDecoration(
       color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(24),
       border: Border.all(
         color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
       ),
@@ -179,26 +160,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> openProfileInfoPage({
-    required String title,
-    required IconData icon,
-    String? body,
-    List<ProfileInfoSection>? sections,
-  }) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ProfileInfoScreen(
-          title: title,
-          icon: icon,
-          body: body,
-          sections: sections,
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Scaffold(
+      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: refreshProfile,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buildStaggeredItem(0, buildHeader(context)),
+                    const SizedBox(height: 18),
+                    if (errorMessage != null) ...[
+                      buildStaggeredItem(1, buildErrorBanner(context, errorMessage!)),
+                      const SizedBox(height: 14),
+                    ],
+                    buildStaggeredItem(2, buildProfileCard(context)),
+                    const SizedBox(height: 18),
+                    buildStaggeredItem(3, buildStatsCard(context)),
+                    const SizedBox(height: 20),
+                    buildStaggeredItem(
+                      4,
+                      buildSection(
+                        context,
+                        title: 'Account',
+                        tiles: [
+                          ProfileTileData(
+                            icon: Icons.person_outline_rounded,
+                            title: 'Edit Profile',
+                            subtitle: 'Update your personal information',
+                            onTap: showEditProfileSheet,
+                          ),
+                          ProfileTileData(
+                            icon: Icons.lock_outline_rounded,
+                            title: 'Change Password',
+                            subtitle: 'Secure your account',
+                            onTap: showChangePasswordSheet,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    buildStaggeredItem(
+                      5,
+                      buildSection(
+                        context,
+                        title: 'Workspace',
+                        tiles: [
+                          ProfileTileData(
+                            icon: Icons.folder_outlined,
+                            title: 'Projects',
+                            subtitle: '$projectCount active projects',
+                            onTap: () => showMessage('Open projects from the tab bar.'),
+                          ),
+                          ProfileTileData(
+                            icon: Icons.task_alt_rounded,
+                            title: 'Completed Tasks',
+                            subtitle: '$completedTaskCount tasks completed',
+                            onTap: () => showMessage('Open tasks from the tab bar.'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    buildStaggeredItem(
+                      6,
+                      buildSection(
+                        context,
+                        title: 'More',
+                        tiles: [
+                          ProfileTileData(
+                            icon: Icons.settings_outlined,
+                            title: 'Settings',
+                            subtitle: 'Theme and app preferences',
+                            onTap: showSettingsSheet,
+                          ),
+                          ProfileTileData(
+                            icon: Icons.shield_outlined,
+                            title: 'Privacy',
+                            subtitle: 'Your data stays protected',
+                            onTap: () => showInfoSheet(
+                              title: 'Privacy',
+                              icon: Icons.shield_outlined,
+                              body:
+                                  'Planora keeps your account data private and only uses it to power your workspace, tasks, teams, and profile experience.',
+                            ),
+                          ),
+                          ProfileTileData(
+                            icon: Icons.help_outline_rounded,
+                            title: 'Help & Support',
+                            subtitle: 'Get help using Planora',
+                            onTap: () => showInfoSheet(
+                              title: 'Help & Support',
+                              icon: Icons.help_outline_rounded,
+                              body:
+                                  'For now, contact the Planora team directly if something is broken or unclear. More in-app support tools are coming later.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    buildStaggeredItem(7, buildLogoutButton(context)),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget buildStaggeredItem(int index, Widget child) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + (index * 55)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, animatedChild) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 18),
+            child: animatedChild,
+          ),
+        );
+      },
+      child: child,
     );
   }
 
@@ -215,9 +315,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Expanded(
           child: Text(
             'Profile',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
         buildCircleButton(
@@ -247,9 +347,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Ink(
             width: 44,
             height: 44,
-            decoration: cardDecoration(
-              context,
-            ).copyWith(borderRadius: BorderRadius.circular(999)),
+            decoration: cardDecoration(context).copyWith(
+              borderRadius: BorderRadius.circular(999),
+            ),
             child: Icon(icon, size: 21),
           ),
         ),
@@ -257,95 +357,128 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget buildProfileCard(BuildContext context) {
+  Widget buildErrorBanner(BuildContext context, String message) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(context),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.error.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: PlanoraTheme.error.withValues(alpha: 0.22)),
+      ),
       child: Row(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              buildProfileAvatar(context, radius: 36),
-              Positioned(
-                right: -2,
-                bottom: -2,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: PlanoraTheme.isDark(context)
-                          ? PlanoraTheme.darkSurface
-                          : Colors.white,
-                      width: 2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.photo_camera_outlined,
-                    size: 13,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 16),
+          const Icon(Icons.error_outline_rounded, color: PlanoraTheme.error),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  user.email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    buildPill(context, '@${user.username}'),
-                    buildPill(context, accountBadgeLabel),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: IconButton(
-              tooltip: 'Edit profile',
-              padding: EdgeInsets.zero,
-              onPressed: showEditProfileSheet,
-              icon: Icon(
-                Icons.chevron_right_rounded,
-                color: Theme.of(context).colorScheme.primary,
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: PlanoraTheme.error,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget buildProfileCard(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: showEditProfileSheet,
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: cardDecoration(context),
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  buildProfileAvatar(context, radius: 36),
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: PlanoraTheme.isDark(context)
+                              ? PlanoraTheme.darkSurface
+                              : Colors.white,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.photo_camera_outlined,
+                        size: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: mutedColor(context),
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        buildPill(context, '@${user.username}'),
+                        buildPill(context, accountBadgeLabel),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -363,16 +496,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
             debugPrint('Profile avatar load failed: $error');
-            return buildFallbackAvatar(context, radius: radius);
+            return buildInitialsAvatar(context, label: initials, radius: radius);
           },
         ),
       );
     }
 
-    return buildFallbackAvatar(context, radius: radius);
-  }
-
-  Widget buildFallbackAvatar(BuildContext context, {required double radius}) {
     return buildInitialsAvatar(context, label: initials, radius: radius);
   }
 
@@ -411,9 +540,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w900,
-        ),
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w900,
+            ),
       ),
     );
   }
@@ -481,30 +610,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 30,
-          height: 30,
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(11),
           ),
-          child: Icon(icon, color: color, size: 17),
+          child: Icon(icon, size: 18, color: color),
         ),
-        const SizedBox(height: 9),
+        const SizedBox(height: 8),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
+          duration: const Duration(milliseconds: 220),
           child: isLoadingStats
-              ? const SizedBox(
-                  key: ValueKey('loading'),
+              ? SizedBox(
+                  key: ValueKey('$label-loading'),
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
                 )
               : Text(
                   '$value',
-                  key: ValueKey(value),
+                  key: ValueKey('$label-$value'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
         ),
         const SizedBox(height: 3),
@@ -514,184 +646,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w700,
-          ),
+                color: mutedColor(context),
+                fontWeight: FontWeight.w800,
+              ),
         ),
       ],
     );
   }
 
-  Widget buildProfileSection(
+  Widget buildSection(
     BuildContext context, {
     required String title,
-    required List<_ProfileActionItem> items,
+    required List<ProfileTileData> tiles,
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 10),
       decoration: cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
             child: Text(
               title,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+                    fontWeight: FontWeight.w900,
+                  ),
             ),
           ),
-          const SizedBox(height: 12),
-          for (var index = 0; index < items.length; index++) ...[
-            buildMenuTile(context, item: items[index]),
-            if (index != items.length - 1) buildDivider(context),
+          for (var index = 0; index < tiles.length; index++) ...[
+            buildProfileTile(context, tiles[index]),
+            if (index != tiles.length - 1)
+              Divider(
+                height: 1,
+                indent: 72,
+                color: PlanoraTheme.isDark(context)
+                    ? PlanoraTheme.darkBorder
+                    : PlanoraTheme.border,
+              ),
           ],
         ],
       ),
     );
   }
 
-  Widget buildAccountSection(BuildContext context) {
-    return buildProfileSection(
-      context,
-      title: 'Account',
-      items: [
-        _ProfileActionItem(
-          icon: Icons.person_outline_rounded,
-          title: 'Edit Profile',
-          subtitle: 'Update your personal information',
-          onTap: showEditProfileSheet,
-        ),
-        _ProfileActionItem(
-          icon: Icons.lock_outline_rounded,
-          title: 'Change Password',
-          subtitle: 'Update your account password',
-          onTap: showChangePasswordSheet,
-        ),
-        _ProfileActionItem(
-          icon: Icons.mail_outline_rounded,
-          title: 'Email Preferences',
-          subtitle: 'Manage your email notifications',
-          onTap: () => openProfileInfoPage(
-            title: 'Email Preferences',
-            icon: Icons.mail_outline_rounded,
-            body:
-                'Email preferences are handled by Planora notifications. Backend preference endpoints are not available yet, so this page is read-only.',
-          ),
-        ),
-        _ProfileActionItem(
-          icon: Icons.notifications_none_rounded,
-          title: 'Notification Settings',
-          subtitle: 'Customize your notifications',
-          onTap: () => openProfileInfoPage(
-            title: 'Notification Settings',
-            icon: Icons.notifications_none_rounded,
-            body:
-                'In-app notifications are loaded from the backend Notifications API. Per-channel notification settings are disabled until the backend exposes preferences.',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildWorkspaceSection(BuildContext context) {
-    return buildProfileSection(
-      context,
-      title: 'Workspace',
-      items: [
-        _ProfileActionItem(
-          icon: Icons.workspace_premium_outlined,
-          title: 'Subscription',
-          subtitle: 'View current plan information',
-          onTap: () => openProfileInfoPage(
-            title: 'Subscription',
-            icon: Icons.workspace_premium_outlined,
-            body:
-                'Your current Planora mobile account is using the standard workspace experience. Subscription management is read-only because billing endpoints are not available to the mobile app.',
-          ),
-        ),
-        _ProfileActionItem(
-          icon: Icons.credit_card_outlined,
-          title: 'Billing & Invoices',
-          subtitle: 'View billing availability',
-          onTap: () => openProfileInfoPage(
-            title: 'Billing & Invoices',
-            icon: Icons.credit_card_outlined,
-            body:
-                'Billing and invoice history are not exposed by the current backend API. This page is intentionally informational instead of calling an unsupported endpoint.',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildMoreSection(BuildContext context) {
-    return buildProfileSection(
-      context,
-      title: 'More',
-      items: [
-        _ProfileActionItem(
-          icon: Icons.help_outline_rounded,
-          title: 'Help & Support',
-          subtitle: 'Beta support and troubleshooting',
-          onTap: () => openProfileInfoPage(
-            title: 'Help & Support',
-            icon: Icons.help_outline_rounded,
-            sections: ProfileInfoContent.helpSupport,
-          ),
-        ),
-        _ProfileActionItem(
-          icon: Icons.shield_outlined,
-          title: 'Privacy Policy',
-          subtitle: 'How Planora handles your data',
-          onTap: () => openProfileInfoPage(
-            title: 'Privacy Policy',
-            icon: Icons.shield_outlined,
-            sections: ProfileInfoContent.privacyPolicy,
-          ),
-        ),
-        _ProfileActionItem(
-          icon: Icons.description_outlined,
-          title: 'Terms of Service',
-          subtitle: 'Rules for using Planora',
-          onTap: () => openProfileInfoPage(
-            title: 'Terms of Service',
-            icon: Icons.description_outlined,
-            sections: ProfileInfoContent.terms,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildMenuTile(
-    BuildContext context, {
-    required _ProfileActionItem item,
-  }) {
+  Widget buildProfileTile(BuildContext context, ProfileTileData item) {
     final primary = Theme.of(context).colorScheme.primary;
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: item.onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(13),
+                  color: primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(item.icon, size: 19, color: primary),
+                child: Icon(item.icon, size: 20, color: primary),
               ),
-              const SizedBox(width: 13),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -701,19 +721,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
+                            fontWeight: FontWeight.w900,
+                            color: PlanoraTheme.isDark(context)
+                                ? PlanoraTheme.darkTextPrimary
+                                : PlanoraTheme.textPrimary,
+                          ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       item.subtitle,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: mutedColor(context),
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ],
                 ),
@@ -723,7 +745,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.07),
+                  color: primary.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -739,41 +761,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget buildDivider(BuildContext context) {
-    return Divider(
-      height: 1,
-      indent: 62,
-      color: PlanoraTheme.isDark(context)
-          ? PlanoraTheme.darkBorder
-          : PlanoraTheme.border,
-    );
-  }
-
-  Widget buildErrorBanner(BuildContext context) {
-    if (errorMessage == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline_rounded, color: PlanoraTheme.error),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              errorMessage!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: PlanoraTheme.error,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+  Widget buildLogoutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton.icon(
+        onPressed: widget.onLoggedOut,
+        icon: const Icon(Icons.logout_rounded),
+        label: const Text('Log Out'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: PlanoraTheme.error,
+          side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.28)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+        ),
       ),
     );
   }
@@ -781,16 +782,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> showEditProfileSheet() async {
     final usernameController = TextEditingController(text: user.username);
     final fullNameController = TextEditingController(text: user.fullName);
-    final fullNameFocus = FocusNode();
     final usernameFocus = FocusNode();
+    final fullNameFocus = FocusNode();
+    final initialUsername = user.username.trim();
+    final initialFullName = user.fullName.trim();
     bool isSaving = false;
     String? fullNameError;
     String? usernameError;
     String? sheetError;
 
+    bool validUsername(String value) {
+      return RegExp(r'^[A-Za-z0-9_]{3,50}$').hasMatch(value.trim());
+    }
+
     bool hasChanges() {
-      return usernameController.text.trim() != user.username.trim() ||
-          fullNameController.text.trim() != user.fullName.trim();
+      return usernameController.text.trim() != initialUsername ||
+          fullNameController.text.trim() != initialFullName;
     }
 
     await showModalBottomSheet<void>(
@@ -802,23 +809,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       enableDrag: true,
       isDismissible: !isSaving,
       sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 340),
-        reverseDuration: Duration(milliseconds: 220),
+        duration: Duration(milliseconds: 300),
+        reverseDuration: Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       ),
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
-            final canSave = !isSaving && hasChanges();
-            final previewName = fullNameController.text.trim().isNotEmpty
-                ? fullNameController.text.trim()
-                : user.username;
-            final previewUsername = usernameController.text.trim().isNotEmpty
-                ? usernameController.text.trim()
-                : user.username;
+            final fullName = fullNameController.text.trim();
+            final username = usernameController.text.trim();
+            final fullNameValid = fullName.isNotEmpty;
+            final usernameValid = validUsername(username);
+            final changed = hasChanges();
+            final canSave =
+                !isSaving && changed && fullNameValid && usernameValid;
+            final buttonLabel = isSaving
+                ? 'Saving...'
+                : !changed
+                    ? 'No Changes Yet'
+                    : (!fullNameValid || !usernameValid)
+                        ? 'Fix Details'
+                        : 'Save Changes';
 
-            void clearErrors() {
+            void refreshFieldState(String _) {
               setSheetState(() {
                 fullNameError = null;
                 usernameError = null;
@@ -827,14 +841,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
 
             Future<void> saveProfile() async {
-              final username = usernameController.text.trim();
-              final fullName = fullNameController.text.trim();
+              final nextFullName = fullNameController.text.trim();
+              final nextUsername = usernameController.text.trim();
 
-              if (!hasChanges()) {
-                return;
-              }
+              if (!hasChanges()) return;
 
-              if (fullName.isEmpty) {
+              if (nextFullName.isEmpty) {
                 setSheetState(() {
                   fullNameError = 'Full name is required.';
                   usernameError = null;
@@ -844,7 +856,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 return;
               }
 
-              if (!RegExp(r'^[A-Za-z0-9_]{3,50}$').hasMatch(username)) {
+              if (!validUsername(nextUsername)) {
                 setSheetState(() {
                   fullNameError = null;
                   usernameError =
@@ -855,6 +867,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 return;
               }
 
+              FocusManager.instance.primaryFocus?.unfocus();
               setSheetState(() {
                 isSaving = true;
                 fullNameError = null;
@@ -864,8 +877,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               try {
                 final updatedUser = await _profileApi.updateProfile(
-                  username: username,
-                  fullName: fullName,
+                  username: nextUsername,
+                  fullName: nextFullName,
                 );
 
                 if (!mounted || !sheetContext.mounted) return;
@@ -873,29 +886,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 setState(() {
                   user = updatedUser;
                 });
-
                 widget.onUserUpdated?.call(updatedUser);
                 Navigator.of(sheetContext).pop();
                 showMessage('Profile updated successfully.');
               } on ApiException catch (error) {
-                if (!mounted) return;
+                if (!sheetContext.mounted) return;
                 setSheetState(() {
+                  isSaving = false;
                   sheetError = error.message;
                 });
               } catch (error, stackTrace) {
                 debugPrint('Profile update failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-
-                if (!mounted) return;
+                if (!sheetContext.mounted) return;
                 setSheetState(() {
+                  isSaving = false;
                   sheetError = 'Could not update profile.';
                 });
-              } finally {
-                if (sheetContext.mounted) {
-                  setSheetState(() {
-                    isSaving = false;
-                  });
-                }
               }
             }
 
@@ -906,28 +913,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               isBusy: isSaving,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  buildEditProfilePreviewCard(
-                    sheetContext,
-                    name: previewName,
-                    username: previewUsername,
-                  ),
-                  const SizedBox(height: 20),
+                  buildCompactProfileRow(sheetContext),
+                  const SizedBox(height: 16),
                   Text(
                     'Personal details',
-                    style: Theme.of(sheetContext).textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(sheetContext).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Update how your profile appears across Planora.',
                     style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(sheetContext),
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
-                    ),
+                          color: mutedColor(sheetContext),
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
                   buildSheetLabel(sheetContext, 'Full Name'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
@@ -941,10 +946,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     keyboardType: TextInputType.name,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.name],
-                    onChanged: (_) => clearErrors(),
+                    onChanged: refreshFieldState,
                     onSubmitted: (_) => usernameFocus.requestFocus(),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   buildSheetLabel(sheetContext, 'Username'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
@@ -954,33 +959,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     hintText: 'Choose a username',
                     icon: Icons.alternate_email_rounded,
                     errorText: usernameError,
-                    helperText:
-                        '3-50 characters. Letters, numbers, and underscores only.',
                     enabled: !isSaving,
                     keyboardType: TextInputType.text,
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.username],
-                    onChanged: (_) => clearErrors(),
+                    onChanged: refreshFieldState,
                     onSubmitted: (_) => saveProfile(),
                   ),
+                  const SizedBox(height: 7),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, right: 4),
+                    child: Text(
+                      '3-50 characters. Letters, numbers, and underscores only.',
+                      softWrap: true,
+                      style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                            color: mutedColor(sheetContext),
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
+                    ),
+                  ),
                   if (sheetError != null) ...[
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     buildInlineError(sheetContext, sheetError!),
                   ],
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 18),
                   buildGradientActionButton(
                     sheetContext,
                     isEnabled: canSave,
                     isLoading: isSaving,
-                    label: 'Save Changes',
+                    label: buttonLabel,
                     loadingLabel: 'Saving...',
-                    icon: Icons.check_rounded,
+                    icon: canSave ? Icons.check_rounded : Icons.lock_outline_rounded,
                     onPressed: saveProfile,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
-                    height: 48,
+                    height: 46,
                     child: TextButton(
                       onPressed: isSaving
                           ? null
@@ -1002,67 +1018,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     fullNameFocus.dispose();
   }
 
-  Widget buildEditProfilePreviewCard(
-    BuildContext context, {
-    required String name,
-    required String username,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final primary = Theme.of(context).colorScheme.primary;
-
+  Widget buildCompactProfileRow(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: PlanoraTheme.softGradientFor(context),
-        borderRadius: BorderRadius.circular(22),
+        color: PlanoraTheme.isDark(context)
+            ? PlanoraTheme.darkSurfaceVariant.withValues(alpha: 0.72)
+            : PlanoraTheme.lavenderCard.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.lavenderBorder,
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkBorder
+              : PlanoraTheme.lavenderBorder,
         ),
-        boxShadow: PlanoraTheme.softCardShadowFor(context),
       ),
       child: Row(
         children: [
-          buildInitialsAvatar(context, label: initialsFor(name), radius: 31),
-          const SizedBox(width: 14),
+          buildProfileAvatar(context, radius: 24),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   user.email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '@$username',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: primary,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -1080,6 +1075,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool obscureNew = true;
     bool obscureConfirm = true;
     bool isSaving = false;
+    String? sheetError;
 
     bool strongPassword(String password) {
       return password.length >= 8 &&
@@ -1096,14 +1092,69 @@ class _ProfileScreenState extends State<ProfileScreen> {
       enableDrag: true,
       isDismissible: !isSaving,
       sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 340),
-        reverseDuration: Duration(milliseconds: 220),
+        duration: Duration(milliseconds: 300),
+        reverseDuration: Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       ),
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            Future<void> updatePassword() async {
+              final oldPassword = oldPasswordController.text;
+              final newPassword = newPasswordController.text;
+              final confirmPassword = confirmPasswordController.text;
+
+              if (oldPassword.isEmpty) {
+                setSheetState(() => sheetError = 'Current password is required.');
+                return;
+              }
+
+              if (!strongPassword(newPassword)) {
+                setSheetState(
+                  () => sheetError =
+                      'New password must be 8+ characters with an uppercase letter and a special character.',
+                );
+                return;
+              }
+
+              if (newPassword != confirmPassword) {
+                setSheetState(() => sheetError = 'Passwords do not match.');
+                return;
+              }
+
+              FocusManager.instance.primaryFocus?.unfocus();
+              setSheetState(() {
+                isSaving = true;
+                sheetError = null;
+              });
+
+              try {
+                await _profileApi.changePassword(
+                  oldPassword: oldPassword,
+                  newPassword: newPassword,
+                );
+
+                if (!sheetContext.mounted) return;
+                Navigator.of(sheetContext).pop();
+                showMessage('Password updated successfully.');
+              } on ApiException catch (error) {
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  isSaving = false;
+                  sheetError = error.message;
+                });
+              } catch (error, stackTrace) {
+                debugPrint('Password update failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+                if (!sheetContext.mounted) return;
+                setSheetState(() {
+                  isSaving = false;
+                  sheetError = 'Could not update password.';
+                });
+              }
+            }
+
             return buildSheetSurface(
               sheetContext,
               title: 'Change Password',
@@ -1111,9 +1162,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               isBusy: isSaving,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   buildPasswordIntroCard(sheetContext),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
                   buildSheetLabel(sheetContext, 'Current password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
@@ -1125,16 +1177,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     enabled: !isSaving,
                     keyboardType: TextInputType.visiblePassword,
                     textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.password],
                     suffixIcon: IconButton(
-                      tooltip: obscureOld ? 'Show password' : 'Hide password',
                       onPressed: isSaving
                           ? null
-                          : () {
-                              setSheetState(() {
-                                obscureOld = !obscureOld;
-                              });
-                            },
+                          : () => setSheetState(() => obscureOld = !obscureOld),
                       icon: Icon(
                         obscureOld
                             ? Icons.visibility_outlined
@@ -1142,28 +1188,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   buildSheetLabel(sheetContext, 'New password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
                     sheetContext,
                     controller: newPasswordController,
-                    hintText: 'Create a strong new password',
+                    hintText: 'Create a strong password',
                     icon: Icons.password_rounded,
                     obscureText: obscureNew,
                     enabled: !isSaving,
                     keyboardType: TextInputType.visiblePassword,
                     textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.newPassword],
                     suffixIcon: IconButton(
-                      tooltip: obscureNew ? 'Show password' : 'Hide password',
                       onPressed: isSaving
                           ? null
-                          : () {
-                              setSheetState(() {
-                                obscureNew = !obscureNew;
-                              });
-                            },
+                          : () => setSheetState(() => obscureNew = !obscureNew),
                       icon: Icon(
                         obscureNew
                             ? Icons.visibility_outlined
@@ -1171,9 +1211,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  buildPasswordRulesCard(sheetContext),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use 8+ characters with an uppercase letter and a special character.',
+                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                          color: mutedColor(sheetContext),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
                   buildSheetLabel(sheetContext, 'Confirm new password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
@@ -1185,16 +1231,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     enabled: !isSaving,
                     keyboardType: TextInputType.visiblePassword,
                     textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.newPassword],
+                    onSubmitted: (_) => updatePassword(),
                     suffixIcon: IconButton(
-                      tooltip: obscureConfirm ? 'Show password' : 'Hide password',
                       onPressed: isSaving
                           ? null
-                          : () {
-                              setSheetState(() {
-                                obscureConfirm = !obscureConfirm;
-                              });
-                            },
+                          : () => setSheetState(
+                                () => obscureConfirm = !obscureConfirm,
+                              ),
                       icon: Icon(
                         obscureConfirm
                             ? Icons.visibility_outlined
@@ -1202,90 +1245,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  if (sheetError != null) ...[
+                    const SizedBox(height: 12),
+                    buildInlineError(sheetContext, sheetError!),
+                  ],
+                  const SizedBox(height: 18),
                   buildGradientActionButton(
                     sheetContext,
                     isEnabled: !isSaving,
                     isLoading: isSaving,
                     label: 'Update Password',
-                    loadingLabel: 'Updating password...',
+                    loadingLabel: 'Updating...',
                     icon: Icons.lock_reset_rounded,
-                    onPressed: () async {
-                      final oldPassword = oldPasswordController.text;
-                      final newPassword = newPasswordController.text;
-                      final confirmPassword = confirmPasswordController.text;
-
-                      if (oldPassword.isEmpty) {
-                        showMessage('Current password is required.');
-                        return;
-                      }
-
-                      if (!strongPassword(newPassword)) {
-                        showMessage(
-                          'New password must be 8+ characters with uppercase and symbol.',
-                        );
-                        return;
-                      }
-
-                      if (newPassword != confirmPassword) {
-                        showMessage('New passwords do not match.');
-                        return;
-                      }
-
-                      setSheetState(() {
-                        isSaving = true;
-                      });
-
-                      try {
-                        await _profileApi.changePassword(
-                          oldPassword: oldPassword,
-                          newPassword: newPassword,
-                        );
-
-                        if (!mounted || !sheetContext.mounted) return;
-
-                        Navigator.of(sheetContext).pop();
-                        showMessage('Password changed successfully.');
-                      } on ApiException catch (error) {
-                        if (!mounted) return;
-                        showMessage(error.message);
-                      } catch (error, stackTrace) {
-                        debugPrint('Password change failed: $error');
-                        debugPrintStack(stackTrace: stackTrace);
-
-                        if (!mounted) return;
-                        showMessage('Could not change password.');
-                      } finally {
-                        if (sheetContext.mounted) {
-                          setSheetState(() {
-                            isSaving = false;
-                          });
-                        }
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: TextButton(
-                      onPressed: isSaving
-                          ? null
-                          : () => Navigator.of(sheetContext).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Center(
-                    child: Text(
-                      'You will stay signed in after changing your password.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(sheetContext).textTheme.bodySmall
-                          ?.copyWith(
-                            color: mutedColor(sheetContext),
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
+                    onPressed: updatePassword,
                   ),
                 ],
               ),
@@ -1301,108 +1273,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget buildPasswordIntroCard(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: primary.withValues(alpha: isDark ? 0.16 : 0.09),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: primary.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(Icons.shield_outlined, color: primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Keep your account protected',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Use a password that is hard to guess and different from your other accounts.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildPasswordRulesCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(
-        context,
-      ).copyWith(borderRadius: BorderRadius.circular(18)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Password requirements',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-          buildPasswordRule(context, 'At least 8 characters'),
-          const SizedBox(height: 8),
-          buildPasswordRule(context, 'At least one uppercase letter'),
-          const SizedBox(height: 8),
-          buildPasswordRule(context, 'At least one symbol'),
-        ],
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
       ),
-    );
-  }
-
-  Widget buildPasswordRule(BuildContext context, String text) {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Row(
-      children: [
-        Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: primary.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(999),
+      child: Row(
+        children: [
+          Icon(
+            Icons.security_rounded,
+            color: Theme.of(context).colorScheme.primary,
           ),
-          child: Icon(Icons.check_rounded, size: 14, color: primary),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            text,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w700,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Choose a strong password that you do not use anywhere else.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1415,8 +1311,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       barrierColor: sheetBarrierColor(context),
       enableDrag: true,
       sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 340),
-        reverseDuration: Duration(milliseconds: 220),
+        duration: Duration(milliseconds: 300),
+        reverseDuration: Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       ),
@@ -1426,18 +1322,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
           title: 'Settings',
           icon: Icons.settings_outlined,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              buildSettingsRow(
+              buildSettingsTile(
                 sheetContext,
-                icon: Icons.dark_mode_outlined,
-                title: 'Theme',
-                subtitle: 'Toggle light and dark mode',
-                trailing: Switch(
+                icon: PlanoraTheme.isDark(context)
+                    ? Icons.dark_mode_outlined
+                    : Icons.light_mode_outlined,
+                title: 'Appearance',
+                subtitle: PlanoraTheme.isDark(context)
+                    ? 'Dark mode is enabled'
+                    : 'Light mode is enabled',
+                trailing: Switch.adaptive(
                   value: PlanoraTheme.isDark(context),
-                  onChanged: (_) => widget.onThemeToggle(),
+                  onChanged: (_) {
+                    Navigator.of(sheetContext).pop();
+                    widget.onThemeToggle();
+                  },
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              buildSettingsTile(
+                sheetContext,
+                icon: Icons.verified_user_outlined,
+                title: 'Account status',
+                subtitle: accountBadgeLabel,
+              ),
             ],
           ),
         );
@@ -1445,136 +1355,210 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget buildSettingsTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.isDark(context)
+            ? PlanoraTheme.darkSurfaceVariant
+            : PlanoraTheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
+      ),
+    );
+  }
+
+  Future<void> showInfoSheet({
+    required String title,
+    required IconData icon,
+    required String body,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: sheetBarrierColor(context),
+      enableDrag: true,
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 300),
+        reverseDuration: Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      ),
+      builder: (sheetContext) {
+        return buildSheetSurface(
+          sheetContext,
+          title: title,
+          icon: icon,
+          child: Text(
+            body,
+            style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
+                  color: mutedColor(sheetContext),
+                  fontWeight: FontWeight.w600,
+                  height: 1.55,
+                ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget buildSheetSurface(
-    BuildContext sheetContext, {
+    BuildContext context, {
     required String title,
     required IconData icon,
     required Widget child,
     bool isBusy = false,
   }) {
-    final isDark = PlanoraTheme.isDark(sheetContext);
-    final media = MediaQuery.of(sheetContext);
-    final primary = Theme.of(sheetContext).colorScheme.primary;
+    final isDark = PlanoraTheme.isDark(context);
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final mediaSize = MediaQuery.sizeOf(context);
 
     return AnimatedPadding(
-      duration: const Duration(milliseconds: 260),
+      duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: viewInsets.bottom),
       child: Align(
         alignment: Alignment.bottomCenter,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 340),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, animatedChild) {
-            return Opacity(
-              opacity: value,
-              child: Transform.translate(
-                offset: Offset(0, 28 * (1 - value)),
-                child: Transform.scale(
-                  alignment: Alignment.bottomCenter,
-                  scale: 0.98 + (0.02 * value),
-                  child: animatedChild,
-                ),
-              ),
-            );
-          },
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 430,
-              maxHeight: media.size.height * 0.90,
-            ),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: isDark ? PlanoraTheme.darkBackground : Colors.white,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(32),
-                ),
-                border: Border.all(
-                  color: isDark
-                      ? PlanoraTheme.darkBorder.withValues(alpha: 0.85)
-                      : Colors.white.withValues(alpha: 0.72),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.42 : 0.16),
-                    blurRadius: 34,
-                    offset: const Offset(0, -10),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 430,
+            maxHeight: mediaSize.height * 0.90,
+          ),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, animatedChild) {
+              return Opacity(
+                opacity: value,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - value) * 12),
+                  child: Transform.scale(
+                    scale: 0.985 + (value * 0.015),
+                    alignment: Alignment.bottomCenter,
+                    child: animatedChild,
                   ),
-                  BoxShadow(
-                    color: primary.withValues(alpha: isDark ? 0.20 : 0.12),
-                    blurRadius: 38,
-                    offset: const Offset(0, -2),
+                ),
+              );
+            },
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
                   ),
-                ],
-              ),
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(22, 12, 22, 26),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? PlanoraTheme.darkBorder
-                              : const Color(0xFFE2E8F0),
-                          borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.50 : 0.16),
+                      blurRadius: 28,
+                      offset: const Offset(0, -8),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? PlanoraTheme.darkBorder
+                                : PlanoraTheme.border,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: primary.withValues(alpha: isDark ? 0.18 : 0.10),
-                            borderRadius: BorderRadius.circular(17),
-                          ),
-                          child: Icon(icon, color: primary, size: 23),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: Theme.of(sheetContext).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                        Material(
-                          color: isDark
-                              ? PlanoraTheme.darkSurfaceVariant
-                              : PlanoraTheme.surfaceVariant,
-                          borderRadius: BorderRadius.circular(999),
-                          child: InkWell(
-                            onTap: isBusy
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                            borderRadius: BorderRadius.circular(999),
-                            child: SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: Icon(
-                                Icons.close_rounded,
-                                color: mutedColor(sheetContext),
-                                size: 21,
-                              ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 22),
-                    child,
-                  ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            onPressed: isBusy
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      child,
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1587,9 +1571,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget buildSheetLabel(BuildContext context, String label) {
     return Text(
       label,
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: mutedColor(context),
+            fontWeight: FontWeight.w900,
+          ),
     );
   }
 
@@ -1598,82 +1583,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required TextEditingController controller,
     required String hintText,
     required IconData icon,
+    FocusNode? focusNode,
+    String? errorText,
     bool obscureText = false,
     bool enabled = true,
-    Widget? suffixIcon,
-    String? errorText,
-    String? helperText,
-    FocusNode? focusNode,
     TextInputType? keyboardType,
     TextInputAction? textInputAction,
     Iterable<String>? autofillHints,
     ValueChanged<String>? onChanged,
     ValueChanged<String>? onSubmitted,
+    Widget? suffixIcon,
   }) {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
-    final fillColor = isDark
-        ? PlanoraTheme.darkSurfaceVariant.withValues(alpha: 0.62)
-        : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border;
 
     return TextField(
       controller: controller,
       focusNode: focusNode,
-      obscureText: obscureText,
       enabled: enabled,
+      obscureText: obscureText,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       autofillHints: autofillHints,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: Theme.of(context).colorScheme.onSurface,
-      ),
+            fontWeight: FontWeight.w800,
+            color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+          ),
       decoration: InputDecoration(
         hintText: hintText,
-        helperText: helperText,
         errorText: errorText,
         filled: true,
-        fillColor: fillColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        fillColor: isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.surfaceVariant,
         prefixIcon: Padding(
-          padding: const EdgeInsets.only(left: 12, right: 10),
+          padding: const EdgeInsets.all(8),
           child: Container(
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: primary.withValues(alpha: isDark ? 0.18 : 0.10),
+              color: primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: primary, size: 18),
+            child: Icon(icon, color: primary, size: 19),
           ),
         ),
-        prefixIconConstraints: const BoxConstraints(
-          minWidth: 60,
-          minHeight: 56,
-        ),
         suffixIcon: suffixIcon,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: borderColor),
+          borderSide: BorderSide(
+            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: borderColor),
+          borderSide: BorderSide(
+            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: primary, width: 1.7),
+          borderSide: BorderSide(color: primary, width: 1.4),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: PlanoraTheme.error),
+          borderSide: const BorderSide(color: PlanoraTheme.error, width: 1.2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: PlanoraTheme.error, width: 1.7),
+          borderSide: const BorderSide(color: PlanoraTheme.error, width: 1.4),
         ),
       ),
     );
@@ -1684,18 +1663,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: PlanoraTheme.error.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PlanoraTheme.error.withValues(alpha: 0.18)),
+        color: PlanoraTheme.error.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: PlanoraTheme.error, size: 19),
-          const SizedBox(width: 10),
+          const Icon(Icons.error_outline_rounded, color: PlanoraTheme.error),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              style: const TextStyle(
                 color: PlanoraTheme.error,
                 fontWeight: FontWeight.w700,
               ),
@@ -1716,221 +1694,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onPressed,
   }) {
     final isDark = PlanoraTheme.isDark(context);
-    final buttonRadius = BorderRadius.circular(18);
+    final disabledBackground = isDark
+        ? PlanoraTheme.darkSurfaceVariant
+        : const Color(0xFFF3F0FF);
+    final disabledForeground = isDark
+        ? PlanoraTheme.darkTextSecondary
+        : PlanoraTheme.textSecondary;
 
-    return AnimatedOpacity(
+    return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      opacity: isEnabled ? 1 : 0.58,
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: isEnabled ? PlanoraTheme.primaryGradientFor(context) : null,
+        color: isEnabled ? null : disabledBackground,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: isEnabled ? PlanoraTheme.floatingShadowFor(context) : [],
+      ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: buttonRadius,
-        child: Ink(
-          height: 56,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: isEnabled ? PlanoraTheme.primaryGradientFor(context) : null,
-            color: isEnabled
-                ? null
-                : isDark
-                    ? PlanoraTheme.darkSurfaceVariant
-                    : PlanoraTheme.surfaceVariant,
-            borderRadius: buttonRadius,
-            boxShadow: isEnabled ? PlanoraTheme.floatingShadowFor(context) : null,
-          ),
-          child: InkWell(
-            onTap: isEnabled ? onPressed : null,
-            borderRadius: buttonRadius,
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SizeTransition(
-                      sizeFactor: animation,
-                      axis: Axis.horizontal,
-                      child: child,
-                    ),
-                  );
-                },
-                child: isLoading
-                    ? Row(
-                        key: const ValueKey('loading'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.3,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            loadingLabel,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        key: const ValueKey('idle'),
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, color: Colors.white, size: 19),
-                          const SizedBox(width: 8),
-                          Text(
-                            label,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget buildSettingsRow(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    Widget? trailing,
-  }) {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(context),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.11),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(icon, color: primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (trailing != null) ...[const SizedBox(width: 10), trailing],
-        ],
-      ),
-    );
-  }
-
-  Widget buildLogoutButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: PlanoraTheme.error,
-          backgroundColor: PlanoraTheme.error.withValues(alpha: 0.04),
-          side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.28)),
-        ),
-        onPressed: () {
-          widget.onLoggedOut();
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        },
-        icon: const Icon(Icons.logout_rounded),
-        label: const Text('Logout'),
-      ),
-    );
-  }
-
-  Widget buildStaggeredItem(int index, Widget child) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 360 + (index * 45)),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, animatedChild) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 18 * (1 - value)),
-            child: animatedChild,
-          ),
-        );
-      },
-      child: child,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.onboardingBackgroundFor(context),
-        ),
-        child: SafeArea(
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: isEnabled && !isLoading ? onPressed : null,
+          borderRadius: BorderRadius.circular(18),
           child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: RefreshIndicator(
-                onRefresh: refreshProfile,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-                  children: [
-                    buildHeader(context),
-                    const SizedBox(height: 16),
-                    if (isLoading) const LinearProgressIndicator(minHeight: 3),
-                    if (errorMessage != null) ...[
-                      buildErrorBanner(context),
-                      const SizedBox(height: 14),
-                    ],
-                    buildStaggeredItem(0, buildProfileCard(context)),
-                    const SizedBox(height: 16),
-                    buildStaggeredItem(1, buildStatsCard(context)),
-                    const SizedBox(height: 18),
-                    buildStaggeredItem(2, buildAccountSection(context)),
-                    const SizedBox(height: 18),
-                    buildStaggeredItem(3, buildWorkspaceSection(context)),
-                    const SizedBox(height: 18),
-                    buildStaggeredItem(4, buildMoreSection(context)),
-                    const SizedBox(height: 16),
-                    buildStaggeredItem(5, buildLogoutButton(context)),
-                  ],
-                ),
-              ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: isLoading
+                  ? Row(
+                      key: const ValueKey('loading'),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          loadingLabel,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      key: ValueKey(label),
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          icon,
+                          size: 19,
+                          color: isEnabled ? Colors.white : disabledForeground,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: isEnabled ? Colors.white : disabledForeground,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
@@ -1939,13 +1772,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-class _ProfileActionItem {
+class ProfileTileData {
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  const _ProfileActionItem({
+  const ProfileTileData({
     required this.icon,
     required this.title,
     required this.subtitle,
