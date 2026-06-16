@@ -5,6 +5,9 @@ import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
 import '../tasks/data/tasks_api.dart';
 import 'data/profile_api.dart';
+import 'data/profile_info_content.dart';
+import 'models/profile_info_section.dart';
+import 'widgets/profile_info_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final UserResponse user;
@@ -135,16 +138,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await Future.wait([loadProfile(), loadProfileStats()]);
   }
 
+  Future<void> openProfileInfoPage({
+    required String title,
+    required IconData icon,
+    String? body,
+    List<ProfileInfoSection>? sections,
+  }) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileInfoScreen(
+          title: title,
+          icon: icon,
+          body: body,
+          sections: sections,
+        ),
+      ),
+    );
+  }
+
+  void handleLogout() {
+    final onLoggedOut = widget.onLoggedOut;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    onLoggedOut();
+  }
+
+  void showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Color mutedColor(BuildContext context) {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
         : PlanoraTheme.textSecondary;
-  }
-
-  Color sheetBarrierColor(BuildContext context) {
-    return Colors.black.withValues(
-      alpha: PlanoraTheme.isDark(context) ? 0.62 : 0.38,
-    );
   }
 
   BoxDecoration cardDecoration(BuildContext context) {
@@ -159,12 +186,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
@@ -173,119 +194,192 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: isDark
           ? PlanoraTheme.darkBackground
           : PlanoraTheme.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: refreshProfile,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    buildStaggeredItem(0, buildHeader(context)),
-                    const SizedBox(height: 18),
-                    if (errorMessage != null) ...[
-                      buildStaggeredItem(
-                        1,
-                        buildErrorBanner(context, errorMessage!),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-                    buildStaggeredItem(2, buildProfileCard(context)),
-                    const SizedBox(height: 18),
-                    buildStaggeredItem(3, buildStatsCard(context)),
-                    const SizedBox(height: 20),
-                    buildStaggeredItem(
-                      4,
-                      buildSection(
-                        context,
-                        title: 'Account',
-                        tiles: [
-                          ProfileTileData(
-                            icon: Icons.person_outline_rounded,
-                            title: 'Edit Profile',
-                            subtitle: 'Update your personal information',
-                            onTap: showEditProfileSheet,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: refreshProfile,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        buildStaggeredItem(0, buildHeader(context)),
+                        const SizedBox(height: 18),
+                        if (errorMessage != null) ...[
+                          buildStaggeredItem(
+                            1,
+                            buildErrorBanner(context, errorMessage!),
                           ),
-                          ProfileTileData(
-                            icon: Icons.lock_outline_rounded,
-                            title: 'Change Password',
-                            subtitle: 'Secure your account',
-                            onTap: showChangePasswordSheet,
-                          ),
+                          const SizedBox(height: 14),
                         ],
-                      ),
+                        buildStaggeredItem(2, buildProfileCard(context)),
+                        const SizedBox(height: 18),
+                        buildStaggeredItem(3, buildStatsCard(context)),
+                        const SizedBox(height: 20),
+                        buildStaggeredItem(
+                          4,
+                          buildSection(
+                            context,
+                            title: 'Account',
+                            tiles: [
+                              ProfileTileData(
+                                icon: Icons.person_outline_rounded,
+                                title: 'Edit Profile',
+                                subtitle: 'Update your personal information',
+                                onTap: showEditProfileSheet,
+                              ),
+                              ProfileTileData(
+                                icon: Icons.lock_outline_rounded,
+                                title: 'Change Password',
+                                subtitle: 'Secure your account',
+                                onTap: showChangePasswordSheet,
+                              ),
+                              ProfileTileData(
+                                icon: Icons.mail_outline_rounded,
+                                title: 'Email Preferences',
+                                subtitle: 'Manage beta email updates',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Email Preferences',
+                                  icon: Icons.mail_outline_rounded,
+                                  sections: ProfileInfoContent.emailPreferences,
+                                ),
+                              ),
+                              ProfileTileData(
+                                icon: Icons.notifications_none_rounded,
+                                title: 'Notification Settings',
+                                subtitle: 'Review notification behavior',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Notification Settings',
+                                  icon: Icons.notifications_none_rounded,
+                                  sections:
+                                      ProfileInfoContent.notificationSettings,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        buildStaggeredItem(
+                          5,
+                          buildSection(
+                            context,
+                            title: 'Workspace',
+                            tiles: [
+                              ProfileTileData(
+                                icon: Icons.folder_outlined,
+                                title: 'Projects',
+                                subtitle: isLoadingStats
+                                    ? 'Loading projects...'
+                                    : '$projectCount active projects',
+                                onTap: () => showMessage(
+                                  'Open projects from the tab bar.',
+                                ),
+                              ),
+                              ProfileTileData(
+                                icon: Icons.task_alt_rounded,
+                                title: 'Completed Tasks',
+                                subtitle: isLoadingStats
+                                    ? 'Loading tasks...'
+                                    : '$completedTaskCount tasks completed',
+                                onTap: () => showMessage(
+                                  'Open tasks from the tab bar.',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        buildStaggeredItem(
+                          6,
+                          buildSection(
+                            context,
+                            title: 'Plan & Billing',
+                            tiles: [
+                              ProfileTileData(
+                                icon: Icons.workspace_premium_outlined,
+                                title: 'Subscription Plan',
+                                subtitle: 'View your current Planora plan',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Subscription',
+                                  icon: Icons.workspace_premium_outlined,
+                                  sections: ProfileInfoContent.subscription,
+                                ),
+                              ),
+                              ProfileTileData(
+                                icon: Icons.credit_card_outlined,
+                                title: 'Billing & Invoices',
+                                subtitle: 'Review billing availability',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Billing & Invoices',
+                                  icon: Icons.credit_card_outlined,
+                                  sections:
+                                      ProfileInfoContent.billingAndInvoices,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        buildStaggeredItem(
+                          7,
+                          buildSection(
+                            context,
+                            title: 'More',
+                            tiles: [
+                              ProfileTileData(
+                                icon: Icons.settings_outlined,
+                                title: 'Settings',
+                                subtitle: 'Theme and app preferences',
+                                onTap: showSettingsSheet,
+                              ),
+                              ProfileTileData(
+                                icon: Icons.help_outline_rounded,
+                                title: 'Help & Support',
+                                subtitle: 'Get help using Planora',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Help & Support',
+                                  icon: Icons.help_outline_rounded,
+                                  sections: ProfileInfoContent.helpSupport,
+                                ),
+                              ),
+                              ProfileTileData(
+                                icon: Icons.shield_outlined,
+                                title: 'Privacy Policy',
+                                subtitle: 'How Planora handles your data',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Privacy Policy',
+                                  icon: Icons.shield_outlined,
+                                  sections: ProfileInfoContent.privacyPolicy,
+                                ),
+                              ),
+                              ProfileTileData(
+                                icon: Icons.description_outlined,
+                                title: 'Terms of Service',
+                                subtitle: 'Planora beta usage terms',
+                                onTap: () => openProfileInfoPage(
+                                  title: 'Terms of Service',
+                                  icon: Icons.description_outlined,
+                                  sections: ProfileInfoContent.terms,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        buildStaggeredItem(8, buildLogoutButton(context)),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    buildStaggeredItem(
-                      5,
-                      buildSection(
-                        context,
-                        title: 'Workspace',
-                        tiles: [
-                          ProfileTileData(
-                            icon: Icons.folder_outlined,
-                            title: 'Projects',
-                            subtitle: '$projectCount active projects',
-                            onTap: () =>
-                                showMessage('Open projects from the tab bar.'),
-                          ),
-                          ProfileTileData(
-                            icon: Icons.task_alt_rounded,
-                            title: 'Completed Tasks',
-                            subtitle: '$completedTaskCount tasks completed',
-                            onTap: () =>
-                                showMessage('Open tasks from the tab bar.'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    buildStaggeredItem(
-                      6,
-                      buildSection(
-                        context,
-                        title: 'More',
-                        tiles: [
-                          ProfileTileData(
-                            icon: Icons.settings_outlined,
-                            title: 'Settings',
-                            subtitle: 'Theme and app preferences',
-                            onTap: showSettingsSheet,
-                          ),
-                          ProfileTileData(
-                            icon: Icons.shield_outlined,
-                            title: 'Privacy',
-                            subtitle: 'Your data stays protected',
-                            onTap: () => showInfoSheet(
-                              title: 'Privacy',
-                              icon: Icons.shield_outlined,
-                              body:
-                                  'Planora keeps your account data private and only uses it to power your workspace, tasks, teams, and profile experience.',
-                            ),
-                          ),
-                          ProfileTileData(
-                            icon: Icons.help_outline_rounded,
-                            title: 'Help & Support',
-                            subtitle: 'Get help using Planora',
-                            onTap: () => showInfoSheet(
-                              title: 'Help & Support',
-                              icon: Icons.help_outline_rounded,
-                              body:
-                                  'For now, contact the Planora team directly if something is broken or unclear. More in-app support tools are coming later.',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    buildStaggeredItem(7, buildLogoutButton(context)),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -427,7 +521,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       child: const Icon(
-                        Icons.photo_camera_outlined,
+                        Icons.edit_outlined,
                         size: 13,
                         color: Colors.white,
                       ),
@@ -445,8 +539,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '@${user.username}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -454,34 +558,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        buildPill(context, '@${user.username}'),
-                        buildPill(context, accountBadgeLabel),
-                      ],
+                            color: mutedColor(context),
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
               Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
                 ),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  color: Theme.of(context).colorScheme.primary,
+                decoration: BoxDecoration(
+                  color: user.isEmailVerified
+                      ? PlanoraTheme.success.withValues(alpha: 0.12)
+                      : PlanoraTheme.warning.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  accountBadgeLabel,
+                  style: TextStyle(
+                    color: user.isEmailVerified
+                        ? PlanoraTheme.success
+                        : PlanoraTheme.warning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -492,67 +596,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget buildProfileAvatar(BuildContext context, {required double radius}) {
-    final profilePic = user.profilePic?.trim();
-    final size = radius * 2;
+    final imageUrl = user.profilePic?.trim();
 
-    if (profilePic != null && profilePic.isNotEmpty) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
       return ClipOval(
         child: Image.network(
-          profilePic,
-          width: size,
-          height: size,
+          imageUrl,
+          width: radius * 2,
+          height: radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            debugPrint('Profile avatar load failed: $error');
-            return buildInitialsAvatar(
-              context,
-              label: initials,
-              radius: radius,
-            );
-          },
+          errorBuilder: (_, _, _) => buildInitialsAvatar(context, radius),
         ),
       );
     }
 
-    return buildInitialsAvatar(context, label: initials, radius: radius);
+    return buildInitialsAvatar(context, radius);
   }
 
-  Widget buildInitialsAvatar(
-    BuildContext context, {
-    required String label,
-    required double radius,
-  }) {
+  Widget buildInitialsAvatar(BuildContext context, double radius) {
     return Container(
       width: radius * 2,
       height: radius * 2,
       decoration: BoxDecoration(
         gradient: PlanoraTheme.primaryGradientFor(context),
         borderRadius: BorderRadius.circular(999),
-        boxShadow: PlanoraTheme.floatingShadowFor(context),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: Text(
-        label,
+        initials,
         style: TextStyle(
           color: Colors.white,
-          fontSize: radius * 0.62,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-
-  Widget buildPill(BuildContext context, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
+          fontSize: radius * 0.58,
           fontWeight: FontWeight.w900,
         ),
       ),
@@ -561,50 +642,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget buildStatsCard(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+      padding: const EdgeInsets.all(14),
       decoration: cardDecoration(context),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Expanded(
-              child: buildStatItem(
-                context,
-                icon: Icons.folder_outlined,
-                value: projectCount,
-                label: 'Projects',
-                color: Theme.of(context).colorScheme.primary,
-              ),
+      child: Row(
+        children: [
+          Expanded(
+            child: buildStatItem(
+              context,
+              icon: Icons.folder_outlined,
+              label: 'Projects',
+              value: isLoadingStats ? '...' : '$projectCount',
             ),
-            buildStatDivider(context),
-            Expanded(
-              child: buildStatItem(
-                context,
-                icon: Icons.check_box_outlined,
-                value: completedTaskCount,
-                label: 'Tasks Completed',
-                color: PlanoraTheme.info,
-              ),
+          ),
+          buildVerticalDivider(context),
+          Expanded(
+            child: buildStatItem(
+              context,
+              icon: Icons.task_alt_rounded,
+              label: 'Completed',
+              value: isLoadingStats ? '...' : '$completedTaskCount',
             ),
-            buildStatDivider(context),
-            Expanded(
-              child: buildStatItem(
-                context,
-                icon: Icons.calendar_today_outlined,
-                value: daysActive,
-                label: 'Days Active',
-                color: PlanoraTheme.success,
-              ),
+          ),
+          buildVerticalDivider(context),
+          Expanded(
+            child: buildStatItem(
+              context,
+              icon: Icons.calendar_month_outlined,
+              label: 'Days active',
+              value: '$daysActive',
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget buildStatDivider(BuildContext context) {
-    return VerticalDivider(
+  Widget buildVerticalDivider(BuildContext context) {
+    return Container(
       width: 1,
+      height: 44,
       color: PlanoraTheme.isDark(context)
           ? PlanoraTheme.darkBorder
           : PlanoraTheme.border,
@@ -614,53 +690,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget buildStatItem(
     BuildContext context, {
     required IconData icon,
-    required int value,
     required String label,
-    required Color color,
+    required String value,
   }) {
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Icon(icon, size: 18, color: color),
+        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
+        const SizedBox(height: 7),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
         ),
-        const SizedBox(height: 8),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          child: isLoadingStats
-              ? SizedBox(
-                  key: ValueKey('$label-loading'),
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: color,
-                  ),
-                )
-              : Text(
-                  '$value',
-                  key: ValueKey('$label-$value'),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-        ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Text(
           label,
-          textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w800,
-          ),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+              ),
         ),
       ],
     );
@@ -671,30 +724,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required List<ProfileTileData> tiles,
   }) {
+    final isDark = PlanoraTheme.isDark(context);
     return Container(
       width: double.infinity,
-      decoration: cardDecoration(context),
+      decoration: cardDecoration(context).copyWith(
+        borderRadius: BorderRadius.circular(22),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
               title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
             ),
           ),
           for (var index = 0; index < tiles.length; index++) ...[
-            buildProfileTile(context, tiles[index]),
+            buildProfileActionTile(context, tiles[index]),
             if (index != tiles.length - 1)
               Divider(
                 height: 1,
                 indent: 72,
-                color: PlanoraTheme.isDark(context)
-                    ? PlanoraTheme.darkBorder
-                    : PlanoraTheme.border,
+                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
               ),
           ],
         ],
@@ -702,88 +756,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget buildProfileTile(BuildContext context, ProfileTileData item) {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: item.onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(item.icon, size: 20, color: primary),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: PlanoraTheme.isDark(context)
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  color: mutedColor(context),
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
+  Widget buildProfileActionTile(BuildContext context, ProfileTileData item) {
+    return ListTile(
+      onTap: item.onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      minVerticalPadding: 8,
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          item.icon,
+          size: 19,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
+      title: Text(
+        item.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w900),
+      ),
+      subtitle: Text(
+        item.subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: mutedColor(context), fontWeight: FontWeight.w600),
+      ),
+      trailing: Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
     );
   }
 
   Widget buildLogoutButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 54,
       child: OutlinedButton.icon(
-        onPressed: widget.onLoggedOut,
+        onPressed: handleLogout,
         icon: const Icon(Icons.logout_rounded),
         label: const Text('Log Out'),
         style: OutlinedButton.styleFrom(
           foregroundColor: PlanoraTheme.error,
-          side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.28)),
+          side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.35)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -794,24 +811,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> showEditProfileSheet() async {
-    final usernameController = TextEditingController(text: user.username);
     final fullNameController = TextEditingController(text: user.fullName);
-    final usernameFocus = FocusNode();
-    final fullNameFocus = FocusNode();
-    final initialUsername = user.username.trim();
-    final initialFullName = user.fullName.trim();
-    bool isSaving = false;
-    String? fullNameError;
-    String? usernameError;
-    String? sheetError;
+    final usernameController = TextEditingController(text: user.username);
+    var isSaving = false;
 
     bool validUsername(String value) {
       return RegExp(r'^[A-Za-z0-9_]{3,50}$').hasMatch(value.trim());
-    }
-
-    bool hasChanges() {
-      return usernameController.text.trim() != initialUsername ||
-          fullNameController.text.trim() != initialFullName;
     }
 
     await showModalBottomSheet<void>(
@@ -819,204 +824,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      barrierColor: sheetBarrierColor(context),
-      enableDrag: true,
-      isDismissible: !isSaving,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 300),
-        reverseDuration: Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
             final fullName = fullNameController.text.trim();
             final username = usernameController.text.trim();
-            final fullNameValid = fullName.isNotEmpty;
-            final usernameValid = validUsername(username);
-            final changed = hasChanges();
-            final canSave =
-                !isSaving && changed && fullNameValid && usernameValid;
-            final buttonLabel = isSaving
-                ? 'Saving...'
-                : !changed
-                ? 'No Changes Yet'
-                : (!fullNameValid || !usernameValid)
-                ? 'Fix Details'
-                : 'Save Changes';
+            final canSave = fullName.isNotEmpty &&
+                validUsername(username) &&
+                !isSaving &&
+                (fullName != user.fullName.trim() || username != user.username.trim());
 
-            void refreshFieldState(String _) {
-              setSheetState(() {
-                fullNameError = null;
-                usernameError = null;
-                sheetError = null;
-              });
-            }
-
-            Future<void> saveProfile() async {
-              final nextFullName = fullNameController.text.trim();
-              final nextUsername = usernameController.text.trim();
-
-              if (!hasChanges()) return;
-
-              if (nextFullName.isEmpty) {
-                setSheetState(() {
-                  fullNameError = 'Full name is required.';
-                  usernameError = null;
-                  sheetError = null;
-                });
-                fullNameFocus.requestFocus();
-                return;
-              }
-
-              if (!validUsername(nextUsername)) {
-                setSheetState(() {
-                  fullNameError = null;
-                  usernameError =
-                      'Use 3-50 letters, numbers, or underscores only.';
-                  sheetError = null;
-                });
-                usernameFocus.requestFocus();
-                return;
-              }
-
+            Future<void> submit() async {
+              if (!canSave) return;
               FocusManager.instance.primaryFocus?.unfocus();
-              setSheetState(() {
-                isSaving = true;
-                fullNameError = null;
-                usernameError = null;
-                sheetError = null;
-              });
+              setSheetState(() => isSaving = true);
 
               try {
                 final updatedUser = await _profileApi.updateProfile(
-                  username: nextUsername,
-                  fullName: nextFullName,
+                  username: username,
+                  fullName: fullName,
                 );
-
-                if (!mounted || !sheetContext.mounted) return;
-
+                if (!mounted) return;
                 setState(() {
                   user = updatedUser;
                 });
                 widget.onUserUpdated?.call(updatedUser);
-                Navigator.of(sheetContext).pop();
+                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
                 showMessage('Profile updated successfully.');
               } on ApiException catch (error) {
-                if (!sheetContext.mounted) return;
-                setSheetState(() {
-                  isSaving = false;
-                  sheetError = error.message;
-                });
+                if (sheetContext.mounted) {
+                  setSheetState(() => isSaving = false);
+                }
+                showMessage(error.message);
               } catch (error, stackTrace) {
                 debugPrint('Profile update failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                if (!sheetContext.mounted) return;
-                setSheetState(() {
-                  isSaving = false;
-                  sheetError = 'Could not update profile.';
-                });
+                if (sheetContext.mounted) {
+                  setSheetState(() => isSaving = false);
+                }
+                showMessage('Could not update profile.');
               }
             }
 
-            return buildSheetSurface(
+            return buildSheetContainer(
               sheetContext,
-              title: 'Edit Profile',
-              icon: Icons.edit_outlined,
-              isBusy: isSaving,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  buildCompactProfileRow(sheetContext),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Personal details',
-                    style: Theme.of(sheetContext).textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w900),
+                  const _SheetGrabber(),
+                  const SizedBox(height: 20),
+                  buildSheetHeader(
+                    sheetContext,
+                    title: 'Edit Profile',
+                    icon: Icons.edit_outlined,
+                    onClose: isSaving ? null : () => Navigator.of(sheetContext).pop(),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Update how your profile appears across Planora.',
-                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(sheetContext),
-                      fontWeight: FontWeight.w600,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  buildSheetLabel(sheetContext, 'Full Name'),
+                  const SizedBox(height: 22),
+                  _SheetLabel('Full name'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
-                    sheetContext,
                     controller: fullNameController,
-                    focusNode: fullNameFocus,
-                    hintText: 'Enter your full name',
                     icon: Icons.person_outline_rounded,
-                    errorText: fullNameError,
-                    enabled: !isSaving,
-                    keyboardType: TextInputType.name,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.name],
-                    onChanged: refreshFieldState,
-                    onSubmitted: (_) => usernameFocus.requestFocus(),
+                    hintText: 'Enter your full name',
+                    onChanged: (_) => setSheetState(() {}),
                   ),
-                  const SizedBox(height: 14),
-                  buildSheetLabel(sheetContext, 'Username'),
+                  const SizedBox(height: 16),
+                  _SheetLabel('Username'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
-                    sheetContext,
                     controller: usernameController,
-                    focusNode: usernameFocus,
-                    hintText: 'Choose a username',
                     icon: Icons.alternate_email_rounded,
-                    errorText: usernameError,
-                    enabled: !isSaving,
-                    keyboardType: TextInputType.text,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.username],
-                    onChanged: refreshFieldState,
-                    onSubmitted: (_) => saveProfile(),
-                  ),
-                  const SizedBox(height: 7),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, right: 4),
-                    child: Text(
-                      '3-50 characters. Letters, numbers, and underscores only.',
-                      softWrap: true,
-                      style: Theme.of(sheetContext).textTheme.bodySmall
-                          ?.copyWith(
-                            color: mutedColor(sheetContext),
-                            fontWeight: FontWeight.w600,
-                            height: 1.3,
-                          ),
-                    ),
-                  ),
-                  if (sheetError != null) ...[
-                    const SizedBox(height: 12),
-                    buildInlineError(sheetContext, sheetError!),
-                  ],
-                  const SizedBox(height: 18),
-                  buildGradientActionButton(
-                    sheetContext,
-                    isEnabled: canSave,
-                    isLoading: isSaving,
-                    label: buttonLabel,
-                    loadingLabel: 'Saving...',
-                    icon: canSave
-                        ? Icons.check_rounded
-                        : Icons.lock_outline_rounded,
-                    onPressed: saveProfile,
+                    hintText: 'Choose a username',
+                    onChanged: (_) => setSheetState(() {}),
                   ),
                   const SizedBox(height: 8),
+                  Text(
+                    validUsername(username)
+                        ? 'Username looks good.'
+                        : 'Use 3-50 letters, numbers, or underscores.',
+                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                          color: validUsername(username)
+                              ? PlanoraTheme.success
+                              : PlanoraTheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 22),
                   SizedBox(
                     width: double.infinity,
-                    height: 46,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: canSave ? submit : null,
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(isSaving ? 'Saving profile...' : 'Save Changes'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
                     child: TextButton(
-                      onPressed: isSaving
-                          ? null
-                          : () => Navigator.of(sheetContext).pop(),
+                      onPressed: isSaving ? null : () => Navigator.of(sheetContext).pop(),
                       child: const Text('Cancel'),
                     ),
                   ),
@@ -1026,256 +941,162 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         );
       },
-    );
-
-    usernameController.dispose();
-    fullNameController.dispose();
-    usernameFocus.dispose();
-    fullNameFocus.dispose();
-  }
-
-  Widget buildCompactProfileRow(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? PlanoraTheme.darkSurfaceVariant.withValues(alpha: 0.72)
-            : PlanoraTheme.lavenderCard.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: PlanoraTheme.isDark(context)
-              ? PlanoraTheme.darkBorder
-              : PlanoraTheme.lavenderBorder,
-        ),
-      ),
-      child: Row(
-        children: [
-          buildProfileAvatar(context, radius: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  user.email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    ).whenComplete(() {
+      fullNameController.dispose();
+      usernameController.dispose();
+    });
   }
 
   Future<void> showChangePasswordSheet() async {
     final oldPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
-    bool obscureOld = true;
-    bool obscureNew = true;
-    bool obscureConfirm = true;
-    bool isSaving = false;
-    String? sheetError;
-
-    bool strongPassword(String password) {
-      return password.length >= 8 &&
-          RegExp(r'[A-Z]').hasMatch(password) &&
-          RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\\[\];~`]').hasMatch(password);
-    }
+    var isSaving = false;
+    var obscurePasswords = true;
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      barrierColor: sheetBarrierColor(context),
-      enableDrag: true,
-      isDismissible: !isSaving,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 300),
-        reverseDuration: Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
-            Future<void> updatePassword() async {
-              final oldPassword = oldPasswordController.text;
-              final newPassword = newPasswordController.text;
-              final confirmPassword = confirmPasswordController.text;
+            final oldPassword = oldPasswordController.text;
+            final newPassword = newPasswordController.text;
+            final confirmPassword = confirmPasswordController.text;
+            final passwordsMatch =
+                newPassword.isNotEmpty && newPassword == confirmPassword;
+            final canSave = oldPassword.isNotEmpty &&
+                newPassword.length >= 8 &&
+                passwordsMatch &&
+                !isSaving;
 
-              if (oldPassword.isEmpty) {
-                setSheetState(
-                  () => sheetError = 'Current password is required.',
-                );
-                return;
-              }
-
-              if (!strongPassword(newPassword)) {
-                setSheetState(
-                  () => sheetError =
-                      'New password must be 8+ characters with an uppercase letter and a special character.',
-                );
-                return;
-              }
-
-              if (newPassword != confirmPassword) {
-                setSheetState(() => sheetError = 'Passwords do not match.');
-                return;
-              }
-
+            Future<void> submit() async {
+              if (!canSave) return;
               FocusManager.instance.primaryFocus?.unfocus();
-              setSheetState(() {
-                isSaving = true;
-                sheetError = null;
-              });
+              setSheetState(() => isSaving = true);
 
               try {
                 await _profileApi.changePassword(
                   oldPassword: oldPassword,
                   newPassword: newPassword,
                 );
-
-                if (!sheetContext.mounted) return;
-                Navigator.of(sheetContext).pop();
-                showMessage('Password updated successfully.');
+                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+                showMessage('Password changed successfully.');
               } on ApiException catch (error) {
-                if (!sheetContext.mounted) return;
-                setSheetState(() {
-                  isSaving = false;
-                  sheetError = error.message;
-                });
+                if (sheetContext.mounted) {
+                  setSheetState(() => isSaving = false);
+                }
+                showMessage(error.message);
               } catch (error, stackTrace) {
-                debugPrint('Password update failed: $error');
+                debugPrint('Password change failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                if (!sheetContext.mounted) return;
-                setSheetState(() {
-                  isSaving = false;
-                  sheetError = 'Could not update password.';
-                });
+                if (sheetContext.mounted) {
+                  setSheetState(() => isSaving = false);
+                }
+                showMessage('Could not change password.');
               }
             }
 
-            return buildSheetSurface(
+            return buildSheetContainer(
               sheetContext,
-              title: 'Change Password',
-              icon: Icons.lock_reset_rounded,
-              isBusy: isSaving,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  buildPasswordIntroCard(sheetContext),
-                  const SizedBox(height: 16),
-                  buildSheetLabel(sheetContext, 'Current password'),
-                  const SizedBox(height: 8),
-                  buildSheetTextField(
+                  const _SheetGrabber(),
+                  const SizedBox(height: 20),
+                  buildSheetHeader(
                     sheetContext,
-                    controller: oldPasswordController,
-                    hintText: 'Enter your current password',
+                    title: 'Change Password',
                     icon: Icons.lock_outline_rounded,
-                    obscureText: obscureOld,
-                    enabled: !isSaving,
-                    keyboardType: TextInputType.visiblePassword,
-                    textInputAction: TextInputAction.next,
-                    suffixIcon: IconButton(
-                      onPressed: isSaving
-                          ? null
-                          : () => setSheetState(() => obscureOld = !obscureOld),
-                      icon: Icon(
-                        obscureOld
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                    ),
+                    onClose: isSaving ? null : () => Navigator.of(sheetContext).pop(),
                   ),
-                  const SizedBox(height: 14),
-                  buildSheetLabel(sheetContext, 'New password'),
+                  const SizedBox(height: 22),
+                  _SheetLabel('Current password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
-                    sheetContext,
+                    controller: oldPasswordController,
+                    icon: Icons.lock_open_outlined,
+                    hintText: 'Enter current password',
+                    obscureText: obscurePasswords,
+                    onChanged: (_) => setSheetState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  _SheetLabel('New password'),
+                  const SizedBox(height: 8),
+                  buildSheetTextField(
                     controller: newPasswordController,
-                    hintText: 'Create a strong password',
-                    icon: Icons.password_rounded,
-                    obscureText: obscureNew,
-                    enabled: !isSaving,
-                    keyboardType: TextInputType.visiblePassword,
-                    textInputAction: TextInputAction.next,
-                    suffixIcon: IconButton(
-                      onPressed: isSaving
-                          ? null
-                          : () => setSheetState(() => obscureNew = !obscureNew),
-                      icon: Icon(
-                        obscureNew
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                    ),
+                    icon: Icons.lock_outline_rounded,
+                    hintText: 'Enter new password',
+                    obscureText: obscurePasswords,
+                    onChanged: (_) => setSheetState(() {}),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Use 8+ characters with an uppercase letter and a special character.',
-                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(sheetContext),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  buildSheetLabel(sheetContext, 'Confirm new password'),
+                  const SizedBox(height: 16),
+                  _SheetLabel('Confirm password'),
                   const SizedBox(height: 8),
                   buildSheetTextField(
-                    sheetContext,
                     controller: confirmPasswordController,
-                    hintText: 'Re-enter your new password',
                     icon: Icons.verified_user_outlined,
-                    obscureText: obscureConfirm,
-                    enabled: !isSaving,
-                    keyboardType: TextInputType.visiblePassword,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => updatePassword(),
-                    suffixIcon: IconButton(
-                      onPressed: isSaving
-                          ? null
-                          : () => setSheetState(
-                              () => obscureConfirm = !obscureConfirm,
-                            ),
-                      icon: Icon(
-                        obscureConfirm
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
+                    hintText: 'Confirm new password',
+                    obscureText: obscurePasswords,
+                    onChanged: (_) => setSheetState(() {}),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          passwordsMatch || confirmPassword.isEmpty
+                              ? 'Use at least 8 characters.'
+                              : 'Passwords do not match.',
+                          style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                                color: passwordsMatch || confirmPassword.isEmpty
+                                    ? mutedColor(sheetContext)
+                                    : PlanoraTheme.error,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
                       ),
+                      TextButton.icon(
+                        onPressed: () => setSheetState(
+                          () => obscurePasswords = !obscurePasswords,
+                        ),
+                        icon: Icon(
+                          obscurePasswords
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 18,
+                        ),
+                        label: Text(obscurePasswords ? 'Show' : 'Hide'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: canSave ? submit : null,
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.lock_reset_rounded),
+                      label: Text(isSaving ? 'Changing password...' : 'Change Password'),
                     ),
                   ),
-                  if (sheetError != null) ...[
-                    const SizedBox(height: 12),
-                    buildInlineError(sheetContext, sheetError!),
-                  ],
-                  const SizedBox(height: 18),
-                  buildGradientActionButton(
-                    sheetContext,
-                    isEnabled: !isSaving,
-                    isLoading: isSaving,
-                    label: 'Update Password',
-                    loadingLabel: 'Updating...',
-                    icon: Icons.lock_reset_rounded,
-                    onPressed: updatePassword,
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: TextButton(
+                      onPressed: isSaving ? null : () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Cancel'),
+                    ),
                   ),
                 ],
               ),
@@ -1283,41 +1104,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         );
       },
-    );
-
-    oldPasswordController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
-  }
-
-  Widget buildPasswordIntroCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.security_rounded,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Choose a strong password that you do not use anywhere else.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w700,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    ).whenComplete(() {
+      oldPasswordController.dispose();
+      newPasswordController.dispose();
+      confirmPasswordController.dispose();
+    });
   }
 
   Future<void> showSettingsSheet() async {
@@ -1326,45 +1117,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      barrierColor: sheetBarrierColor(context),
-      enableDrag: true,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 300),
-        reverseDuration: Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
       builder: (sheetContext) {
-        return buildSheetSurface(
+        return buildSheetContainer(
           sheetContext,
-          title: 'Settings',
-          icon: Icons.settings_outlined,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              buildSettingsTile(
+              const _SheetGrabber(),
+              const SizedBox(height: 20),
+              buildSheetHeader(
                 sheetContext,
-                icon: PlanoraTheme.isDark(context)
-                    ? Icons.dark_mode_outlined
-                    : Icons.light_mode_outlined,
-                title: 'Appearance',
-                subtitle: PlanoraTheme.isDark(context)
-                    ? 'Dark mode is enabled'
-                    : 'Light mode is enabled',
-                trailing: Switch.adaptive(
-                  value: PlanoraTheme.isDark(context),
-                  onChanged: (_) {
-                    Navigator.of(sheetContext).pop();
-                    widget.onThemeToggle();
-                  },
-                ),
+                title: 'Settings',
+                icon: Icons.settings_outlined,
+                onClose: () => Navigator.of(sheetContext).pop(),
               ),
-              const SizedBox(height: 10),
-              buildSettingsTile(
-                sheetContext,
-                icon: Icons.verified_user_outlined,
-                title: 'Account status',
-                subtitle: accountBadgeLabel,
+              const SizedBox(height: 18),
+              Container(
+                decoration: cardDecoration(sheetContext),
+                child: ListTile(
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Theme.of(sheetContext)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.11),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(
+                      Icons.dark_mode_outlined,
+                      color: Theme.of(sheetContext).colorScheme.primary,
+                    ),
+                  ),
+                  title: const Text(
+                    'Dark mode',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  subtitle: Text(
+                    'Toggle Planora appearance',
+                    style: TextStyle(
+                      color: mutedColor(sheetContext),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  trailing: Switch(
+                    value: PlanoraTheme.isDark(context),
+                    onChanged: (_) {
+                      Navigator.of(sheetContext).pop();
+                      widget.onThemeToggle();
+                    },
+                  ),
+                ),
               ),
             ],
           ),
@@ -1373,120 +1178,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget buildSettingsTile(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    Widget? trailing,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? PlanoraTheme.darkSurfaceVariant
-            : PlanoraTheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(18),
+  Widget buildSheetContainer(BuildContext sheetContext, {required Widget child}) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ?trailing,
-        ],
-      ),
-    );
-  }
-
-  Future<void> showInfoSheet({
-    required String title,
-    required IconData icon,
-    required String body,
-  }) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: sheetBarrierColor(context),
-      enableDrag: true,
-      sheetAnimationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 300),
-        reverseDuration: Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-      builder: (sheetContext) {
-        return buildSheetSurface(
-          sheetContext,
-          title: title,
-          icon: icon,
-          child: Text(
-            body,
-            style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-              color: mutedColor(sheetContext),
-              fontWeight: FontWeight.w600,
-              height: 1.55,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget buildSheetSurface(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required Widget child,
-    bool isBusy = false,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-    final mediaSize = MediaQuery.sizeOf(context);
-
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: viewInsets.bottom),
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 430,
-            maxHeight: mediaSize.height * 0.90,
-          ),
+      child: Container(
+        width: double.infinity,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheetContext).size.height * 0.92,
+        ),
+        decoration: BoxDecoration(
+          color: PlanoraTheme.isDark(sheetContext)
+              ? PlanoraTheme.darkBackground
+              : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+          boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
           child: TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0, end: 1),
             duration: const Duration(milliseconds: 260),
@@ -1495,305 +1205,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
               return Opacity(
                 opacity: value,
                 child: Transform.translate(
-                  offset: Offset(0, (1 - value) * 12),
-                  child: Transform.scale(
-                    scale: 0.985 + (value * 0.015),
-                    alignment: Alignment.bottomCenter,
-                    child: animatedChild,
-                  ),
+                  offset: Offset(0, (1 - value) * 18),
+                  child: animatedChild,
                 ),
               );
             },
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isDark ? 0.50 : 0.16,
-                      ),
-                      blurRadius: 28,
-                      offset: const Offset(0, -8),
-                    ),
-                  ],
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Container(
-                          width: 42,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? PlanoraTheme.darkBorder
-                                : PlanoraTheme.border,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Icon(
-                              icon,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                          IconButton.filledTonal(
-                            onPressed: isBusy
-                                ? null
-                                : () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      child,
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            child: child,
           ),
         ),
       ),
     );
   }
 
-  Widget buildSheetLabel(BuildContext context, String label) {
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: mutedColor(context),
-        fontWeight: FontWeight.w900,
-      ),
+  Widget buildSheetHeader(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required VoidCallback? onClose,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+        IconButton(onPressed: onClose, icon: const Icon(Icons.close_rounded)),
+      ],
     );
   }
 
-  Widget buildSheetTextField(
-    BuildContext context, {
+  Widget buildSheetTextField({
     required TextEditingController controller,
-    required String hintText,
     required IconData icon,
-    FocusNode? focusNode,
-    String? errorText,
+    required String hintText,
+    required ValueChanged<String> onChanged,
     bool obscureText = false,
-    bool enabled = true,
-    TextInputType? keyboardType,
-    TextInputAction? textInputAction,
-    Iterable<String>? autofillHints,
-    ValueChanged<String>? onChanged,
-    ValueChanged<String>? onSubmitted,
-    Widget? suffixIcon,
   }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final primary = Theme.of(context).colorScheme.primary;
-
     return TextField(
       controller: controller,
-      focusNode: focusNode,
-      enabled: enabled,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      autofillHints: autofillHints,
       onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-      ),
+      obscureText: obscureText,
+      textInputAction: TextInputAction.next,
       decoration: InputDecoration(
         hintText: hintText,
-        errorText: errorText,
-        filled: true,
-        fillColor: isDark
-            ? PlanoraTheme.darkSurfaceVariant
-            : PlanoraTheme.surfaceVariant,
-        prefixIcon: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: primary, size: 19),
-          ),
-        ),
-        suffixIcon: suffixIcon,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-          ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: primary, width: 1.4),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: PlanoraTheme.error, width: 1.2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: PlanoraTheme.error, width: 1.4),
+        prefixIcon: Icon(icon),
+      ),
+    );
+  }
+}
+
+class _SheetGrabber extends StatelessWidget {
+  const _SheetGrabber();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 44,
+        height: 5,
+        decoration: BoxDecoration(
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkBorder
+              : PlanoraTheme.border,
+          borderRadius: BorderRadius.circular(999),
         ),
       ),
     );
   }
+}
 
-  Widget buildInlineError(BuildContext context, String message) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.error.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline_rounded, color: PlanoraTheme.error),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: PlanoraTheme.error,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+class _SheetLabel extends StatelessWidget {
+  final String label;
 
-  Widget buildGradientActionButton(
-    BuildContext context, {
-    required bool isEnabled,
-    required bool isLoading,
-    required String label,
-    required String loadingLabel,
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final disabledBackground = isDark
-        ? PlanoraTheme.darkSurfaceVariant
-        : const Color(0xFFF3F0FF);
-    final disabledForeground = isDark
-        ? PlanoraTheme.darkTextSecondary
-        : PlanoraTheme.textSecondary;
+  const _SheetLabel(this.label);
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: isEnabled ? PlanoraTheme.primaryGradientFor(context) : null,
-        color: isEnabled ? null : disabledBackground,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: isEnabled ? PlanoraTheme.floatingShadowFor(context) : [],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: isEnabled && !isLoading ? onPressed : null,
-          borderRadius: BorderRadius.circular(18),
-          child: Center(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 180),
-              child: isLoading
-                  ? Row(
-                      key: const ValueKey('loading'),
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          loadingLabel,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      key: ValueKey(label),
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          icon,
-                          size: 19,
-                          color: isEnabled ? Colors.white : disabledForeground,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            color: isEnabled
-                                ? Colors.white
-                                : disabledForeground,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        ),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
     );
   }
 }
