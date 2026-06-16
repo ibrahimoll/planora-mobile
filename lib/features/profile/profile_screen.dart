@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
@@ -28,9 +29,12 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileApi _profileApi = const ProfileApi();
+  final ImagePicker _imagePicker = ImagePicker();
 
   late UserResponse user = widget.user;
   bool isLoading = false;
+  bool isUploadingPhoto = false;
+  int avatarRevision = 0;
   String? errorMessage;
 
   String get displayName {
@@ -54,6 +58,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final role = user.role.trim();
     if (role.isEmpty) return 'Verified';
     return '${role[0].toUpperCase()}${role.substring(1)}';
+  }
+
+  String? get profileImageUrl {
+    final url = user.profilePic?.trim();
+    if (url == null || url.isEmpty) return null;
+
+    final separator = url.contains('?') ? '&' : '?';
+    return '$url${separator}v=$avatarRevision';
   }
 
   @override
@@ -130,9 +142,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String errorText(Object error, String fallback) {
@@ -160,18 +171,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> pickAndUploadProfilePhoto(
+    BuildContext sheetContext,
+    ImageSource source,
+    void Function(void Function()) setSheetState,
+  ) async {
+    if (isUploadingPhoto) return;
+
+    try {
+      setState(() => isUploadingPhoto = true);
+      setSheetState(() {});
+
+      final file = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 86,
+      );
+
+      if (file == null) {
+        if (!mounted) return;
+        setState(() => isUploadingPhoto = false);
+        setSheetState(() {});
+        return;
+      }
+
+      final updatedUser = await _profileApi.uploadProfilePicture(file: file);
+      if (!mounted) return;
+
+      setState(() {
+        user = updatedUser;
+        avatarRevision++;
+        isUploadingPhoto = false;
+      });
+      widget.onUserUpdated?.call(updatedUser);
+
+      if (Navigator.of(sheetContext).canPop()) {
+        Navigator.of(sheetContext).pop();
+      }
+      showMessage('Profile picture updated.');
+    } catch (error, stackTrace) {
+      debugPrint('Profile picture upload failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+
+      setState(() => isUploadingPhoto = false);
+      setSheetState(() {});
+      showMessage(errorText(error, 'Could not update profile picture.'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? PlanoraTheme.darkBackground
-          : PlanoraTheme.background,
+      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
       body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.onboardingBackgroundFor(context),
-        ),
+        decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
         child: SafeArea(
           child: RefreshIndicator(
             onRefresh: refreshProfile,
@@ -188,10 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         buildStaggeredItem(0, buildHeader(context)),
                         const SizedBox(height: 18),
                         if (errorMessage != null) ...[
-                          buildStaggeredItem(
-                            1,
-                            buildErrorBanner(context, errorMessage!),
-                          ),
+                          buildStaggeredItem(1, buildErrorBanner(context, errorMessage!)),
                           const SizedBox(height: 14),
                         ],
                         buildStaggeredItem(2, buildProfileCard(context)),
@@ -233,8 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onTap: () => openProfileInfoPage(
                                   title: 'Notification Settings',
                                   icon: Icons.notifications_none_rounded,
-                                  sections:
-                                      ProfileInfoContent.notificationSettings,
+                                  sections: ProfileInfoContent.notificationSettings,
                                 ),
                               ),
                             ],
@@ -264,8 +317,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onTap: () => openProfileInfoPage(
                                   title: 'Billing & Invoices',
                                   icon: Icons.credit_card_outlined,
-                                  sections:
-                                      ProfileInfoContent.billingAndInvoices,
+                                  sections: ProfileInfoContent.billingAndInvoices,
                                 ),
                               ),
                             ],
@@ -362,9 +414,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Expanded(
           child: Text(
             'Profile',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
         buildCircleButton(
@@ -394,9 +446,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Ink(
             width: 44,
             height: 44,
-            decoration: cardDecoration(
-              context,
-            ).copyWith(borderRadius: BorderRadius.circular(999)),
+            decoration: cardDecoration(context).copyWith(
+              borderRadius: BorderRadius.circular(999),
+            ),
             child: Icon(icon, size: 21),
           ),
         ),
@@ -436,7 +488,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
-        onTap: showEditProfileSheet,
+        onTap: showProfilePhotoSheet,
         borderRadius: BorderRadius.circular(24),
         child: Ink(
           width: double.infinity,
@@ -444,35 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: cardDecoration(context),
           child: Row(
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  buildProfileAvatar(context, radius: 36),
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: PlanoraTheme.isDark(context)
-                              ? PlanoraTheme.darkSurface
-                              : Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.edit_outlined,
-                        size: 13,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              buildEditableAvatar(context, radius: 38),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -497,21 +521,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                     ),
                     const SizedBox(height: 10),
-                    buildBadge(context, accountBadgeLabel),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        buildBadge(context, accountBadgeLabel),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            'Tap photo to change',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: mutedColor(context),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              if (isLoading)
+              if (isLoading || isUploadingPhoto)
                 const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2.4),
                 )
               else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: mutedColor(context),
-                ),
+                Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
             ],
           ),
         ),
@@ -519,34 +557,122 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget buildEditableAvatar(BuildContext context, {required double radius}) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        buildProfileAvatar(context, radius: radius),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: PlanoraTheme.isDark(context)
+                    ? PlanoraTheme.darkSurface
+                    : Colors.white,
+                width: 2,
+              ),
+              boxShadow: PlanoraTheme.cardShadowFor(context),
+            ),
+            child: isUploadingPhoto
+                ? const Padding(
+                    padding: EdgeInsets.all(5),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.camera_alt_outlined,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget buildProfileAvatar(BuildContext context, {required double radius}) {
-    final imageUrl = user.profilePic;
+    final imageUrl = profileImageUrl;
+    final borderColor = PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkBorder
+        : Colors.white;
+
     return Container(
       width: radius * 2,
       height: radius * 2,
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: imageUrl == null ? PlanoraTheme.primaryGradientFor(context) : null,
-        image: imageUrl == null
-            ? null
-            : DecorationImage(
-                image: NetworkImage(imageUrl),
-                fit: BoxFit.cover,
-              ),
+        gradient: PlanoraTheme.primaryGradientFor(context),
         boxShadow: PlanoraTheme.floatingShadowFor(context),
       ),
-      child: imageUrl == null
-          ? Center(
-              child: Text(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: PlanoraTheme.isDark(context)
+              ? PlanoraTheme.darkSurface
+              : PlanoraTheme.surface,
+          border: Border.all(color: borderColor, width: 2),
+        ),
+        child: ClipOval(
+          child: imageUrl == null
+              ? buildDefaultAvatar(context, radius: radius)
+              : Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return buildDefaultAvatar(context, radius: radius);
+                  },
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return buildDefaultAvatar(
+                      context,
+                      radius: radius,
+                      showLoader: true,
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildDefaultAvatar(
+    BuildContext context, {
+    required double radius,
+    bool showLoader = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradientFor(context),
+      ),
+      child: Center(
+        child: showLoader
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: Colors.white,
+                ),
+              )
+            : Text(
                 initials,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: radius * 0.62,
+                  fontSize: radius * 0.58,
                   fontWeight: FontWeight.w900,
+                  letterSpacing: 0.4,
                 ),
               ),
-            )
-          : null,
+      ),
     );
   }
 
@@ -729,10 +855,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: mutedColor(context),
-              ),
+              Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
             ],
           ),
         ),
@@ -781,6 +904,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> showProfilePhotoSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return buildSheetScaffold(
+              sheetContext,
+              title: 'Profile Picture',
+              subtitle: 'Set a clear photo so your Planora account feels complete.',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(child: buildEditableAvatar(context, radius: 52)),
+                  const SizedBox(height: 16),
+                  Text(
+                    displayName,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user.email,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 18),
+                  buildSheetActionTile(
+                    context,
+                    icon: Icons.photo_library_outlined,
+                    title: 'Choose from gallery',
+                    subtitle: 'Upload a JPG, PNG, or WebP profile image',
+                    onTap: isUploadingPhoto
+                        ? null
+                        : () => pickAndUploadProfilePhoto(
+                              sheetContext,
+                              ImageSource.gallery,
+                              setSheetState,
+                            ),
+                  ),
+                  const SizedBox(height: 10),
+                  buildSheetActionTile(
+                    context,
+                    icon: Icons.photo_camera_outlined,
+                    title: 'Take a photo',
+                    subtitle: 'Use your camera to create a new profile image',
+                    onTap: isUploadingPhoto
+                        ? null
+                        : () => pickAndUploadProfilePhoto(
+                              sheetContext,
+                              ImageSource.camera,
+                              setSheetState,
+                            ),
+                  ),
+                  if (isUploadingPhoto) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(minHeight: 3),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Uploading your profile picture...',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: mutedColor(context),
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -837,6 +1043,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    buildSheetActionTile(
+                      context,
+                      icon: Icons.camera_alt_outlined,
+                      title: 'Change profile picture',
+                      subtitle: profileImageUrl == null
+                          ? 'No photo yet. Add one from your gallery or camera.'
+                          : 'Update the photo shown on your account.',
+                      onTap: isSaving
+                          ? null
+                          : () {
+                              Navigator.of(sheetContext).pop();
+                              showProfilePhotoSheet();
+                            },
+                    ),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: fullNameController,
                       textInputAction: TextInputAction.next,
@@ -1028,7 +1249,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.info_outline_rounded,
                 title: 'Planora mobile beta',
                 subtitle: 'Profile preferences are available in this screen',
-                onTap: () {},
+                onTap: null,
               ),
             ],
           ),
@@ -1074,10 +1295,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Text(
                           title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w900),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -1205,8 +1425,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
+    final disabled = onTap == null;
+
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(18),
@@ -1221,7 +1443,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           child: Row(
             children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                color: disabled
+                    ? mutedColor(context)
+                    : Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1231,6 +1458,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w800,
+                            color: disabled ? mutedColor(context) : null,
                           ),
                     ),
                     const SizedBox(height: 3),
