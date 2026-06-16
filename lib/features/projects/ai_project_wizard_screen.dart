@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_exception.dart';
@@ -177,7 +178,7 @@ class AiPlanPreviewContent extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onRegenerate,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Regenerate'),
+                label: const Text('Review Again'),
               ),
             ),
             const SizedBox(width: 10),
@@ -446,7 +447,8 @@ class _ExpandableTaskDescriptionState
   }
 }
 
-class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
+class _AiProjectWizardScreenState extends State<AiProjectWizardScreen>
+    with TickerProviderStateMixin {
   late final ProjectsApi _projectsApi;
   late final AiPlanApi _aiPlanApi;
   final TextEditingController ideaController = TextEditingController();
@@ -466,6 +468,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   int? selectedTeamId;
   String selectedProjectType = 'personal';
   int generationMessageIndex = 0;
+  double generationProgress = 0;
 
   bool isLoadingTeams = false;
   bool isGeneratingPlan = false;
@@ -476,6 +479,12 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   AiPlanGenerateResponse? generatedPlan;
   String? generationError;
   Timer? generationMessageTimer;
+  Future<AiPlanPreviewResponse>? _previewFuture;
+  int _generationRequestId = 0;
+  int? _activeLoadingRequestId;
+  DateTime? _generationStartedAt;
+  String? _lastGeneratedPreviewSignature;
+  late final AnimationController _magicPulseController;
 
   List<TeamModel> teams = [];
 
@@ -484,12 +493,19 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     super.initState();
     _projectsApi = widget.projectsApi;
     _aiPlanApi = widget.aiPlanApi;
+    _magicPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+      lowerBound: 0,
+      upperBound: 1,
+    );
     loadTeams();
   }
 
   @override
   void dispose() {
     generationMessageTimer?.cancel();
+    _magicPulseController.dispose();
     ideaController.dispose();
     requirementsController.dispose();
     super.dispose();
@@ -616,7 +632,61 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _debugGenerationLog(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
+
+  String _currentPreviewSignature({
+    required String idea,
+    required DateTime deadline,
+  }) {
+    return [
+      idea,
+      deadline.toIso8601String(),
+      selectedProjectType,
+      selectedProjectType == 'team' ? selectedTeamId?.toString() ?? '' : '',
+      availableHoursPerWeek.toString(),
+      preferredTaskCount.toString(),
+      requirementsController.text.trim(),
+    ].join('\n');
+  }
+
+  void _invalidateGeneratedPreview() {
+    _generationRequestId++;
+    _previewFuture = null;
+    _lastGeneratedPreviewSignature = null;
+    previewProject = null;
+    generatedPreview = null;
+    generatedPlan = null;
+    createdProject = null;
+    generationError = null;
+  }
+
+  void _markPlanningInputChanged() {
+    if (isGeneratingPlan) {
+      return;
+    }
+
+    _invalidateGeneratedPreview();
+  }
+
   Future<void> generatePlanFromContext() async {
+    await _startPreviewGeneration();
+  }
+
+  Future<void> _startPreviewGeneration({bool forceRefresh = false}) async {
+    if (isGeneratingPlan) {
+      final activePreviewFuture = _previewFuture;
+
+      if (activePreviewFuture != null) {
+        await activePreviewFuture;
+      }
+
+      return;
+    }
+
     final idea = ideaController.text.trim();
     final deadline = selectedDeadline;
 
@@ -635,20 +705,40 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       return;
     }
 
+    final signature = _currentPreviewSignature(idea: idea, deadline: deadline);
+
+    if (!forceRefresh &&
+        generatedPreview != null &&
+        generatedPlan != null &&
+        _lastGeneratedPreviewSignature == signature) {
+      setState(() {
+        currentStep = 2;
+        generationError = null;
+      });
+      return;
+    }
+
+    final localRequestId = ++_generationRequestId;
+    _debugGenerationLog(
+      'AI Planner generation started requestId=$localRequestId',
+    );
+
     setState(() {
       currentStep = 2;
       isGeneratingPlan = true;
       generationMessageIndex = 0;
+      generationProgress = 0;
       generationError = null;
       createdProject = null;
       previewProject = null;
       generatedPreview = null;
       generatedPlan = null;
     });
-    startGenerationLoadingSequence();
+    startGenerationLoadingSequence(requestId: localRequestId);
 
     try {
-      final preview = await _aiPlanApi.previewFromIdea(
+      _debugGenerationLog('API call started requestId=$localRequestId');
+      final previewFuture = _aiPlanApi.previewFromIdea(
         projectIdea: idea,
         deadline: deadline,
         projectType: selectedProjectType,
@@ -658,8 +748,23 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         requirements: requirementsController.text.trim(),
         includeMilestones: true,
       );
+      _previewFuture = previewFuture;
+      final preview = await previewFuture;
+      _debugGenerationLog('API call finished requestId=$localRequestId');
 
-      if (!mounted) {
+      if (!mounted || localRequestId != _generationRequestId) {
+        _debugGenerationLog(
+          'API call ignored stale request requestId=$localRequestId',
+        );
+        return;
+      }
+
+      await completeGenerationLoadingSequence(requestId: localRequestId);
+
+      if (!mounted || localRequestId != _generationRequestId) {
+        _debugGenerationLog(
+          'API call ignored stale request requestId=$localRequestId',
+        );
         return;
       }
 
@@ -667,33 +772,55 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         previewProject = preview.toPreviewProject();
         generatedPreview = preview;
         generatedPlan = preview.toGenerateResponse();
+        _lastGeneratedPreviewSignature = signature;
+        _previewFuture = null;
         isGeneratingPlan = false;
       });
-      stopGenerationLoadingSequence();
     } catch (error, stackTrace) {
-      debugPrint('AI project generation failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      if (kDebugMode) {
+        debugPrint('AI project generation failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
 
-      if (!mounted) {
+      if (!mounted || localRequestId != _generationRequestId) {
+        _debugGenerationLog(
+          'API call ignored stale request requestId=$localRequestId',
+        );
+        return;
+      }
+
+      await completeGenerationLoadingSequence(requestId: localRequestId);
+
+      if (!mounted || localRequestId != _generationRequestId) {
+        _debugGenerationLog(
+          'API call ignored stale request requestId=$localRequestId',
+        );
         return;
       }
 
       setState(() {
         isGeneratingPlan = false;
+        _previewFuture = null;
         generationError = error is ApiException
             ? error.message
             : 'Could not generate this AI plan. Please try again.';
       });
-      stopGenerationLoadingSequence();
     }
   }
 
   Future<void> regenerateCreatedPlan() async {
-    await generatePlanFromContext();
-    showMessage('Preview regenerated.');
+    await _startPreviewGeneration(forceRefresh: true);
+
+    if (mounted && generationError == null && generatedPreview != null) {
+      showMessage('Preview regenerated.');
+    }
   }
 
   Future<void> acceptGeneratedPreview() async {
+    if (isGeneratingPlan) {
+      return;
+    }
+
     final preview = generatedPreview;
 
     if (preview == null) {
@@ -706,17 +833,25 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       return;
     }
 
+    final localRequestId = ++_generationRequestId;
     setState(() {
       isGeneratingPlan = true;
       generationMessageIndex = 0;
+      generationProgress = 0;
       generationError = null;
     });
-    startGenerationLoadingSequence();
+    startGenerationLoadingSequence(requestId: localRequestId);
 
     try {
       final accepted = await _aiPlanApi.acceptPreview(preview);
 
-      if (!mounted) {
+      if (!mounted || localRequestId != _generationRequestId) {
+        return;
+      }
+
+      await completeGenerationLoadingSequence(requestId: localRequestId);
+
+      if (!mounted || localRequestId != _generationRequestId) {
         return;
       }
 
@@ -727,7 +862,6 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
         generatedPlan = accepted.plan;
         isGeneratingPlan = false;
       });
-      stopGenerationLoadingSequence();
       widget.onPlanCreated?.call();
       final skipped = accepted.plan.tasksSkippedAsDuplicates;
       final created = accepted.plan.tasksCreated;
@@ -739,10 +873,18 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
 
       await openCreatedProject();
     } catch (error, stackTrace) {
-      debugPrint('AI preview accept failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
+      if (kDebugMode) {
+        debugPrint('AI preview accept failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
 
-      if (!mounted) {
+      if (!mounted || localRequestId != _generationRequestId) {
+        return;
+      }
+
+      await completeGenerationLoadingSequence(requestId: localRequestId);
+
+      if (!mounted || localRequestId != _generationRequestId) {
         return;
       }
 
@@ -752,30 +894,119 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             ? error.message
             : 'Could not create this project. Please try again.';
       });
-      stopGenerationLoadingSequence();
     }
   }
 
-  void startGenerationLoadingSequence() {
-    generationMessageTimer?.cancel();
-    generationMessageTimer = Timer.periodic(
-      const Duration(milliseconds: 1150),
-      (_) {
-        if (!mounted || !isGeneratingPlan) {
-          return;
-        }
+  double _waitingProgressFor(Duration elapsed) {
+    final milliseconds = elapsed.inMilliseconds.clamp(0, 18000);
+    final raw = milliseconds / 18000;
+    final eased = Curves.easeOutCubic.transform(raw.toDouble());
 
-        setState(() {
-          generationMessageIndex =
-              (generationMessageIndex + 1) % _generationMessages.length;
-        });
-      },
-    );
+    return (0.08 + (eased * 0.86)).clamp(0.08, 0.94);
   }
 
-  void stopGenerationLoadingSequence() {
+  int _waitingStepFor(Duration elapsed) {
+    final step = elapsed.inMilliseconds ~/ 1100;
+
+    return step.clamp(0, _generationMessages.length - 1);
+  }
+
+  void startGenerationLoadingSequence({required int requestId}) {
+    if (_activeLoadingRequestId == requestId &&
+        generationMessageTimer != null) {
+      return;
+    }
+
+    generationMessageTimer?.cancel();
+    _activeLoadingRequestId = requestId;
+    _generationStartedAt = DateTime.now();
+    _magicPulseController.repeat(reverse: true);
+    generationMessageTimer = Timer.periodic(const Duration(milliseconds: 90), (
+      _,
+    ) {
+      if (!mounted ||
+          !isGeneratingPlan ||
+          _activeLoadingRequestId != requestId) {
+        return;
+      }
+
+      final elapsed = DateTime.now().difference(_generationStartedAt!);
+      final nextStep = _waitingStepFor(elapsed);
+      final nextProgress = _waitingProgressFor(elapsed);
+
+      setState(() {
+        generationMessageIndex = nextStep;
+        generationProgress = nextProgress > generationProgress
+            ? nextProgress
+            : generationProgress;
+      });
+    });
+  }
+
+  Future<void> completeGenerationLoadingSequence({
+    required int requestId,
+  }) async {
+    if (_activeLoadingRequestId != requestId) {
+      return;
+    }
+
     generationMessageTimer?.cancel();
     generationMessageTimer = null;
+
+    for (
+      var index = generationMessageIndex;
+      index < _generationMessages.length - 1;
+      index++
+    ) {
+      if (!mounted || _activeLoadingRequestId != requestId) {
+        return;
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 85));
+
+      if (!mounted || _activeLoadingRequestId != requestId) {
+        return;
+      }
+
+      setState(() {
+        generationMessageIndex = index + 1;
+        final stepProgress =
+            (generationMessageIndex + 1) / _generationMessages.length * 0.94;
+        generationProgress = stepProgress > generationProgress
+            ? stepProgress
+            : generationProgress;
+      });
+    }
+
+    if (!mounted || _activeLoadingRequestId != requestId) {
+      return;
+    }
+
+    setState(() {
+      generationMessageIndex = _generationMessages.length - 1;
+      generationProgress = 1;
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 320));
+
+    if (!mounted || _activeLoadingRequestId != requestId) {
+      return;
+    }
+
+    stopGenerationLoadingSequence(requestId: requestId);
+    _debugGenerationLog('loading animation completed requestId=$requestId');
+  }
+
+  void stopGenerationLoadingSequence({int? requestId}) {
+    if (requestId != null && _activeLoadingRequestId != requestId) {
+      return;
+    }
+
+    generationMessageTimer?.cancel();
+    generationMessageTimer = null;
+    _activeLoadingRequestId = null;
+    _generationStartedAt = null;
+    _magicPulseController.stop();
   }
 
   String deriveProjectTitle(String idea) {
@@ -997,7 +1228,11 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             minLines: 6,
             maxLines: 8,
             maxLength: 1200,
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) {
+              setState(() {
+                _markPlanningInputChanged();
+              });
+            },
             decoration: createInputDecoration(
               context,
               hintText:
@@ -1028,6 +1263,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
 
               setState(() {
                 selectedDeadline = pickedDate;
+                _markPlanningInputChanged();
               });
             },
           ),
@@ -1067,6 +1303,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
                 onChanged: (value) {
                   setState(() {
                     availableHoursPerWeek = value.round();
+                    _markPlanningInputChanged();
                   });
                 },
               ),
@@ -1085,6 +1322,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
                 onChanged: (value) {
                   setState(() {
                     preferredTaskCount = value.round();
+                    _markPlanningInputChanged();
                   });
                 },
               ),
@@ -1100,6 +1338,11 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             minLines: 4,
             maxLines: 6,
             maxLength: 1200,
+            onChanged: (_) {
+              setState(() {
+                _markPlanningInputChanged();
+              });
+            },
             decoration: createInputDecoration(
               context,
               hintText:
@@ -1134,7 +1377,9 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       onTap: () {
         ideaController.text =
             'I want to turn a personal idea into a clear project with practical steps, a deadline, and a way to measure progress.';
-        setState(() {});
+        setState(() {
+          _markPlanningInputChanged();
+        });
       },
       borderRadius: BorderRadius.circular(18),
       child: Container(
@@ -1321,6 +1566,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
           if (value == 'team' && selectedTeamId == null && teams.isNotEmpty) {
             selectedTeamId = teams.first.teamId;
           }
+          _markPlanningInputChanged();
         });
       },
       borderRadius: BorderRadius.circular(16),
@@ -1432,6 +1678,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       onChanged: (value) {
         setState(() {
           selectedTeamId = value;
+          _markPlanningInputChanged();
         });
       },
     );
@@ -1590,6 +1837,40 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
   }
 
   Widget buildResultStep(BuildContext context) {
+    final resultStage = isGeneratingPlan
+        ? 'loading'
+        : generationError != null
+        ? 'error'
+        : generatedPlan == null
+        ? 'empty'
+        : generatedPlan!.success &&
+              generatedPlan!.aiGenerationStatus != 'failed'
+        ? 'preview'
+        : 'failed';
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.05),
+          end: Offset.zero,
+        ).animate(animation);
+
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: slide, child: child),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey<String>(resultStage),
+        child: buildResultStepContent(context),
+      ),
+    );
+  }
+
+  Widget buildResultStepContent(BuildContext context) {
     final project = createdProject;
     final preview = previewProject;
     final plan = generatedPlan;
@@ -1618,12 +1899,9 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             )
           else
             ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  currentStep = 1;
-                  generationError = null;
-                });
-              },
+              onPressed: isGeneratingPlan
+                  ? null
+                  : () => _startPreviewGeneration(forceRefresh: true),
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Review Again'),
             ),
@@ -1652,12 +1930,9 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
           ),
           const SizedBox(height: 14),
           ElevatedButton.icon(
-            onPressed: () {
-              setState(() {
-                currentStep = 1;
-                generationError = null;
-              });
-            },
+            onPressed: isGeneratingPlan
+                ? null
+                : () => _startPreviewGeneration(forceRefresh: true),
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Review Again'),
           ),
@@ -1732,15 +2007,32 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
       decoration: cardDecoration(context),
       child: Column(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: PlanoraTheme.primaryGradientFor(context),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: PlanoraTheme.floatingShadowFor(context),
+          AnimatedBuilder(
+            animation: _magicPulseController,
+            builder: (context, child) {
+              final pulse = 1 + (_magicPulseController.value * 0.07);
+
+              return Transform.scale(
+                scale: pulse,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: PlanoraTheme.primaryGradientFor(context),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: PlanoraTheme.floatingShadowFor(context),
+                  ),
+                  child: child,
+                ),
+              );
+            },
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: Colors.white,
+              size: 27,
             ),
-            child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
           ),
           const SizedBox(height: 18),
           AnimatedSwitcher(
@@ -1781,13 +2073,28 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 7,
-              value: (generationMessageIndex + 1) / _generationMessages.length,
-              backgroundColor: mutedColor(context).withValues(alpha: 0.14),
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  height: 8,
+                  width: double.infinity,
+                  color: mutedColor(context).withValues(alpha: 0.14),
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    height: 8,
+                    width: constraints.maxWidth * generationProgress,
+                    decoration: BoxDecoration(
+                      gradient: PlanoraTheme.primaryGradientFor(context),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 18),
           Column(
@@ -1841,7 +2148,17 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen> {
                       size: 15,
                       color: Colors.white,
                     )
-                  : Icon(Icons.circle, size: 8, color: color),
+                  : AnimatedBuilder(
+                      animation: _magicPulseController,
+                      builder: (context, child) {
+                        final scale = isActive
+                            ? 0.82 + (_magicPulseController.value * 0.24)
+                            : 1.0;
+
+                        return Transform.scale(scale: scale, child: child);
+                      },
+                      child: Icon(Icons.circle, size: 8, color: color),
+                    ),
             ),
             const SizedBox(width: 10),
             Expanded(

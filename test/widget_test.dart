@@ -11,6 +11,7 @@ import 'package:mobile/features/auth/data/project_api.dart';
 import 'package:mobile/features/auth/models/project_models.dart';
 import 'package:mobile/features/home/widgets/home_bottom_nav.dart';
 import 'package:mobile/main.dart';
+import 'package:mobile/features/projects/ai_project_wizard_screen.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
@@ -382,6 +383,99 @@ void main() {
     expect(find.text('Planora AI is typing'), findsNothing);
     expect(find.text('Start with the highest-risk task.'), findsOneWidget);
   });
+
+  testWidgets('AI Planner preview calls API once through loading rebuilds', (
+    tester,
+  ) async {
+    final aiPlanApi = _CountingAiPlanApi();
+
+    await _pumpAiProjectWizardAtReview(tester, aiPlanApi);
+    await tester.tap(find.text('Generate Plan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1600));
+
+    expect(aiPlanApi.previewCalls, 1);
+    expect(find.text('Creating milestones...'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1600));
+
+    expect(aiPlanApi.previewCalls, 1);
+
+    aiPlanApi.completeNext();
+    await tester.pumpAndSettle();
+
+    expect(find.text('AI Plan Preview'), findsOneWidget);
+    expect(aiPlanApi.previewCalls, 1);
+  });
+
+  testWidgets('AI Planner ignores quick double taps while generating', (
+    tester,
+  ) async {
+    final aiPlanApi = _CountingAiPlanApi();
+
+    await _pumpAiProjectWizardAtReview(tester, aiPlanApi);
+    await tester.tap(find.text('Generate Plan'));
+    await tester.tap(find.text('Generate Plan'));
+    await tester.pump();
+
+    expect(aiPlanApi.previewCalls, 1);
+
+    aiPlanApi.completeNext();
+    await tester.pumpAndSettle();
+
+    expect(find.text('AI Plan Preview'), findsOneWidget);
+  });
+
+  testWidgets('AI Planner Review Again starts one fresh request', (
+    tester,
+  ) async {
+    final aiPlanApi = _CountingAiPlanApi();
+
+    await _pumpAiProjectWizardAtReview(tester, aiPlanApi);
+    await tester.tap(find.text('Generate Plan'));
+    await tester.pump();
+    aiPlanApi.completeNext(projectTitle: 'First Preview');
+    await tester.pumpAndSettle();
+
+    expect(find.text('First Preview'), findsOneWidget);
+    expect(aiPlanApi.previewCalls, 1);
+
+    await tester.tap(find.text('Review Again'));
+    await tester.tap(find.text('Review Again'));
+    await tester.pump();
+
+    expect(aiPlanApi.previewCalls, 2);
+
+    aiPlanApi.completeNext(projectTitle: 'Second Preview');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Second Preview'), findsOneWidget);
+    expect(aiPlanApi.previewCalls, 2);
+  });
+
+  testWidgets('AI Planner loading completes without restarting first step', (
+    tester,
+  ) async {
+    final aiPlanApi = _CountingAiPlanApi();
+
+    await _pumpAiProjectWizardAtReview(tester, aiPlanApi);
+    await tester.tap(find.text('Generate Plan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 2600));
+
+    expect(find.text('Understanding your idea...'), findsNothing);
+    expect(aiPlanApi.previewCalls, 1);
+
+    aiPlanApi.completeNext(projectTitle: 'Smooth Preview');
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Understanding your idea...'), findsNothing);
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Smooth Preview'), findsOneWidget);
+    expect(find.text('Understanding your idea...'), findsNothing);
+  });
 }
 
 class _EmptyProjectsApi extends ProjectsApi {
@@ -391,6 +485,85 @@ class _EmptyProjectsApi extends ProjectsApi {
   Future<List<ProjectModel>> getProjects() async {
     return [];
   }
+}
+
+class _NoTeamsProjectsApi extends ProjectsApi {
+  const _NoTeamsProjectsApi();
+
+  @override
+  Future<List<TeamModel>> getTeams() async {
+    return [];
+  }
+}
+
+class _CountingAiPlanApi extends AiPlanApi {
+  final List<Completer<AiPlanPreviewResponse>> _previewCompleters = [];
+  int previewCalls = 0;
+
+  @override
+  Future<AiPlanPreviewResponse> previewFromIdea({
+    required String projectIdea,
+    required DateTime deadline,
+    required String projectType,
+    int? teamId,
+    int availableHoursPerWeek = 8,
+    int preferredTaskCount = 8,
+    String? requirements,
+    bool includeMilestones = true,
+  }) {
+    previewCalls++;
+    final completer = Completer<AiPlanPreviewResponse>();
+    _previewCompleters.add(completer);
+
+    return completer.future;
+  }
+
+  void completeNext({String projectTitle = 'AI Plan Preview Result'}) {
+    final completer = _previewCompleters.firstWhere(
+      (item) => !item.isCompleted,
+    );
+
+    completer.complete(_aiPlannerPreviewResponse(projectTitle: projectTitle));
+  }
+}
+
+AiPlanPreviewResponse _aiPlannerPreviewResponse({
+  required String projectTitle,
+}) {
+  return AiPlanPreviewResponse(
+    success: true,
+    message: 'Generated AI tasks from the user idea.',
+    aiGenerationStatus: 'generated',
+    source: 'ai_provider',
+    domain: 'fitness',
+    projectTitle: projectTitle,
+    description: 'A generated preview for widget tests.',
+    projectType: 'personal',
+    teamId: null,
+    deadline: DateTime(2026, 8, 1, 12),
+    summary: 'Generated a focused preview plan.',
+    tasks: [
+      AiGeneratedTask(
+        taskId: 0,
+        title: 'Set a safe daily pushup target',
+        description:
+            'Pick a starting volume, divide reps into sets, and track form.',
+        priority: 'high',
+        estimatedHours: 0.5,
+        status: 'todo',
+        dueDate: DateTime(2026, 7, 1, 12),
+      ),
+    ],
+    milestones: const [],
+    risks: const [],
+    recommendations: const [],
+    projectIdea: 'Make 100 pushups a day safely',
+    requirements: null,
+    availableHoursPerWeek: 8,
+    preferredTaskCount: 8,
+    rejectedGenericCount: 0,
+    rejectedUnrelatedCount: 0,
+  );
 }
 
 class _SingleProjectApi extends ProjectsApi {
@@ -460,6 +633,40 @@ Future<void> _pumpTasksScreen(WidgetTester tester, TasksApi tasksApi) async {
   );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
+}
+
+Future<void> _pumpAiProjectWizardAtReview(
+  WidgetTester tester,
+  _CountingAiPlanApi aiPlanApi,
+) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: AiProjectWizardScreen(
+          projectsApi: const _NoTeamsProjectsApi(),
+          aiPlanApi: aiPlanApi,
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+
+  await tester.enterText(
+    find.byType(TextField).first,
+    'Make 100 pushups a day safely',
+  );
+  await tester.pump();
+
+  await tester.tap(find.text('Choose a deadline'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('OK'));
+  await tester.pumpAndSettle();
+
+  await tester.ensureVisible(find.text('Review Context'));
+  await tester.tap(find.text('Review Context'));
+  await tester.pumpAndSettle();
+
+  expect(find.text('Generate Plan'), findsOneWidget);
 }
 
 TaskProjectSummary _taskProject(int projectId, String title) {
