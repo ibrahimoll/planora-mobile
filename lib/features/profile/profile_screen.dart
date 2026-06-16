@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/models/auth_models.dart';
-import '../tasks/data/tasks_api.dart';
 import 'data/profile_api.dart';
 import 'data/profile_info_content.dart';
 import 'models/profile_info_section.dart';
@@ -29,14 +28,10 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileApi _profileApi = const ProfileApi();
-  final TasksApi _tasksApi = const TasksApi();
 
   late UserResponse user = widget.user;
   bool isLoading = false;
-  bool isLoadingStats = true;
   String? errorMessage;
-  int projectCount = 0;
-  int completedTaskCount = 0;
 
   String get displayName {
     final fullName = user.fullName.trim();
@@ -65,7 +60,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     loadProfile();
-    loadProfileStats();
   }
 
   String initialsFor(String value) {
@@ -107,35 +101,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> loadProfileStats() async {
-    setState(() {
-      isLoadingStats = true;
-    });
-
-    try {
-      final board = await _tasksApi.getTasks();
-      if (!mounted) return;
-
-      setState(() {
-        projectCount = board.projects.length;
-        completedTaskCount = board.tasks
-            .where((item) => item.task.isCompleted)
-            .length;
-        isLoadingStats = false;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Profile stats load failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) return;
-
-      setState(() {
-        isLoadingStats = false;
-      });
-    }
-  }
-
   Future<void> refreshProfile() async {
-    await Future.wait([loadProfile(), loadProfileStats()]);
+    await loadProfile();
   }
 
   Future<void> openProfileInfoPage({
@@ -166,6 +133,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String errorText(Object error, String fallback) {
+    if (error is ApiException && error.message.trim().isNotEmpty) {
+      return error.message;
+    }
+    return fallback;
   }
 
   Color mutedColor(BuildContext context) {
@@ -271,36 +245,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           5,
                           buildSection(
                             context,
-                            title: 'Workspace',
-                            tiles: [
-                              ProfileTileData(
-                                icon: Icons.folder_outlined,
-                                title: 'Projects',
-                                subtitle: isLoadingStats
-                                    ? 'Loading projects...'
-                                    : '$projectCount active projects',
-                                onTap: () => showMessage(
-                                  'Open projects from the tab bar.',
-                                ),
-                              ),
-                              ProfileTileData(
-                                icon: Icons.task_alt_rounded,
-                                title: 'Completed Tasks',
-                                subtitle: isLoadingStats
-                                    ? 'Loading tasks...'
-                                    : '$completedTaskCount tasks completed',
-                                onTap: () => showMessage(
-                                  'Open tasks from the tab bar.',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        buildStaggeredItem(
-                          6,
-                          buildSection(
-                            context,
                             title: 'Plan & Billing',
                             tiles: [
                               ProfileTileData(
@@ -329,7 +273,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const SizedBox(height: 16),
                         buildStaggeredItem(
-                          7,
+                          6,
                           buildSection(
                             context,
                             title: 'More',
@@ -374,7 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        buildStaggeredItem(8, buildLogoutButton(context)),
+                        buildStaggeredItem(7, buildLogoutButton(context)),
                       ],
                     ),
                   ),
@@ -544,16 +488,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '@${user.username}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
                       user.email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -562,32 +496,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                     ),
+                    const SizedBox(height: 10),
+                    buildBadge(context, accountBadgeLabel),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
+              if (isLoading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: mutedColor(context),
                 ),
-                decoration: BoxDecoration(
-                  color: user.isEmailVerified
-                      ? PlanoraTheme.success.withValues(alpha: 0.12)
-                      : PlanoraTheme.warning.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  accountBadgeLabel,
-                  style: TextStyle(
-                    color: user.isEmailVerified
-                        ? PlanoraTheme.success
-                        : PlanoraTheme.warning,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -596,45 +520,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget buildProfileAvatar(BuildContext context, {required double radius}) {
-    final imageUrl = user.profilePic?.trim();
-
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          imageUrl,
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => buildInitialsAvatar(context, radius),
-        ),
-      );
-    }
-
-    return buildInitialsAvatar(context, radius);
-  }
-
-  Widget buildInitialsAvatar(BuildContext context, double radius) {
+    final imageUrl = user.profilePic;
     return Container(
       width: radius * 2,
       height: radius * 2,
       decoration: BoxDecoration(
-        gradient: PlanoraTheme.primaryGradientFor(context),
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.24),
-            blurRadius: 18,
-            offset: const Offset(0, 9),
-          ),
-        ],
+        shape: BoxShape.circle,
+        gradient: imageUrl == null ? PlanoraTheme.primaryGradientFor(context) : null,
+        image: imageUrl == null
+            ? null
+            : DecorationImage(
+                image: NetworkImage(imageUrl),
+                fit: BoxFit.cover,
+              ),
+        boxShadow: PlanoraTheme.floatingShadowFor(context),
       ),
-      alignment: Alignment.center,
+      child: imageUrl == null
+          ? Center(
+              child: Text(
+                initials,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: radius * 0.62,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget buildBadge(BuildContext context, String label) {
+    final isVerified = user.isEmailVerified;
+    final badgeColor = isVerified ? PlanoraTheme.success : PlanoraTheme.warning;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.22)),
+      ),
       child: Text(
-        initials,
+        label,
         style: TextStyle(
-          color: Colors.white,
-          fontSize: radius * 0.58,
-          fontWeight: FontWeight.w900,
+          color: badgeColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
@@ -642,34 +574,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget buildStatsCard(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: cardDecoration(context),
       child: Row(
         children: [
           Expanded(
             child: buildStatItem(
               context,
-              icon: Icons.folder_outlined,
-              label: 'Projects',
-              value: isLoadingStats ? '...' : '$projectCount',
-            ),
-          ),
-          buildVerticalDivider(context),
-          Expanded(
-            child: buildStatItem(
-              context,
-              icon: Icons.task_alt_rounded,
-              label: 'Completed',
-              value: isLoadingStats ? '...' : '$completedTaskCount',
-            ),
-          ),
-          buildVerticalDivider(context),
-          Expanded(
-            child: buildStatItem(
-              context,
               icon: Icons.calendar_month_outlined,
               label: 'Days active',
               value: '$daysActive',
+            ),
+          ),
+          buildVerticalDivider(context),
+          Expanded(
+            child: buildStatItem(
+              context,
+              icon: Icons.verified_user_outlined,
+              label: 'Status',
+              value: user.isActive ? 'Active' : 'Inactive',
+            ),
+          ),
+          buildVerticalDivider(context),
+          Expanded(
+            child: buildStatItem(
+              context,
+              icon: Icons.badge_outlined,
+              label: 'Role',
+              value: user.role.isEmpty ? 'User' : user.role,
             ),
           ),
         ],
@@ -680,10 +612,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget buildVerticalDivider(BuildContext context) {
     return Container(
       width: 1,
-      height: 44,
+      height: 46,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
       color: PlanoraTheme.isDark(context)
-          ? PlanoraTheme.darkBorder
-          : PlanoraTheme.border,
+          ? PlanoraTheme.darkDivider
+          : PlanoraTheme.divider,
     );
   }
 
@@ -695,24 +628,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }) {
     return Column(
       children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 21),
-        const SizedBox(height: 7),
+        Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 8),
         Text(
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 3),
         Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: mutedColor(context),
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
         ),
       ],
@@ -724,391 +657,345 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required List<ProfileTileData> tiles,
   }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Container(
-      width: double.infinity,
-      decoration: cardDecoration(context).copyWith(
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w900,
+                ),
           ),
-          for (var index = 0; index < tiles.length; index++) ...[
-            buildProfileActionTile(context, tiles[index]),
-            if (index != tiles.length - 1)
-              Divider(
-                height: 1,
-                indent: 72,
-                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+        Container(
+          decoration: cardDecoration(context),
+          child: Column(
+            children: [
+              for (var index = 0; index < tiles.length; index++) ...[
+                buildProfileTile(context, tiles[index]),
+                if (index != tiles.length - 1) buildDivider(context),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildProfileTile(BuildContext context, ProfileTileData tile) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: tile.onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  tile.icon,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 22,
+                ),
               ),
-          ],
-        ],
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tile.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      tile.subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: mutedColor(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: mutedColor(context),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget buildProfileActionTile(BuildContext context, ProfileTileData item) {
-    return ListTile(
-      onTap: item.onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      minVerticalPadding: 8,
-      leading: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.11),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          item.icon,
-          size: 19,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-      title: Text(
-        item.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w900),
-      ),
-      subtitle: Text(
-        item.subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: mutedColor(context), fontWeight: FontWeight.w600),
-      ),
-      trailing: Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
+  Widget buildDivider(BuildContext context) {
+    return Divider(
+      height: 1,
+      indent: 68,
+      color: PlanoraTheme.isDark(context)
+          ? PlanoraTheme.darkDivider
+          : PlanoraTheme.divider,
     );
   }
 
   Widget buildLogoutButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: OutlinedButton.icon(
-        onPressed: handleLogout,
-        icon: const Icon(Icons.logout_rounded),
-        label: const Text('Log Out'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: PlanoraTheme.error,
-          side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.35)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: handleLogout,
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: PlanoraTheme.error.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: PlanoraTheme.error.withValues(alpha: 0.22)),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w900),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.logout_rounded, color: PlanoraTheme.error),
+              SizedBox(width: 10),
+              Text(
+                'Log out',
+                style: TextStyle(
+                  color: PlanoraTheme.error,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> showEditProfileSheet() async {
-    final fullNameController = TextEditingController(text: user.fullName);
     final usernameController = TextEditingController(text: user.username);
-    var isSaving = false;
+    final fullNameController = TextEditingController(text: user.fullName);
 
-    bool validUsername(String value) {
-      return RegExp(r'^[A-Za-z0-9_]{3,50}$').hasMatch(value.trim());
-    }
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          bool isSaving = false;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            final fullName = fullNameController.text.trim();
-            final username = usernameController.text.trim();
-            final canSave = fullName.isNotEmpty &&
-                validUsername(username) &&
-                !isSaving &&
-                (fullName != user.fullName.trim() || username != user.username.trim());
+          return StatefulBuilder(
+            builder: (context, setSheetState) {
+              Future<void> saveProfile() async {
+                final username = usernameController.text.trim();
+                final fullName = fullNameController.text.trim();
 
-            Future<void> submit() async {
-              if (!canSave) return;
-              FocusManager.instance.primaryFocus?.unfocus();
-              setSheetState(() => isSaving = true);
+                if (username.isEmpty || fullName.isEmpty) {
+                  showMessage('Username and full name are required.');
+                  return;
+                }
 
-              try {
-                final updatedUser = await _profileApi.updateProfile(
-                  username: username,
-                  fullName: fullName,
-                );
-                if (!mounted) return;
-                setState(() {
-                  user = updatedUser;
-                });
-                widget.onUserUpdated?.call(updatedUser);
-                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                showMessage('Profile updated successfully.');
-              } on ApiException catch (error) {
-                if (sheetContext.mounted) {
+                setSheetState(() => isSaving = true);
+
+                try {
+                  final updatedUser = await _profileApi.updateProfile(
+                    username: username,
+                    fullName: fullName,
+                  );
+                  if (!mounted) return;
+
+                  setState(() => user = updatedUser);
+                  widget.onUserUpdated?.call(updatedUser);
+                  Navigator.of(sheetContext).pop();
+                  showMessage('Profile updated.');
+                } catch (error, stackTrace) {
+                  debugPrint('Profile update failed: $error');
+                  debugPrintStack(stackTrace: stackTrace);
+                  if (!mounted) return;
+                  showMessage(errorText(error, 'Could not update profile.'));
                   setSheetState(() => isSaving = false);
                 }
-                showMessage(error.message);
-              } catch (error, stackTrace) {
-                debugPrint('Profile update failed: $error');
-                debugPrintStack(stackTrace: stackTrace);
-                if (sheetContext.mounted) {
-                  setSheetState(() => isSaving = false);
-                }
-                showMessage('Could not update profile.');
               }
-            }
 
-            return buildSheetContainer(
-              sheetContext,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _SheetGrabber(),
-                  const SizedBox(height: 20),
-                  buildSheetHeader(
-                    sheetContext,
-                    title: 'Edit Profile',
-                    icon: Icons.edit_outlined,
-                    onClose: isSaving ? null : () => Navigator.of(sheetContext).pop(),
-                  ),
-                  const SizedBox(height: 22),
-                  _SheetLabel('Full name'),
-                  const SizedBox(height: 8),
-                  buildSheetTextField(
-                    controller: fullNameController,
-                    icon: Icons.person_outline_rounded,
-                    hintText: 'Enter your full name',
-                    onChanged: (_) => setSheetState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  _SheetLabel('Username'),
-                  const SizedBox(height: 8),
-                  buildSheetTextField(
-                    controller: usernameController,
-                    icon: Icons.alternate_email_rounded,
-                    hintText: 'Choose a username',
-                    onChanged: (_) => setSheetState(() {}),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    validUsername(username)
-                        ? 'Username looks good.'
-                        : 'Use 3-50 letters, numbers, or underscores.',
-                    style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                          color: validUsername(username)
-                              ? PlanoraTheme.success
-                              : PlanoraTheme.error,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton.icon(
-                      onPressed: canSave ? submit : null,
-                      icon: isSaving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label: Text(isSaving ? 'Saving profile...' : 'Save Changes'),
+              return buildSheetScaffold(
+                context,
+                title: 'Edit Profile',
+                subtitle: 'Update the details shown on your Planora account.',
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: fullNameController,
+                      textInputAction: TextInputAction.next,
+                      decoration: inputDecoration(
+                        context,
+                        label: 'Full name',
+                        icon: Icons.badge_outlined,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: TextButton(
-                      onPressed: isSaving ? null : () => Navigator.of(sheetContext).pop(),
-                      child: const Text('Cancel'),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: usernameController,
+                      textInputAction: TextInputAction.done,
+                      decoration: inputDecoration(
+                        context,
+                        label: 'Username',
+                        icon: Icons.alternate_email_rounded,
+                      ),
+                      onSubmitted: (_) {
+                        if (!isSaving) saveProfile();
+                      },
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
-      fullNameController.dispose();
+                    const SizedBox(height: 18),
+                    buildPrimarySheetButton(
+                      context,
+                      label: isSaving ? 'Saving...' : 'Save changes',
+                      icon: Icons.check_rounded,
+                      onPressed: isSaving ? null : saveProfile,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
       usernameController.dispose();
-    });
+      fullNameController.dispose();
+    }
   }
 
   Future<void> showChangePasswordSheet() async {
     final oldPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
-    var isSaving = false;
-    var obscurePasswords = true;
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            final oldPassword = oldPasswordController.text;
-            final newPassword = newPasswordController.text;
-            final confirmPassword = confirmPasswordController.text;
-            final passwordsMatch =
-                newPassword.isNotEmpty && newPassword == confirmPassword;
-            final canSave = oldPassword.isNotEmpty &&
-                newPassword.length >= 8 &&
-                passwordsMatch &&
-                !isSaving;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) {
+          bool isSaving = false;
+          bool hideOldPassword = true;
+          bool hideNewPassword = true;
+          bool hideConfirmPassword = true;
 
-            Future<void> submit() async {
-              if (!canSave) return;
-              FocusManager.instance.primaryFocus?.unfocus();
-              setSheetState(() => isSaving = true);
+          return StatefulBuilder(
+            builder: (context, setSheetState) {
+              Future<void> savePassword() async {
+                final oldPassword = oldPasswordController.text;
+                final newPassword = newPasswordController.text;
+                final confirmPassword = confirmPasswordController.text;
 
-              try {
-                await _profileApi.changePassword(
-                  oldPassword: oldPassword,
-                  newPassword: newPassword,
-                );
-                if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                showMessage('Password changed successfully.');
-              } on ApiException catch (error) {
-                if (sheetContext.mounted) {
+                if (oldPassword.isEmpty || newPassword.isEmpty) {
+                  showMessage('Password fields are required.');
+                  return;
+                }
+
+                if (newPassword.length < 8) {
+                  showMessage('New password must be at least 8 characters.');
+                  return;
+                }
+
+                if (newPassword != confirmPassword) {
+                  showMessage('New passwords do not match.');
+                  return;
+                }
+
+                setSheetState(() => isSaving = true);
+
+                try {
+                  await _profileApi.changePassword(
+                    oldPassword: oldPassword,
+                    newPassword: newPassword,
+                  );
+                  if (!mounted) return;
+
+                  Navigator.of(sheetContext).pop();
+                  showMessage('Password changed.');
+                } catch (error, stackTrace) {
+                  debugPrint('Password update failed: $error');
+                  debugPrintStack(stackTrace: stackTrace);
+                  if (!mounted) return;
+                  showMessage(errorText(error, 'Could not change password.'));
                   setSheetState(() => isSaving = false);
                 }
-                showMessage(error.message);
-              } catch (error, stackTrace) {
-                debugPrint('Password change failed: $error');
-                debugPrintStack(stackTrace: stackTrace);
-                if (sheetContext.mounted) {
-                  setSheetState(() => isSaving = false);
-                }
-                showMessage('Could not change password.');
               }
-            }
 
-            return buildSheetContainer(
-              sheetContext,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _SheetGrabber(),
-                  const SizedBox(height: 20),
-                  buildSheetHeader(
-                    sheetContext,
-                    title: 'Change Password',
-                    icon: Icons.lock_outline_rounded,
-                    onClose: isSaving ? null : () => Navigator.of(sheetContext).pop(),
-                  ),
-                  const SizedBox(height: 22),
-                  _SheetLabel('Current password'),
-                  const SizedBox(height: 8),
-                  buildSheetTextField(
-                    controller: oldPasswordController,
-                    icon: Icons.lock_open_outlined,
-                    hintText: 'Enter current password',
-                    obscureText: obscurePasswords,
-                    onChanged: (_) => setSheetState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  _SheetLabel('New password'),
-                  const SizedBox(height: 8),
-                  buildSheetTextField(
-                    controller: newPasswordController,
-                    icon: Icons.lock_outline_rounded,
-                    hintText: 'Enter new password',
-                    obscureText: obscurePasswords,
-                    onChanged: (_) => setSheetState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  _SheetLabel('Confirm password'),
-                  const SizedBox(height: 8),
-                  buildSheetTextField(
-                    controller: confirmPasswordController,
-                    icon: Icons.verified_user_outlined,
-                    hintText: 'Confirm new password',
-                    obscureText: obscurePasswords,
-                    onChanged: (_) => setSheetState(() {}),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          passwordsMatch || confirmPassword.isEmpty
-                              ? 'Use at least 8 characters.'
-                              : 'Passwords do not match.',
-                          style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                                color: passwordsMatch || confirmPassword.isEmpty
-                                    ? mutedColor(sheetContext)
-                                    : PlanoraTheme.error,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
+              return buildSheetScaffold(
+                context,
+                title: 'Change Password',
+                subtitle: 'Use a strong password to keep your account safe.',
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    buildPasswordField(
+                      context,
+                      controller: oldPasswordController,
+                      label: 'Current password',
+                      obscureText: hideOldPassword,
+                      onToggle: () => setSheetState(
+                        () => hideOldPassword = !hideOldPassword,
                       ),
-                      TextButton.icon(
-                        onPressed: () => setSheetState(
-                          () => obscurePasswords = !obscurePasswords,
-                        ),
-                        icon: Icon(
-                          obscurePasswords
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 18,
-                        ),
-                        label: Text(obscurePasswords ? 'Show' : 'Hide'),
+                    ),
+                    const SizedBox(height: 14),
+                    buildPasswordField(
+                      context,
+                      controller: newPasswordController,
+                      label: 'New password',
+                      obscureText: hideNewPassword,
+                      onToggle: () => setSheetState(
+                        () => hideNewPassword = !hideNewPassword,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton.icon(
-                      onPressed: canSave ? submit : null,
-                      icon: isSaving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.lock_reset_rounded),
-                      label: Text(isSaving ? 'Changing password...' : 'Change Password'),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: TextButton(
-                      onPressed: isSaving ? null : () => Navigator.of(sheetContext).pop(),
-                      child: const Text('Cancel'),
+                    const SizedBox(height: 14),
+                    buildPasswordField(
+                      context,
+                      controller: confirmPasswordController,
+                      label: 'Confirm password',
+                      obscureText: hideConfirmPassword,
+                      onToggle: () => setSheetState(
+                        () => hideConfirmPassword = !hideConfirmPassword,
+                      ),
+                      onSubmitted: (_) {
+                        if (!isSaving) savePassword();
+                      },
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
+                    const SizedBox(height: 18),
+                    buildPrimarySheetButton(
+                      context,
+                      label: isSaving ? 'Updating...' : 'Update password',
+                      icon: Icons.lock_reset_rounded,
+                      onPressed: isSaving ? null : savePassword,
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
       oldPasswordController.dispose();
       newPasswordController.dispose();
       confirmPasswordController.dispose();
-    });
+    }
   }
 
   Future<void> showSettingsSheet() async {
@@ -1118,58 +1005,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return buildSheetContainer(
+        return buildSheetScaffold(
           sheetContext,
+          title: 'Settings',
+          subtitle: 'Adjust Planora app preferences.',
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _SheetGrabber(),
-              const SizedBox(height: 20),
-              buildSheetHeader(
+              buildSheetActionTile(
                 sheetContext,
-                title: 'Settings',
-                icon: Icons.settings_outlined,
-                onClose: () => Navigator.of(sheetContext).pop(),
+                icon: Icons.dark_mode_outlined,
+                title: 'Toggle theme',
+                subtitle: 'Switch between light and dark mode',
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  widget.onThemeToggle();
+                },
               ),
-              const SizedBox(height: 18),
-              Container(
-                decoration: cardDecoration(sheetContext),
-                child: ListTile(
-                  leading: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Theme.of(sheetContext)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.11),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(
-                      Icons.dark_mode_outlined,
-                      color: Theme.of(sheetContext).colorScheme.primary,
-                    ),
-                  ),
-                  title: const Text(
-                    'Dark mode',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: Text(
-                    'Toggle Planora appearance',
-                    style: TextStyle(
-                      color: mutedColor(sheetContext),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  trailing: Switch(
-                    value: PlanoraTheme.isDark(context),
-                    onChanged: (_) {
-                      Navigator.of(sheetContext).pop();
-                      widget.onThemeToggle();
-                    },
-                  ),
-                ),
+              const SizedBox(height: 10),
+              buildSheetActionTile(
+                sheetContext,
+                icon: Icons.info_outline_rounded,
+                title: 'Planora mobile beta',
+                subtitle: 'Profile preferences are available in this screen',
+                onTap: () {},
               ),
             ],
           ),
@@ -1178,128 +1037,217 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget buildSheetContainer(BuildContext sheetContext, {required Widget child}) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-      ),
-      child: Container(
-        width: double.infinity,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(sheetContext).size.height * 0.92,
-        ),
-        decoration: BoxDecoration(
-          color: PlanoraTheme.isDark(sheetContext)
-              ? PlanoraTheme.darkBackground
-              : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
-          child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
-            builder: (context, value, animatedChild) {
-              return Opacity(
-                opacity: value,
-                child: Transform.translate(
-                  offset: Offset(0, (1 - value) * 18),
-                  child: animatedChild,
-                ),
-              );
-            },
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget buildSheetHeader(
+  Widget buildSheetScaffold(
     BuildContext context, {
     required String title,
-    required IconData icon,
-    required VoidCallback? onClose,
+    required String subtitle,
+    required Widget child,
   }) {
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(15),
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
           ),
-          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          boxShadow: PlanoraTheme.softCardShadowFor(context),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: mutedColor(context),
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              child,
+            ],
           ),
         ),
-        IconButton(onPressed: onClose, icon: const Icon(Icons.close_rounded)),
-      ],
+      ),
     );
   }
 
-  Widget buildSheetTextField({
-    required TextEditingController controller,
+  InputDecoration inputDecoration(
+    BuildContext context, {
+    required String label,
     required IconData icon,
-    required String hintText,
-    required ValueChanged<String> onChanged,
-    bool obscureText = false,
+    Widget? suffixIcon,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.surfaceVariant,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 1.6,
+        ),
+      ),
+    );
+  }
+
+  Widget buildPasswordField(
+    BuildContext context, {
+    required TextEditingController controller,
+    required String label,
+    required bool obscureText,
+    required VoidCallback onToggle,
+    ValueChanged<String>? onSubmitted,
   }) {
     return TextField(
       controller: controller,
-      onChanged: onChanged,
       obscureText: obscureText,
-      textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        hintText: hintText,
-        prefixIcon: Icon(icon),
-      ),
-    );
-  }
-}
-
-class _SheetGrabber extends StatelessWidget {
-  const _SheetGrabber();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 44,
-        height: 5,
-        decoration: BoxDecoration(
-          color: PlanoraTheme.isDark(context)
-              ? PlanoraTheme.darkBorder
-              : PlanoraTheme.border,
-          borderRadius: BorderRadius.circular(999),
+      textInputAction: onSubmitted == null ? TextInputAction.next : TextInputAction.done,
+      onSubmitted: onSubmitted,
+      decoration: inputDecoration(
+        context,
+        label: label,
+        icon: Icons.lock_outline_rounded,
+        suffixIcon: IconButton(
+          onPressed: onToggle,
+          icon: Icon(
+            obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+          ),
         ),
       ),
     );
   }
-}
 
-class _SheetLabel extends StatelessWidget {
-  final String label;
+  Widget buildPrimarySheetButton(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: onPressed == null ? null : PlanoraTheme.primaryGradientFor(context),
+          color: onPressed == null ? mutedColor(context).withValues(alpha: 0.24) : null,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: onPressed == null ? null : PlanoraTheme.floatingShadowFor(context),
+        ),
+        child: ElevatedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon),
+          label: Text(label),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-  const _SheetLabel(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+  Widget buildSheetActionTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: mutedColor(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
