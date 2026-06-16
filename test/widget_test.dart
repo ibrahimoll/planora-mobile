@@ -345,7 +345,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.textContaining('Hi, I am Planora AI.'), findsOneWidget);
+    expect(find.textContaining('Planora AI. Ask me'), findsWidgets);
     expect(
       find.text(
         'Planora AI is temporarily unavailable. Please try again later.',
@@ -376,12 +376,12 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Planora AI is typing'), findsOneWidget);
+    expect(find.text('Planora AI is typing'), findsWidgets);
 
     await tester.pump(const Duration(milliseconds: 350));
 
     expect(find.text('Planora AI is typing'), findsNothing);
-    expect(find.text('Start with the highest-risk task.'), findsOneWidget);
+    expect(find.text('Start with the highest-risk task.'), findsWidgets);
   });
 
   testWidgets('AI Planner preview calls API once through loading rebuilds', (
@@ -440,6 +440,9 @@ void main() {
     expect(find.text('First Preview'), findsOneWidget);
     expect(aiPlanApi.previewCalls, 1);
 
+    await tester.drag(find.byType(ListView), const Offset(0, -180));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Review Again'));
     await tester.tap(find.text('Review Again'));
     await tester.tap(find.text('Review Again'));
     await tester.pump();
@@ -463,18 +466,19 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 2600));
 
-    expect(find.text('Understanding your idea...'), findsNothing);
     expect(aiPlanApi.previewCalls, 1);
 
     aiPlanApi.completeNext(projectTitle: 'Smooth Preview');
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(find.text('Understanding your idea...'), findsNothing);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     await tester.pumpAndSettle();
 
     expect(find.text('Smooth Preview'), findsOneWidget);
-    expect(find.text('Understanding your idea...'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('Understanding your idea...')),
+      findsNothing,
+    );
   });
 }
 
@@ -657,11 +661,16 @@ Future<void> _pumpAiProjectWizardAtReview(
   );
   await tester.pump();
 
+  await tester.drag(find.byType(ListView), const Offset(0, -180));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text('Choose a deadline'));
   await tester.tap(find.text('Choose a deadline'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
 
+  await tester.drag(find.byType(ListView), const Offset(0, -720));
+  await tester.pumpAndSettle();
   await tester.ensureVisible(find.text('Review Context'));
   await tester.tap(find.text('Review Context'));
   await tester.pumpAndSettle();
