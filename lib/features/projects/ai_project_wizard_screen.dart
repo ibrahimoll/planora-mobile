@@ -953,30 +953,18 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen>
     generationMessageTimer?.cancel();
     generationMessageTimer = null;
 
-    for (
-      var index = generationMessageIndex;
-      index < _generationMessages.length - 1;
-      index++
-    ) {
-      if (!mounted || _activeLoadingRequestId != requestId) {
-        return;
-      }
-
-      await Future<void>.delayed(const Duration(milliseconds: 85));
-
-      if (!mounted || _activeLoadingRequestId != requestId) {
-        return;
-      }
-
-      setState(() {
-        generationMessageIndex = index + 1;
-        final stepProgress =
-            (generationMessageIndex + 1) / _generationMessages.length * 0.94;
-        generationProgress = stepProgress > generationProgress
-            ? stepProgress
-            : generationProgress;
-      });
+    if (!mounted || _activeLoadingRequestId != requestId) {
+      return;
     }
+
+    setState(() {
+      generationMessageIndex = _generationMessages.length - 1;
+      generationProgress = generationProgress < 0.96
+          ? 0.96
+          : generationProgress;
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 180));
 
     if (!mounted || _activeLoadingRequestId != requestId) {
       return;
@@ -987,7 +975,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen>
       generationProgress = 1;
     });
 
-    await Future<void>.delayed(const Duration(milliseconds: 320));
+    await Future<void>.delayed(const Duration(milliseconds: 180));
 
     if (!mounted || _activeLoadingRequestId != requestId) {
       return;
@@ -1006,7 +994,7 @@ class _AiProjectWizardScreenState extends State<AiProjectWizardScreen>
     generationMessageTimer = null;
     _activeLoadingRequestId = null;
     _generationStartedAt = null;
-    _magicPulseController.stop();
+    _magicPulseController.stop(canceled: false);
   }
 
   String deriveProjectTitle(String idea) {
