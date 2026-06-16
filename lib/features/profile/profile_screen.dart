@@ -160,7 +160,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -168,7 +170,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isDark = PlanoraTheme.isDark(context);
 
     return Scaffold(
-      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
+      backgroundColor: isDark
+          ? PlanoraTheme.darkBackground
+          : PlanoraTheme.background,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: refreshProfile,
@@ -184,7 +188,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     buildStaggeredItem(0, buildHeader(context)),
                     const SizedBox(height: 18),
                     if (errorMessage != null) ...[
-                      buildStaggeredItem(1, buildErrorBanner(context, errorMessage!)),
+                      buildStaggeredItem(
+                        1,
+                        buildErrorBanner(context, errorMessage!),
+                      ),
                       const SizedBox(height: 14),
                     ],
                     buildStaggeredItem(2, buildProfileCard(context)),
@@ -223,13 +230,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.folder_outlined,
                             title: 'Projects',
                             subtitle: '$projectCount active projects',
-                            onTap: () => showMessage('Open projects from the tab bar.'),
+                            onTap: () =>
+                                showMessage('Open projects from the tab bar.'),
                           ),
                           ProfileTileData(
                             icon: Icons.task_alt_rounded,
                             title: 'Completed Tasks',
                             subtitle: '$completedTaskCount tasks completed',
-                            onTap: () => showMessage('Open tasks from the tab bar.'),
+                            onTap: () =>
+                                showMessage('Open tasks from the tab bar.'),
                           ),
                         ],
                       ),
@@ -315,9 +324,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Expanded(
           child: Text(
             'Profile',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         buildCircleButton(
@@ -347,9 +356,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Ink(
             width: 44,
             height: 44,
-            decoration: cardDecoration(context).copyWith(
-              borderRadius: BorderRadius.circular(999),
-            ),
+            decoration: cardDecoration(
+              context,
+            ).copyWith(borderRadius: BorderRadius.circular(999)),
             child: Icon(icon, size: 21),
           ),
         ),
@@ -436,8 +445,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -445,9 +454,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Wrap(
@@ -465,10 +474,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.08),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -496,7 +504,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
             debugPrint('Profile avatar load failed: $error');
-            return buildInitialsAvatar(context, label: initials, radius: radius);
+            return buildInitialsAvatar(
+              context,
+              label: initials,
+              radius: radius,
+            );
           },
         ),
       );
@@ -540,9 +552,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w900,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -635,8 +647,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   '$value',
                   key: ValueKey('$label-$value'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
         ),
         const SizedBox(height: 3),
@@ -646,9 +658,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w800,
-              ),
+            color: mutedColor(context),
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ],
     );
@@ -669,9 +681,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
           for (var index = 0; index < tiles.length; index++) ...[
@@ -721,11 +733,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: PlanoraTheme.isDark(context)
-                                ? PlanoraTheme.darkTextPrimary
-                                : PlanoraTheme.textPrimary,
-                          ),
+                        fontWeight: FontWeight.w900,
+                        color: PlanoraTheme.isDark(context)
+                            ? PlanoraTheme.darkTextPrimary
+                            : PlanoraTheme.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -733,9 +745,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -772,7 +784,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: OutlinedButton.styleFrom(
           foregroundColor: PlanoraTheme.error,
           side: BorderSide(color: PlanoraTheme.error.withValues(alpha: 0.28)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
@@ -827,10 +841,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final buttonLabel = isSaving
                 ? 'Saving...'
                 : !changed
-                    ? 'No Changes Yet'
-                    : (!fullNameValid || !usernameValid)
-                        ? 'Fix Details'
-                        : 'Save Changes';
+                ? 'No Changes Yet'
+                : (!fullNameValid || !usernameValid)
+                ? 'Fix Details'
+                : 'Save Changes';
 
             void refreshFieldState(String _) {
               setSheetState(() {
@@ -919,18 +933,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   Text(
                     'Personal details',
-                    style: Theme.of(sheetContext).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                    style: Theme.of(sheetContext).textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Update how your profile appears across Planora.',
                     style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                          color: mutedColor(sheetContext),
-                          fontWeight: FontWeight.w600,
-                          height: 1.35,
-                        ),
+                      color: mutedColor(sheetContext),
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   buildSheetLabel(sheetContext, 'Full Name'),
@@ -972,7 +985,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Text(
                       '3-50 characters. Letters, numbers, and underscores only.',
                       softWrap: true,
-                      style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                      style: Theme.of(sheetContext).textTheme.bodySmall
+                          ?.copyWith(
                             color: mutedColor(sheetContext),
                             fontWeight: FontWeight.w600,
                             height: 1.3,
@@ -990,7 +1004,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     isLoading: isSaving,
                     label: buttonLabel,
                     loadingLabel: 'Saving...',
-                    icon: canSave ? Icons.check_rounded : Icons.lock_outline_rounded,
+                    icon: canSave
+                        ? Icons.check_rounded
+                        : Icons.lock_outline_rounded,
                     onPressed: saveProfile,
                   ),
                   const SizedBox(height: 8),
@@ -1045,9 +1061,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -1055,9 +1071,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -1106,7 +1122,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final confirmPassword = confirmPasswordController.text;
 
               if (oldPassword.isEmpty) {
-                setSheetState(() => sheetError = 'Current password is required.');
+                setSheetState(
+                  () => sheetError = 'Current password is required.',
+                );
                 return;
               }
 
@@ -1215,9 +1233,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     'Use 8+ characters with an uppercase letter and a special character.',
                     style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
-                          color: mutedColor(sheetContext),
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: mutedColor(sheetContext),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   buildSheetLabel(sheetContext, 'Confirm new password'),
@@ -1236,8 +1254,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onPressed: isSaving
                           ? null
                           : () => setSheetState(
-                                () => obscureConfirm = !obscureConfirm,
-                              ),
+                              () => obscureConfirm = !obscureConfirm,
+                            ),
                       icon: Icon(
                         obscureConfirm
                             ? Icons.visibility_outlined
@@ -1291,10 +1309,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               'Choose a strong password that you do not use anywhere else.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w700,
-                    height: 1.35,
-                  ),
+                color: mutedColor(context),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
             ),
           ),
         ],
@@ -1376,7 +1394,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(icon, color: Theme.of(context).colorScheme.primary),
@@ -1388,22 +1408,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
           ),
-          if (trailing != null) trailing,
+          ?trailing,
         ],
       ),
     );
@@ -1435,10 +1455,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Text(
             body,
             style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(
-                  color: mutedColor(sheetContext),
-                  fontWeight: FontWeight.w600,
-                  height: 1.55,
-                ),
+              color: mutedColor(sheetContext),
+              fontWeight: FontWeight.w600,
+              height: 1.55,
+            ),
           ),
         );
       },
@@ -1495,7 +1515,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.50 : 0.16),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.50 : 0.16,
+                      ),
                       blurRadius: 28,
                       offset: const Offset(0, -8),
                     ),
@@ -1526,10 +1548,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.10),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(15),
                             ),
                             child: Icon(
@@ -1541,9 +1562,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Expanded(
                             child: Text(
                               title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w900),
                             ),
                           ),
@@ -1572,9 +1591,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Text(
       label,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w900,
-          ),
+        color: mutedColor(context),
+        fontWeight: FontWeight.w900,
+      ),
     );
   }
 
@@ -1608,14 +1627,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onChanged: onChanged,
       onSubmitted: onSubmitted,
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-          ),
+        fontWeight: FontWeight.w800,
+        color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+      ),
       decoration: InputDecoration(
         hintText: hintText,
         errorText: errorText,
         filled: true,
-        fillColor: isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.surfaceVariant,
+        fillColor: isDark
+            ? PlanoraTheme.darkSurfaceVariant
+            : PlanoraTheme.surfaceVariant,
         prefixIcon: Padding(
           padding: const EdgeInsets.all(8),
           child: Container(
@@ -1629,7 +1650,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         suffixIcon: suffixIcon,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide(
@@ -1758,7 +1782,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text(
                           label,
                           style: TextStyle(
-                            color: isEnabled ? Colors.white : disabledForeground,
+                            color: isEnabled
+                                ? Colors.white
+                                : disabledForeground,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
