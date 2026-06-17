@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
@@ -74,6 +75,19 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _goToSignIn({bool clearResetLinkFromUrl = false}) {
+    if (clearResetLinkFromUrl) {
+      SystemNavigator.routeInformationUpdated(location: '/', replace: true);
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
+      ),
+      (_) => false,
+    );
+  }
+
   Future<void> _resetPassword() async {
     final password = passwordController.text;
     final confirmPassword = confirmPasswordController.text;
@@ -116,14 +130,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       if (!mounted) return;
 
-      _showMessage('Password reset successfully. Please sign in.');
+      setState(() {
+        isLoading = false;
+      });
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
-        ),
-        (_) => false,
-      );
+      _showMessage('Password reset successfully. Please sign in.');
+      _goToSignIn(clearResetLinkFromUrl: true);
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
@@ -134,7 +146,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       if (!mounted) return;
       _showMessage('Could not reset password. Please try again.');
     } finally {
-      if (mounted) {
+      if (mounted && isLoading) {
         setState(() {
           isLoading = false;
         });
@@ -293,16 +305,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         SizedBox(height: metrics.sectionGap),
                         Center(
                           child: TextButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (_) => LoginScreen(
-                                    onThemeToggle: widget.onThemeToggle,
-                                  ),
-                                ),
-                                (_) => false,
-                              );
-                            },
+                            onPressed: () => _goToSignIn(
+                              clearResetLinkFromUrl: true,
+                            ),
                             icon: const Icon(Icons.chevron_left_rounded),
                             label: const Text('Back to Sign In'),
                           ),
@@ -328,122 +333,21 @@ class _ResetPasswordIllustration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-
     return Center(
-      child: SizedBox(
-        width: 210,
-        height: 160,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned(
-              bottom: 8,
-              left: 14,
-              child: _CloudBubble(
-                width: 86,
-                height: 34,
-                opacity: isDark ? 0.14 : 0.55,
-              ),
-            ),
-            Positioned(
-              bottom: 8,
-              right: 14,
-              child: _CloudBubble(
-                width: 86,
-                height: 34,
-                opacity: isDark ? 0.14 : 0.55,
-              ),
-            ),
-            Positioned(
-              top: 22,
-              left: 28,
-              child: _Sparkle(size: 12, color: primary),
-            ),
-            Positioned(
-              top: 52,
-              left: 4,
-              child: _Sparkle(size: 9, color: primary),
-            ),
-            Positioned(
-              top: 32,
-              right: 24,
-              child: _Sparkle(size: 10, color: primary),
-            ),
-            Positioned(
-              top: 78,
-              right: 4,
-              child: _Sparkle(size: 9, color: primary),
-            ),
-            Container(
-              width: 116,
-              height: 116,
-              decoration: BoxDecoration(
-                gradient: PlanoraTheme.primaryGradientFor(context),
-                borderRadius: BorderRadius.circular(34),
-                boxShadow: PlanoraTheme.floatingShadowFor(context),
-              ),
-              child: const Icon(
-                Icons.lock_rounded,
-                color: Colors.white,
-                size: 46,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CloudBubble extends StatelessWidget {
-  final double width;
-  final double height;
-  final double opacity;
-
-  const _CloudBubble({
-    required this.width,
-    required this.height,
-    required this.opacity,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: opacity,
       child: Container(
-        width: width,
-        height: height,
+        width: 112,
+        height: 112,
         decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: PlanoraTheme.primaryGradientFor(context),
+          boxShadow: PlanoraTheme.floatingShadowFor(context),
+        ),
+        child: const Icon(
+          Icons.lock_reset_rounded,
           color: Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.12),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          size: 48,
         ),
       ),
-    );
-  }
-}
-
-class _Sparkle extends StatelessWidget {
-  final double size;
-  final Color color;
-
-  const _Sparkle({required this.size, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(
-      Icons.auto_awesome_rounded,
-      size: size,
-      color: color.withValues(alpha: 0.45),
     );
   }
 }
@@ -452,29 +356,32 @@ class _PasswordRequirementRow extends StatelessWidget {
   final bool isValid;
   final String label;
 
-  const _PasswordRequirementRow({required this.isValid, required this.label});
+  const _PasswordRequirementRow({
+    required this.isValid,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final color = isValid ? PlanoraTheme.success : authMutedColor(context);
+
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: [
           Icon(
-            isValid
-                ? Icons.check_circle_rounded
-                : Icons.radio_button_unchecked_rounded,
-            size: 18,
-            color: isValid
-                ? PlanoraTheme.primaryPurple
-                : authMutedColor(context),
+            isValid ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 16,
+            color: color,
           ),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: authBodyColor(context),
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
         ],
