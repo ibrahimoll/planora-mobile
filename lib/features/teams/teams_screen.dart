@@ -65,26 +65,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
     return _invitations.where((item) => item.isPending).toList();
   }
 
-  int get _totalMembers {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.memberCount);
-  }
-
-  int get _totalProjects {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.projectCount);
-  }
-
-  int get _totalTasks {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.taskCount);
-  }
-
-  int get _completedTasks {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.completedTaskCount);
-  }
-
-  double get _teamCompletion {
-    if (_totalTasks == 0) return 0;
-    return (_completedTasks / _totalTasks).clamp(0.0, 1.0);
-  }
+  int get _totalMembers => _statsByTeamId.values.fold(0, (sum, item) => sum + item.memberCount);
+  int get _totalProjects => _statsByTeamId.values.fold(0, (sum, item) => sum + item.projectCount);
+  int get _totalTasks => _statsByTeamId.values.fold(0, (sum, item) => sum + item.taskCount);
+  int get _completedTasks => _statsByTeamId.values.fold(0, (sum, item) => sum + item.completedTaskCount);
+  double get _completion => _totalTasks == 0 ? 0 : (_completedTasks / _totalTasks).clamp(0.0, 1.0);
 
   List<TeamModel> get _visibleTeams {
     final query = _searchQuery.trim().toLowerCase();
@@ -176,15 +161,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
             taskCount += tasks.length;
             completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
           } catch (error, stackTrace) {
-            debugPrint(
-              'Team task load failed for team ${team.teamId}, project ${project.projectId}: $error',
-            );
+            debugPrint('Team task load failed for ${team.teamId}: $error');
             debugPrintStack(stackTrace: stackTrace);
           }
         }
 
         if (!mounted) return;
-
         setState(() {
           _membersByTeamId[team.teamId] = members;
           _projectsByTeamId[team.teamId] = projects;
@@ -196,10 +178,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
           );
         });
       } catch (error, stackTrace) {
-        debugPrint('Team member/stat load failed for ${team.teamId}: $error');
+        debugPrint('Team detail load failed for ${team.teamId}: $error');
         debugPrintStack(stackTrace: stackTrace);
         if (!mounted) return;
-
         setState(() {
           _membersByTeamId[team.teamId] = const [];
           _projectsByTeamId[team.teamId] = const [];
@@ -223,7 +204,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: EdgeInsets.fromLTRB(0, 0, 0, widget.showBackButton ? 28 : 112),
         children: [
-          _AnimatedEntrance(
+          _Entrance(
             index: 0,
             child: _TeamsHero(
               showBackButton: widget.showBackButton,
@@ -234,11 +215,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
               projectCount: _totalProjects,
               taskCount: _totalTasks,
               pendingInviteCount: _pendingInvitations.length,
-              completion: _teamCompletion,
+              completion: _completion,
             ),
           ),
           const SizedBox(height: 14),
-          _AnimatedEntrance(
+          _Entrance(
             index: 1,
             child: _SearchField(
               controller: _searchController,
@@ -247,7 +228,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          _AnimatedEntrance(
+          _Entrance(
             index: 2,
             child: _TeamTabs(
               selectedIndex: _selectedTabIndex,
@@ -261,14 +242,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.easeInCubic,
             child: _selectedTabIndex == 0
-                ? Column(
-                    key: const ValueKey('teams-list'),
-                    children: _buildTeamContent(),
-                  )
-                : Column(
-                    key: const ValueKey('invitations-list'),
-                    children: [_buildInvitationContent()],
-                  ),
+                ? Column(key: const ValueKey('teams'), children: _buildTeamContent())
+                : Column(key: const ValueKey('invites'), children: [_buildInvitationContent()]),
           ),
         ],
       ),
@@ -343,7 +318,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       const _SwipeHint(),
       const SizedBox(height: 10),
       for (int index = 0; index < _visibleTeams.length; index++) ...[
-        _AnimatedEntrance(index: index + 3, child: _buildSlidableTeamCard(_visibleTeams[index])),
+        _Entrance(index: index + 3, child: _buildSlidableTeamCard(_visibleTeams[index])),
         const SizedBox(height: 12),
       ],
     ];
@@ -434,7 +409,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     return Column(
       children: [
         for (int index = 0; index < _pendingInvitations.length; index++) ...[
-          _AnimatedEntrance(
+          _Entrance(
             index: index,
             child: _InvitationCard(
               invitation: _pendingInvitations[index],
@@ -625,92 +600,86 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }
 
   Future<void> _openTeamDetailsSheet(TeamModel team) async {
-    final currentMember = _currentMemberForTeam(team);
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
-            final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
-            final stats = _statsByTeamId[team.teamId];
-            final canManage = _canManageTeam(team);
-            final canEditRoles = _canEditMemberRoles(team);
+        final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+        final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+        final stats = _statsByTeamId[team.teamId];
+        final currentMember = _currentMemberForTeam(team);
+        final canManage = _canManageTeam(team);
+        final canEditRoles = _canEditMemberRoles(team);
 
-            return _BottomSheetShell(
-              title: team.name,
-              subtitle: currentMember == null ? 'Team workspace' : 'Your role: ${currentMember.roleLabel}',
-              maxHeightFactor: 0.90,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+        return _BottomSheetShell(
+          title: team.name,
+          subtitle: currentMember == null ? 'Team workspace' : 'Your role: ${currentMember.roleLabel}',
+          maxHeightFactor: 0.90,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TeamOverviewPanel(team: team, currentMember: currentMember, stats: stats),
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    _TeamOverviewPanel(team: team, currentMember: currentMember, stats: stats),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
-                        const SizedBox(width: 9),
-                        _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
-                        const SizedBox(width: 9),
-                        _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    _SheetSectionHeader(
-                      title: 'Members',
-                      actionLabel: canManage ? 'Invite' : null,
-                      onAction: canManage
-                          ? () {
-                              Navigator.of(sheetContext).pop();
-                              _openInviteMemberSheet(team);
-                            }
-                          : null,
-                    ),
-                    const SizedBox(height: 9),
-                    if (members.isEmpty)
-                      const _SmallMutedText('Members are loading or unavailable.')
-                    else
-                      for (final member in members)
-                        _MemberRow(
-                          member: member,
-                          canManage: canManage,
-                          canEditRole: canEditRoles && member.role != 'owner' && member.userId != widget.currentUserId,
-                          canRemove: canManage && member.role != 'owner' && member.userId != widget.currentUserId,
-                          onChangeRole: () => _openChangeRoleSheet(team: team, member: member, parentContext: sheetContext),
-                          onRemove: () => _confirmRemoveMember(team: team, member: member),
-                        ),
-                    const SizedBox(height: 16),
-                    const _SheetSectionHeader(title: 'Team plans'),
-                    const SizedBox(height: 9),
-                    if (projects.isEmpty)
-                      const _SmallMutedText('No team plans yet.')
-                    else
-                      for (final project in projects.take(10))
-                        _ProjectMiniRow(
-                          project: project,
-                          onTap: () async {
-                            Navigator.of(sheetContext).pop();
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ProjectDetailScreen(
-                                  project: project,
-                                  onProjectChanged: () => _loadTeams(showLoading: false),
-                                ),
-                              ),
-                            );
-                            if (mounted) _loadTeams(showLoading: false);
-                          },
-                        ),
+                    _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
+                    const SizedBox(width: 9),
+                    _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
+                    const SizedBox(width: 9),
+                    _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
                   ],
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 18),
+                _SheetSectionHeader(
+                  title: 'Members',
+                  actionLabel: canManage ? 'Invite' : null,
+                  onAction: canManage
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          _openInviteMemberSheet(team);
+                        }
+                      : null,
+                ),
+                const SizedBox(height: 9),
+                if (members.isEmpty)
+                  const _SmallMutedText('Members are loading or unavailable.')
+                else
+                  for (final member in members)
+                    _MemberRow(
+                      member: member,
+                      canEditRole: canEditRoles && member.role != 'owner' && member.userId != widget.currentUserId,
+                      canRemove: canManage && member.role != 'owner' && member.userId != widget.currentUserId,
+                      onChangeRole: () => _openChangeRoleSheet(team: team, member: member, parentContext: sheetContext),
+                      onRemove: () => _confirmRemoveMember(team: team, member: member),
+                    ),
+                const SizedBox(height: 16),
+                const _SheetSectionHeader(title: 'Team plans'),
+                const SizedBox(height: 9),
+                if (projects.isEmpty)
+                  const _SmallMutedText('No team plans yet.')
+                else
+                  for (final project in projects.take(10))
+                    _ProjectMiniRow(
+                      project: project,
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ProjectDetailScreen(
+                              project: project,
+                              onProjectChanged: () => _loadTeams(showLoading: false),
+                            ),
+                          ),
+                        );
+                        if (mounted) _loadTeams(showLoading: false);
+                      },
+                    ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -739,11 +708,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               setSheetState(() => isSubmitting = true);
               var success = false;
               try {
-                await widget.teamsApi.inviteUser(
-                  teamId: team.teamId,
-                  username: username,
-                  role: selectedRole,
-                );
+                await widget.teamsApi.inviteUser(teamId: team.teamId, username: username, role: selectedRole);
                 success = true;
               } catch (error, stackTrace) {
                 debugPrint('Invite member failed: $error');
@@ -775,16 +740,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     onSubmitted: (_) => submit(),
                   ),
                   const SizedBox(height: 14),
-                  _RolePicker(
-                    selectedRole: selectedRole,
-                    onChanged: (role) => setSheetState(() => selectedRole = role),
-                  ),
+                  _RolePicker(selectedRole: selectedRole, onChanged: (role) => setSheetState(() => selectedRole = role)),
                   const SizedBox(height: 16),
-                  _PrimarySheetButton(
-                    label: isSubmitting ? 'Sending...' : 'Send Invite',
-                    isLoading: isSubmitting,
-                    onPressed: isSubmitting ? null : submit,
-                  ),
+                  _PrimarySheetButton(label: isSubmitting ? 'Sending...' : 'Send Invite', isLoading: isSubmitting, onPressed: isSubmitting ? null : submit),
                 ],
               ),
             );
@@ -816,11 +774,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               setSheetState(() => isSubmitting = true);
               var success = false;
               try {
-                await widget.teamsApi.updateMemberRole(
-                  teamId: team.teamId,
-                  userId: member.userId,
-                  role: selectedRole,
-                );
+                await widget.teamsApi.updateMemberRole(teamId: team.teamId, userId: member.userId, role: selectedRole);
                 success = true;
               } catch (error, stackTrace) {
                 debugPrint('Change role failed: $error');
@@ -848,16 +802,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 children: [
                   _MemberPreview(member: member),
                   const SizedBox(height: 14),
-                  _RolePicker(
-                    selectedRole: selectedRole,
-                    onChanged: (role) => setSheetState(() => selectedRole = role),
-                  ),
+                  _RolePicker(selectedRole: selectedRole, onChanged: (role) => setSheetState(() => selectedRole = role)),
                   const SizedBox(height: 16),
-                  _PrimarySheetButton(
-                    label: isSubmitting ? 'Saving...' : 'Save Role',
-                    isLoading: isSubmitting,
-                    onPressed: isSubmitting ? null : submit,
-                  ),
+                  _PrimarySheetButton(label: isSubmitting ? 'Saving...' : 'Save Role', isLoading: isSubmitting, onPressed: isSubmitting ? null : submit),
                 ],
               ),
             );
@@ -870,28 +817,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
   Future<bool?> _confirmDeleteTeam(TeamModel team, {bool executeDelete = true}) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF14122A) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: const Text('Delete team?'),
-          content: Text(
-            'This will remove "${team.name}" if your account has permission. Team plans may also be affected.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => _ConfirmDialog(
+        title: 'Delete team?',
+        message: 'This will remove "${team.name}" if your account has permission. Team plans may also be affected.',
+        destructiveLabel: 'Delete',
+      ),
     );
 
     if (confirmed == true && executeDelete) {
@@ -940,32 +870,14 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
   }
 
-  Future<void> _confirmRemoveMember({
-    required TeamModel team,
-    required TeamMemberModel member,
-  }) async {
+  Future<void> _confirmRemoveMember({required TeamModel team, required TeamMemberModel member}) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF14122A) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: const Text('Remove member?'),
-          content: Text('Remove ${member.displayName} from ${team.name}?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
-              child: const Text('Remove'),
-            ),
-          ],
-        );
-      },
+      builder: (dialogContext) => _ConfirmDialog(
+        title: 'Remove member?',
+        message: 'Remove ${member.displayName} from ${team.name}?',
+        destructiveLabel: 'Remove',
+      ),
     );
 
     if (confirmed != true) return;
@@ -1027,13 +939,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   String _teamDeleteErrorMessage(Object error) {
     if (error is ApiException) {
-      if (error.statusCode == 403) {
-        return 'Only team owners can delete this team.';
-      }
+      if (error.statusCode == 403) return 'Only team owners can delete this team.';
       final message = error.message.trim();
-      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
-        return message;
-      }
+      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') return message;
     }
     return 'Could not delete team. Try again.';
   }
@@ -1041,9 +949,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
   String _genericApiMessage(Object error, {required String fallback}) {
     if (error is ApiException) {
       final message = error.message.trim();
-      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
-        return message;
-      }
+      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') return message;
     }
     return fallback;
   }
@@ -1062,27 +968,25 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }
 }
 
-class _AnimatedEntrance extends StatelessWidget {
-  const _AnimatedEntrance({required this.index, required this.child});
+class _Entrance extends StatelessWidget {
+  const _Entrance({required this.index, required this.child});
 
   final int index;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final delay = 320 + ((index * 55).clamp(0, 320) as int);
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 320 + (index * 55).clamp(0, 320)),
+      duration: Duration(milliseconds: delay),
       curve: Curves.easeOutCubic,
       builder: (context, value, animatedChild) {
         return Opacity(
           opacity: value,
           child: Transform.translate(
             offset: Offset(0, (1 - value) * 18),
-            child: Transform.scale(
-              scale: 0.97 + (value * 0.03),
-              child: animatedChild,
-            ),
+            child: Transform.scale(scale: 0.97 + (value * 0.03), child: animatedChild),
           ),
         );
       },
@@ -1126,18 +1030,10 @@ class _TeamsHero extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF17112F), const Color(0xFF0B0820)]
-              : [Colors.white, const Color(0xFFF5F0FF)],
+          colors: isDark ? [const Color(0xFF17112F), const Color(0xFF0B0820)] : [Colors.white, const Color(0xFFF5F0FF)],
         ),
         border: Border.all(color: primary.withValues(alpha: isDark ? 0.20 : 0.12)),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withValues(alpha: isDark ? 0.18 : 0.12),
-            blurRadius: 30,
-            offset: const Offset(0, 18),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: primary.withValues(alpha: isDark ? 0.18 : 0.12), blurRadius: 30, offset: const Offset(0, 18))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1219,10 +1115,7 @@ class _TeamsHero extends StatelessWidget {
                         ),
                         Text(
                           '${(value * 100).round()}%',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white : const Color(0xFF111827),
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
                         ),
                       ],
                     ),
@@ -1239,8 +1132,7 @@ class _TeamsHero extends StatelessWidget {
                     _HeroChip(icon: Icons.person_outline_rounded, label: 'Members', value: memberCount),
                     _HeroChip(icon: Icons.folder_copy_outlined, label: 'Plans', value: projectCount),
                     _HeroChip(icon: Icons.check_box_outlined, label: 'Tasks', value: taskCount),
-                    if (pendingInviteCount > 0)
-                      _HeroChip(icon: Icons.mail_outline_rounded, label: 'Invites', value: pendingInviteCount),
+                    if (pendingInviteCount > 0) _HeroChip(icon: Icons.mail_outline_rounded, label: 'Invites', value: pendingInviteCount),
                   ],
                 ),
               ),
@@ -1277,25 +1169,9 @@ class _HeroChip extends StatelessWidget {
           Icon(icon, size: 15, color: primary),
           const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white54 : const Color(0xFF64748B),
-              ),
-            ),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
           ),
-          Text(
-            '$value',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              color: isDark ? Colors.white : const Color(0xFF111827),
-            ),
-          ),
+          Text('$value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
         ],
       ),
     );
@@ -1324,20 +1200,13 @@ class _SearchField extends StatelessWidget {
         style: TextStyle(color: isDark ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w700),
         decoration: InputDecoration(
           hintText: 'Search teams, members, plans, roles...',
-          hintStyle: TextStyle(
-            color: isDark ? Colors.white38 : const Color(0xFF98A0B8),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : const Color(0xFF98A0B8), fontSize: 14, fontWeight: FontWeight.w600),
           prefixIcon: Icon(Icons.search_rounded, color: iconColor, size: 22),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, child) {
               if (value.text.trim().isEmpty) return const SizedBox.shrink();
-              return IconButton(
-                onPressed: onClear,
-                icon: Icon(Icons.close_rounded, color: iconColor, size: 20),
-              );
+              return IconButton(onPressed: onClear, icon: Icon(Icons.close_rounded, color: iconColor, size: 20));
             },
           ),
           border: InputBorder.none,
@@ -1370,12 +1239,7 @@ class _TeamTabs extends StatelessWidget {
       child: Row(
         children: [
           _TabButton(label: 'My Teams', selected: selectedIndex == 0, onTap: () => onChanged(0)),
-          _TabButton(
-            label: 'Invitations',
-            selected: selectedIndex == 1,
-            badge: invitationCount,
-            onTap: () => onChanged(1),
-          ),
+          _TabButton(label: 'Invitations', selected: selectedIndex == 1, badge: invitationCount, onTap: () => onChanged(1)),
         ],
       ),
     );
@@ -1403,26 +1267,12 @@ class _TabButton extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? primary.withValues(alpha: isDark ? 0.26 : 0.12) : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
+          decoration: BoxDecoration(color: selected ? primary.withValues(alpha: isDark ? 0.26 : 0.12) : Colors.transparent, borderRadius: BorderRadius.circular(14)),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: selected ? primary : (isDark ? Colors.white70 : const Color(0xFF6C7391)),
-                  ),
-                ),
-              ),
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: selected ? primary : (isDark ? Colors.white70 : const Color(0xFF6C7391))))),
               if (badge != null && badge! > 0) ...[
                 const SizedBox(width: 7),
                 Container(
@@ -1450,12 +1300,7 @@ class _SwipeHint extends StatelessWidget {
         Icon(Icons.swipe_rounded, size: 16, color: isDark ? Colors.white38 : const Color(0xFF8A91AA)),
         const SizedBox(width: 6),
         Expanded(
-          child: Text(
-            'Swipe for quick actions. Tap a team to manage members and plans.',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: isDark ? Colors.white38 : const Color(0xFF8A91AA)),
-          ),
+          child: Text('Swipe for quick actions. Tap a team to manage members and plans.', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: isDark ? Colors.white38 : const Color(0xFF8A91AA))),
         ),
       ],
     );
@@ -1516,17 +1361,9 @@ class _TeamCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [primary.withValues(alpha: 0.95), const Color(0xFF06B6D4)],
-                        ),
+                        gradient: LinearGradient(colors: [primary.withValues(alpha: 0.95), const Color(0xFF06B6D4)]),
                         borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primary.withValues(alpha: 0.22),
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+                        boxShadow: [BoxShadow(color: primary.withValues(alpha: 0.22), blurRadius: 18, offset: const Offset(0, 10))],
                       ),
                       child: Icon(_teamIcon(team.name), color: Colors.white, size: 28),
                     ),
@@ -1537,19 +1374,7 @@ class _TeamCard extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Flexible(
-                                child: Text(
-                                  team.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w900,
-                                    color: isDark ? Colors.white : const Color(0xFF171B2E),
-                                  ),
-                                ),
-                              ),
+                              Flexible(child: Text(team.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, height: 1.1, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)))),
                               if (currentMember != null) ...[
                                 const SizedBox(width: 7),
                                 _RoleBadge(label: currentMember!.roleLabel),
@@ -1557,16 +1382,7 @@ class _TeamCard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 5),
-                          Text(
-                            '$activeProjects active plans • ${(completion * 100).round()}% tasks complete',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white54 : const Color(0xFF6C7391),
-                            ),
-                          ),
+                          Text('$activeProjects active plans • ${(completion * 100).round()}% tasks complete', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF6C7391))),
                         ],
                       ),
                     ),
@@ -1587,49 +1403,29 @@ class _TeamCard extends StatelessWidget {
                   builder: (context, value, _) {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        value: value,
-                        minHeight: 6,
-                        backgroundColor: isDark ? const Color(0xFF2C2845) : const Color(0xFFE9EBF4),
-                        valueColor: AlwaysStoppedAnimation<Color>(primary),
-                      ),
+                      child: LinearProgressIndicator(value: value, minHeight: 6, backgroundColor: isDark ? const Color(0xFF2C2845) : const Color(0xFFE9EBF4), valueColor: AlwaysStoppedAnimation<Color>(primary)),
                     );
                   },
                 ),
                 const SizedBox(height: 13),
                 Row(
                   children: [
-                    _AvatarStack(
-                      members: previewMembers,
-                      extraCount: memberCount > previewMembers.length ? memberCount - previewMembers.length : 0,
-                    ),
+                    _AvatarStack(members: previewMembers, extraCount: memberCount > previewMembers.length ? memberCount - previewMembers.length : 0),
                     const Spacer(),
-                    _MiniStat(icon: Icons.group_outlined, value: memberCount, label: 'Members'),
+                    _MiniStat(icon: Icons.group_outlined, value: memberCount),
                     const SizedBox(width: 13),
-                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount, label: 'Plans'),
+                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount),
                     const SizedBox(width: 13),
-                    _MiniStat(icon: Icons.check_box_outlined, value: taskCount, label: 'Tasks'),
+                    _MiniStat(icon: Icons.check_box_outlined, value: taskCount),
                   ],
                 ),
                 if (canManage) ...[
                   const SizedBox(height: 13),
                   Row(
                     children: [
-                      Expanded(
-                        child: _InlineActionButton(
-                          icon: Icons.person_add_alt_1_rounded,
-                          label: 'Invite member',
-                          onTap: onInvitePressed,
-                        ),
-                      ),
+                      Expanded(child: _InlineActionButton(icon: Icons.person_add_alt_1_rounded, label: 'Invite member', onTap: onInvitePressed)),
                       const SizedBox(width: 10),
-                      Expanded(
-                        child: _InlineActionButton(
-                          icon: Icons.dashboard_customize_outlined,
-                          label: 'Manage team',
-                          onTap: onTap,
-                        ),
-                      ),
+                      Expanded(child: _InlineActionButton(icon: Icons.dashboard_customize_outlined, label: 'Manage team', onTap: onTap)),
                     ],
                   ),
                 ],
@@ -1659,11 +1455,7 @@ class _TeamOverviewPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [primary.withValues(alpha: isDark ? 0.30 : 0.13), const Color(0xFF06B6D4).withValues(alpha: isDark ? 0.16 : 0.07)],
-        ),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [primary.withValues(alpha: isDark ? 0.30 : 0.13), const Color(0xFF06B6D4).withValues(alpha: isDark ? 0.16 : 0.07)]),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: primary.withValues(alpha: 0.18)),
       ),
@@ -1675,10 +1467,7 @@ class _TeamOverviewPanel extends StatelessWidget {
               Container(
                 width: 50,
                 height: 50,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [primary, const Color(0xFF06B6D4)]),
-                  borderRadius: BorderRadius.circular(17),
-                ),
+                decoration: BoxDecoration(gradient: LinearGradient(colors: [primary, const Color(0xFF06B6D4)]), borderRadius: BorderRadius.circular(17)),
                 child: Icon(_teamIcon(team.name), color: Colors.white),
               ),
               const SizedBox(width: 12),
@@ -1686,17 +1475,9 @@ class _TeamOverviewPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      team.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: isDark ? Colors.white : const Color(0xFF111827)),
-                    ),
+                    Text(team.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: isDark ? Colors.white : const Color(0xFF111827))),
                     const SizedBox(height: 4),
-                    Text(
-                      currentMember == null ? 'Team workspace' : 'Your role: ${currentMember!.roleLabel}',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
-                    ),
+                    Text(currentMember == null ? 'Team workspace' : 'Your role: ${currentMember!.roleLabel}', style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B))),
                   ],
                 ),
               ),
@@ -1708,22 +1489,11 @@ class _TeamOverviewPanel extends StatelessWidget {
             duration: const Duration(milliseconds: 800),
             curve: Curves.easeOutCubic,
             builder: (context, value, _) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  value: value,
-                  minHeight: 8,
-                  backgroundColor: isDark ? const Color(0xFF2C2845) : Colors.white,
-                  valueColor: AlwaysStoppedAnimation<Color>(primary),
-                ),
-              );
+              return ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: value, minHeight: 8, backgroundColor: isDark ? const Color(0xFF2C2845) : Colors.white, valueColor: AlwaysStoppedAnimation<Color>(primary)));
             },
           ),
           const SizedBox(height: 8),
-          Text(
-            '${(completion * 100).round()}% team tasks completed',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: isDark ? Colors.white70 : const Color(0xFF4B5563)),
-          ),
+          Text('${(completion * 100).round()}% team tasks completed', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: isDark ? Colors.white70 : const Color(0xFF4B5563))),
         ],
       ),
     );
@@ -1743,10 +1513,7 @@ class _AvatarStack extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (members.isEmpty) {
-      return Text(
-        'No members loaded',
-        style: TextStyle(fontSize: 11, color: isDark ? Colors.white38 : const Color(0xFF8A91AA), fontWeight: FontWeight.w700),
-      );
+      return Text('No members loaded', style: TextStyle(fontSize: 11, color: isDark ? Colors.white38 : const Color(0xFF8A91AA), fontWeight: FontWeight.w700));
     }
 
     final width = (members.length * overlap) + (extraCount > 0 ? 32 : 12);
@@ -1758,10 +1525,7 @@ class _AvatarStack extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           for (int index = 0; index < members.length; index++)
-            Positioned(
-              left: index * overlap,
-              child: _InitialsAvatar(label: members[index].initials, color: _avatarColor(members[index].userId), size: size),
-            ),
+            Positioned(left: index * overlap, child: _InitialsAvatar(label: members[index].initials, color: _avatarColor(members[index].userId), size: size)),
           if (extraCount > 0)
             Positioned(
               left: members.length * overlap,
@@ -1769,15 +1533,8 @@ class _AvatarStack extends StatelessWidget {
                 width: size,
                 height: size,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2),
-                ),
-                child: Text(
-                  '+$extraCount',
-                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 9, fontWeight: FontWeight.w900),
-                ),
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12), shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2)),
+                child: Text('+$extraCount', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 9, fontWeight: FontWeight.w900)),
               ),
             ),
         ],
@@ -1806,26 +1563,15 @@ class _InvitationCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
-                  child: Icon(Icons.mail_outline_rounded, color: primary),
-                ),
+                Container(width: 48, height: 48, decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.mail_outline_rounded, color: primary)),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Team #${invitation.teamId}',
-                        style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
-                      ),
+                      Text('Team #${invitation.teamId}', style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E))),
                       const SizedBox(height: 4),
-                      Text(
-                        'Invited as ${_roleLabel(invitation.role)}',
-                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF6C7391), fontWeight: FontWeight.w700),
-                      ),
+                      Text('Invited as ${_roleLabel(invitation.role)}', style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF6C7391), fontWeight: FontWeight.w700)),
                     ],
                   ),
                 ),
@@ -1846,6 +1592,33 @@ class _InvitationCard extends StatelessWidget {
   }
 }
 
+class _ConfirmDialog extends StatelessWidget {
+  const _ConfirmDialog({required this.title, required this.message, required this.destructiveLabel});
+
+  final String title;
+  final String message;
+  final String destructiveLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF14122A) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+          child: Text(destructiveLabel),
+        ),
+      ],
+    );
+  }
+}
+
 class _TeamLoadingCard extends StatelessWidget {
   const _TeamLoadingCard();
 
@@ -1861,13 +1634,7 @@ class _TeamLoadingCard extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SkeletonLine(width: 140),
-                  SizedBox(height: 10),
-                  _SkeletonLine(width: 210),
-                  SizedBox(height: 14),
-                  _SkeletonLine(width: 90),
-                ],
+                children: [_SkeletonLine(width: 140), SizedBox(height: 10), _SkeletonLine(width: 210), SizedBox(height: 14), _SkeletonLine(width: 90)],
               ),
             ),
           ],
@@ -1895,24 +1662,11 @@ class _StateCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         child: Column(
           children: [
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(22)),
-              child: Icon(icon, size: 34, color: primary),
-            ),
+            Container(width: 62, height: 62, decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(22)), child: Icon(icon, size: 34, color: primary)),
             const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
-            ),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E))),
             const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF6C7391)),
-            ),
+            Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF6C7391))),
             if (actionText != null && onAction != null) ...[
               const SizedBox(height: 16),
               _FilledActionButton(label: actionText!, color: primary, onTap: onAction!),
@@ -1940,13 +1694,7 @@ class _CardShell extends StatelessWidget {
         color: isDark ? const Color(0xFF14122A) : Colors.white,
         border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE8EAF4)),
         borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.045),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.045), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: child,
     );
@@ -1967,15 +1715,7 @@ class _CircleIconButton extends StatelessWidget {
       borderRadius: 16,
       child: SizedBox(
         width: 46,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onPressed,
-            child: Icon(icon, color: isDark ? Colors.white70 : const Color(0xFF68708C), size: 23),
-          ),
-        ),
+        child: Material(color: Colors.transparent, borderRadius: BorderRadius.circular(16), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onPressed, child: Icon(icon, color: isDark ? Colors.white70 : const Color(0xFF68708C), size: 23))),
       ),
     );
   }
@@ -1995,41 +1735,23 @@ class _GradientIconButton extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)]),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.28), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
+        boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.28), blurRadius: 20, offset: const Offset(0, 10))],
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Icon(icon, color: Colors.white, size: 30),
-        ),
-      ),
+      child: Material(color: Colors.transparent, borderRadius: BorderRadius.circular(16), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onPressed, child: Icon(icon, color: Colors.white, size: 30))),
     );
   }
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.icon, required this.value, required this.label});
+  const _MiniStat({required this.icon, required this.value});
 
   final IconData icon;
   final int value;
-  final String label;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: isDark ? Colors.white54 : const Color(0xFF69718D)),
-        const SizedBox(width: 4),
-        Text('$value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF24283B))),
-      ],
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: isDark ? Colors.white54 : const Color(0xFF69718D)), const SizedBox(width: 4), Text('$value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF24283B)))]);
   }
 }
 
@@ -2048,15 +1770,8 @@ class _InitialsAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2),
-      ),
-      child: Text(
-        text.length > 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase(),
-        style: TextStyle(color: Colors.white, fontSize: size <= 26 ? 9 : 12, fontWeight: FontWeight.w900),
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2)),
+      child: Text(text.length > 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase(), style: TextStyle(color: Colors.white, fontSize: size <= 26 ? 9 : 12, fontWeight: FontWeight.w900)),
     );
   }
 }
@@ -2069,11 +1784,7 @@ class _RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-      child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: primary)),
-    );
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)), child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: primary)));
   }
 }
 
@@ -2095,16 +1806,7 @@ class _InlineActionButton extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 16, color: primary),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: primary)),
-              ),
-            ],
-          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: primary), const SizedBox(width: 6), Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: primary)))]),
         ),
       ),
     );
@@ -2120,18 +1822,7 @@ class _FilledActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color,
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
-        ),
-      ),
-    );
+    return Material(color: color, borderRadius: BorderRadius.circular(13), child: InkWell(borderRadius: BorderRadius.circular(13), onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11), child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)))));
   }
 }
 
@@ -2144,18 +1835,7 @@ class _OutlineActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900)),
-        ),
-      ),
-    );
+    return Material(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(13), child: InkWell(borderRadius: BorderRadius.circular(13), onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11), child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900)))));
   }
 }
 
@@ -2177,11 +1857,7 @@ class _BottomSheetShell extends StatelessWidget {
       child: FractionallySizedBox(
         heightFactor: maxHeightFactor,
         child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0B0820) : Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.24), blurRadius: 32, offset: const Offset(0, 14))],
-          ),
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF0B0820) : Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.24), blurRadius: 32, offset: const Offset(0, 14))]),
           child: Material(
             type: MaterialType.transparency,
             child: SafeArea(
@@ -2191,30 +1867,12 @@ class _BottomSheetShell extends StatelessWidget {
                 child: Column(
                   mainAxisSize: maxHeightFactor == null ? MainAxisSize.min : MainAxisSize.max,
                   children: [
-                    Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(color: isDark ? const Color(0xFF334155) : const Color(0xFFE6E8F2), borderRadius: BorderRadius.circular(99)),
-                    ),
+                    Container(width: 42, height: 4, decoration: BoxDecoration(color: isDark ? const Color(0xFF334155) : const Color(0xFFE6E8F2), borderRadius: BorderRadius.circular(99))),
                     const SizedBox(height: 15),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
-                      ),
-                    ),
+                    Align(alignment: Alignment.centerLeft, child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)))),
                     if (subtitle != null) ...[
                       const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          subtitle!,
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
-                        ),
-                      ),
+                      Align(alignment: Alignment.centerLeft, child: Text(subtitle!, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B)))),
                     ],
                     const SizedBox(height: 16),
                     if (maxHeightFactor == null) child else Expanded(child: child),
@@ -2244,19 +1902,10 @@ class _ActionTile extends StatelessWidget {
     final itemColor = color ?? Theme.of(context).colorScheme.primary;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-      ),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        leading: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(color: itemColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
-          child: Icon(icon, color: itemColor, size: 20),
-        ),
+        leading: Container(width: 38, height: 38, decoration: BoxDecoration(color: itemColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: itemColor, size: 20)),
         title: Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: color ?? (isDark ? Colors.white : const Color(0xFF111827)))),
         subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF64748B))),
         trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
@@ -2290,14 +1939,8 @@ class _SheetTextField extends StatelessWidget {
         prefixIcon: Icon(icon, color: primary),
         filled: true,
         fillColor: isDark ? const Color(0xFF14122A) : Colors.white,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: primary, width: 1.4),
-        ),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: primary, width: 1.4)),
       ),
     );
   }
@@ -2317,11 +1960,7 @@ class _PrimarySheetButton extends StatelessWidget {
       height: 52,
       child: ElevatedButton(
         onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
+        style: ElevatedButton.styleFrom(elevation: 0, backgroundColor: Theme.of(context).colorScheme.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
         child: isLoading
             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
             : Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
@@ -2340,23 +1979,9 @@ class _RolePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: _RoleChoice(
-            label: 'Member',
-            description: 'Can collaborate',
-            selected: selectedRole == 'member',
-            onTap: () => onChanged('member'),
-          ),
-        ),
+        Expanded(child: _RoleChoice(label: 'Member', description: 'Can collaborate', selected: selectedRole == 'member', onTap: () => onChanged('member'))),
         const SizedBox(width: 10),
-        Expanded(
-          child: _RoleChoice(
-            label: 'Admin',
-            description: 'Can manage',
-            selected: selectedRole == 'admin',
-            onTap: () => onChanged('admin'),
-          ),
-        ),
+        Expanded(child: _RoleChoice(label: 'Admin', description: 'Can manage', selected: selectedRole == 'admin', onTap: () => onChanged('admin'))),
       ],
     );
   }
@@ -2380,21 +2005,11 @@ class _RoleChoice extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? primary.withValues(alpha: 0.12) : (isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC)),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? primary : (isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
-        ),
+        decoration: BoxDecoration(color: selected ? primary.withValues(alpha: 0.12) : (isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC)), borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? primary : (isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)))),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: selected ? primary : (isDark ? Colors.white38 : const Color(0xFF94A3B8))),
-                const SizedBox(width: 8),
-                Text(label, style: TextStyle(fontWeight: FontWeight.w900, color: selected ? primary : (isDark ? Colors.white : const Color(0xFF111827)))),
-              ],
-            ),
+            Row(children: [Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: selected ? primary : (isDark ? Colors.white38 : const Color(0xFF94A3B8))), const SizedBox(width: 8), Text(label, style: TextStyle(fontWeight: FontWeight.w900, color: selected ? primary : (isDark ? Colors.white : const Color(0xFF111827))))]),
             const SizedBox(height: 4),
             Text(description, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
           ],
@@ -2416,18 +2031,8 @@ class _SheetStat extends StatelessWidget {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
-            const SizedBox(height: 3),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
-          ],
-        ),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
+        child: Column(children: [Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))), const SizedBox(height: 3), Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B)))]),
       ),
     );
   }
@@ -2443,31 +2048,14 @@ class _SheetSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Row(
-      children: [
-        Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))),
-        if (actionLabel != null && onAction != null)
-          TextButton(
-            onPressed: onAction,
-            child: Text(actionLabel!, style: TextStyle(color: primary, fontWeight: FontWeight.w900)),
-          ),
-      ],
-    );
+    return Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))), if (actionLabel != null && onAction != null) TextButton(onPressed: onAction, child: Text(actionLabel!, style: TextStyle(color: primary, fontWeight: FontWeight.w900)))]);
   }
 }
 
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({
-    required this.member,
-    required this.canManage,
-    required this.canEditRole,
-    required this.canRemove,
-    required this.onChangeRole,
-    required this.onRemove,
-  });
+  const _MemberRow({required this.member, required this.canEditRole, required this.canRemove, required this.onChangeRole, required this.onRemove});
 
   final TeamMemberModel member;
-  final bool canManage;
   final bool canEditRole;
   final bool canRemove;
   final VoidCallback onChangeRole;
@@ -2479,11 +2067,7 @@ class _MemberRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-      ),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(15), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
       child: Row(
         children: [
           _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 36),
@@ -2492,25 +2076,14 @@ class _MemberRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  member.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
-                ),
+                Text(member.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
                 const SizedBox(height: 2),
-                Text(
-                  member.user?.username ?? 'User #${member.userId}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-                ),
+                Text(member.user?.username ?? 'User #${member.userId}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
               ],
             ),
           ),
           _RoleBadge(label: member.roleLabel),
-          if (canEditRole || canRemove) ...[
-            const SizedBox(width: 4),
+          if (canEditRole || canRemove)
             PopupMenuButton<String>(
               tooltip: 'Member actions',
               icon: Icon(Icons.more_vert_rounded, size: 20, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
@@ -2523,7 +2096,6 @@ class _MemberRow extends StatelessWidget {
                 if (canRemove) const PopupMenuItem(value: 'remove', child: Text('Remove member')),
               ],
             ),
-          ],
         ],
       ),
     );
@@ -2540,27 +2112,8 @@ class _MemberPreview extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 38),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(member.displayName, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
-                const SizedBox(height: 2),
-                Text(member.roleLabel, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
-              ],
-            ),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
+      child: Row(children: [_InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 38), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))), const SizedBox(height: 2), Text(member.roleLabel, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF64748B)))]))]),
     );
   }
 }
@@ -2581,37 +2134,18 @@ class _ProjectMiniRow extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-        ),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(15), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
         child: Row(
           children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
-              child: Icon(Icons.folder_rounded, size: 21, color: primary),
-            ),
+            Container(width: 38, height: 38, decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.folder_rounded, size: 21, color: primary)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    project.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
-                  ),
+                  Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
                   const SizedBox(height: 2),
-                  Text(
-                    '${project.statusLabel} • ${project.deadlineLabel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-                  ),
+                  Text('${project.statusLabel} • ${project.deadlineLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
                 ],
               ),
             ),
@@ -2643,11 +2177,7 @@ class _SkeletonBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(16)),
-    );
+    return Container(width: size, height: size, decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(16)));
   }
 }
 
@@ -2659,11 +2189,7 @@ class _SkeletonLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: width,
-      height: 10,
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(99)),
-    );
+    return Container(width: width, height: 10, decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(99)));
   }
 }
 
