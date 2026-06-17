@@ -22,6 +22,18 @@ class TeamsApi {
     return TeamModel.fromJson(response as Map<String, dynamic>);
   }
 
+  Future<TeamModel> updateTeam({
+    required int teamId,
+    required String name,
+  }) async {
+    final response = await ApiClient.patchJson(
+      '/teams/$teamId',
+      data: {'name': name},
+    );
+
+    return TeamModel.fromJson(response as Map<String, dynamic>);
+  }
+
   Future<void> deleteTeam(int teamId) async {
     await ApiClient.delete('/teams/$teamId');
   }
@@ -36,6 +48,26 @@ class TeamsApi {
     return response
         .map((item) => TeamMemberModel.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<TeamMemberModel> updateMemberRole({
+    required int teamId,
+    required int userId,
+    required String role,
+  }) async {
+    final response = await ApiClient.patchJson(
+      '/teams/$teamId/members/$userId',
+      data: {'role': role},
+    );
+
+    return TeamMemberModel.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<void> removeMember({
+    required int teamId,
+    required int userId,
+  }) async {
+    await ApiClient.delete('/teams/$teamId/members/$userId');
   }
 
   Future<TeamInvitationModel> inviteUser({
