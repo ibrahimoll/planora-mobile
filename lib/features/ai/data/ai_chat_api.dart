@@ -59,6 +59,20 @@ class AiChatApi {
     return AiChatMessageModel.fromJson(response);
   }
 
+  Future<int> deleteHistory({required TaskProjectSummary project}) async {
+    final response = await ApiClient.delete(_chatPath(project));
+
+    if (response is Map<String, dynamic>) {
+      final count = response['deleted_count'];
+
+      if (count is int) return count;
+      if (count is num) return count.toInt();
+      if (count is String) return int.tryParse(count) ?? 0;
+    }
+
+    return 0;
+  }
+
   List<AiChatMessageModel> _parseMessages(List<dynamic> messages) {
     return messages
         .whereType<Map<String, dynamic>>()
@@ -115,7 +129,7 @@ class AiChatMessageModel {
     required String message,
   }) {
     return AiChatMessageModel(
-      messageId: -1,
+      messageId: -DateTime.now().microsecondsSinceEpoch,
       senderId: null,
       projectId: projectId,
       message: message,
