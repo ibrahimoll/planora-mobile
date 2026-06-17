@@ -305,9 +305,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         SizedBox(height: metrics.sectionGap),
                         Center(
                           child: TextButton.icon(
-                            onPressed: () => _goToSignIn(
-                              clearResetLinkFromUrl: true,
-                            ),
+                            onPressed: () =>
+                                _goToSignIn(clearResetLinkFromUrl: true),
                             icon: const Icon(Icons.chevron_left_rounded),
                             label: const Text('Back to Sign In'),
                           ),
@@ -356,10 +355,7 @@ class _PasswordRequirementRow extends StatelessWidget {
   final bool isValid;
   final String label;
 
-  const _PasswordRequirementRow({
-    required this.isValid,
-    required this.label,
-  });
+  const _PasswordRequirementRow({required this.isValid, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -379,9 +375,9 @@ class _PasswordRequirementRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
