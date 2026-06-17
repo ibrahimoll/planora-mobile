@@ -1,3 +1,6 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,10 +10,14 @@ import 'package:mobile/core/theme/planora_theme.dart';
 import 'package:mobile/features/auth/auth_gate.dart';
 import 'package:mobile/features/reset_password/reset_password_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
-  unawaited(PushNotificationService.instance.initialize());
+  await PushNotificationService.instance.initialize();
+
   runApp(const PlanoraApp());
 }
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/features/home/home_screen.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
-
 import '../../core/network/api_exception.dart';
 import '../../core/network/api_client.dart';
+import '../../core/notifications/push_notification_service.dart';
 import '../../core/storage/token_storage.dart';
 import 'data/auth_api.dart';
 import 'models/auth_models.dart';
@@ -51,6 +51,13 @@ class _AuthGateState extends State<AuthGate> {
 
       final user = await AuthApi.getCurrentUser();
 
+      try {
+        await PushNotificationService.instance.registerCurrentDevice();
+      } catch (error, stackTrace) {
+        debugPrint('Push registration after session restore failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+
       if (!mounted) return;
 
       setState(() {
@@ -83,6 +90,7 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _handleUnauthorizedSession() async {
+    await PushNotificationService.instance.clearLocalPushTokenState();
     await TokenStorage.clearAccessToken();
 
     if (!mounted) return;
@@ -94,6 +102,13 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _logout() async {
+    try {
+      await PushNotificationService.instance.deactivateCurrentDevice();
+    } catch (error, stackTrace) {
+      debugPrint('Push token cleanup failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
     await TokenStorage.clearAccessToken();
 
     if (!mounted) return;
