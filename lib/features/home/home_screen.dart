@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (hour >= 12 && hour < 17) return 'Good afternoon';
     if (hour >= 17 && hour < 21) return 'Good evening';
 
-    return 'Good night';
+    return 'Welcome back';
   }
 
   String get initials {
@@ -142,7 +142,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   int get activeProjectCount {
-    return filteredDashboardProjects.where((project) => project.isActive).length;
+    return filteredDashboardProjects
+        .where((project) => project.isActive)
+        .length;
   }
 
   int get completedProjectCount {
@@ -223,8 +225,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);
 
-      final nextTasks = loadedTasks.where((item) => !item.task.isCompleted).toList()
-        ..sort(compareUpcomingTaskItems);
+      final nextTasks =
+          loadedTasks.where((item) => !item.task.isCompleted).toList()
+            ..sort(compareUpcomingTaskItems);
 
       if (!mounted) return;
 
@@ -607,7 +610,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = PlanoraTheme.isDark(context);
 
     return Scaffold(
-      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
+      backgroundColor: isDark
+          ? PlanoraTheme.darkBackground
+          : PlanoraTheme.background,
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: PlanoraTheme.onboardingBackgroundFor(context),
@@ -806,11 +811,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: isDark
-                          ? PlanoraTheme.darkTextPrimary
-                          : PlanoraTheme.textPrimary,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
@@ -818,9 +823,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(context),
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -922,9 +927,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text(
                       'AI-first',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ],
@@ -933,18 +938,18 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 'What do you want to plan today?',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 7),
               Text(
                 'Describe an idea and Planora will shape the plan, tasks, timeline, and risks.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withValues(alpha: isDark ? 0.84 : 0.90),
-                      height: 1.45,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: Colors.white.withValues(alpha: isDark ? 0.84 : 0.90),
+                  height: 1.45,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 18),
               Row(
@@ -960,9 +965,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text(
                         'Plan with AI',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.w900,
-                            ),
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ),
@@ -1021,13 +1026,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final overdueTasks = dashboardTasks.where((item) => item.task.isOverdue).toList()
-      ..sort(compareUpcomingTaskItems);
+    final overdueTasks =
+        dashboardTasks.where((item) => item.task.isOverdue).toList()
+          ..sort(compareUpcomingTaskItems);
     final focusTask = overdueTasks.isNotEmpty
         ? overdueTasks.first
         : upcomingTasks.isEmpty
-            ? null
-            : upcomingTasks.first;
+        ? null
+        : upcomingTasks.first;
 
     if (focusTask == null) {
       return buildFocusSection(
@@ -1038,7 +1044,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'Start with an idea and let Planora build the first plan.'
             : 'No urgent tasks. Ask Planora to refine a plan or create the next task.',
         actionText: dashboardProjects.isEmpty ? 'Plan with AI' : 'Ask Planora',
-        onAction: dashboardProjects.isEmpty ? openAiPlanningFlow : openAiPlannerTab,
+        onAction: dashboardProjects.isEmpty
+            ? openAiPlanningFlow
+            : openAiPlannerTab,
       );
     }
 
@@ -1105,8 +1113,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1114,10 +1122,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: mutedColor(context),
-                            height: 1.35,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: mutedColor(context),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -1173,14 +1181,8 @@ class _HomeScreenState extends State<HomeScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDark
-                ? [
-                    PlanoraTheme.darkSurface,
-                    PlanoraTheme.darkSurfaceVariant,
-                  ]
-                : [
-                    Colors.white,
-                    const Color(0xFFF7F0FF),
-                  ],
+                ? [PlanoraTheme.darkSurface, PlanoraTheme.darkSurfaceVariant]
+                : [Colors.white, const Color(0xFFF7F0FF)],
           ),
           border: Border.all(
             color: primary.withValues(alpha: isDark ? 0.20 : 0.12),
@@ -1224,7 +1226,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         'Project Health',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w900,
                               color: isDark
                                   ? PlanoraTheme.darkTextPrimary
@@ -1237,9 +1240,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: mutedColor(context),
-                              fontWeight: FontWeight.w600,
-                            ),
+                          color: mutedColor(context),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -1264,7 +1267,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(
                           dashboardRange.label,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 color: primary,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -1319,9 +1323,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Text(
                                 '${(animatedProgress * 100).round()}%',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
+                                style: Theme.of(context).textTheme.headlineSmall
                                     ?.copyWith(
                                       fontWeight: FontWeight.w900,
                                       color: isDark
@@ -1331,9 +1333,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               Text(
                                 dashboardProgressLabel,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
+                                style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
                                       color: primary,
                                       fontWeight: FontWeight.w900,
@@ -1432,19 +1432,19 @@ class _HomeScreenState extends State<HomeScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: mutedColor(context),
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           Text(
             value,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: isDark
-                      ? PlanoraTheme.darkTextPrimary
-                      : PlanoraTheme.textPrimary,
-                ),
+              fontWeight: FontWeight.w900,
+              color: isDark
+                  ? PlanoraTheme.darkTextPrimary
+                  : PlanoraTheme.textPrimary,
+            ),
           ),
         ],
       ),
@@ -1462,10 +1462,9 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         if (action != null)
@@ -1564,7 +1563,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(
                           'Plan with AI',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -1574,7 +1574,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           'Generate a project, tasks, timeline, and risks instantly.',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 color: Colors.white.withValues(alpha: 0.86),
                                 height: 1.35,
                                 fontWeight: FontWeight.w700,
@@ -1675,7 +1676,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  gradient: isFilled ? PlanoraTheme.primaryGradientFor(context) : null,
+                  gradient: isFilled
+                      ? PlanoraTheme.primaryGradientFor(context)
+                      : null,
                   color: isFilled ? null : primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(13),
                 ),
@@ -1694,12 +1697,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: isDark
-                                ? PlanoraTheme.darkTextPrimary
-                                : PlanoraTheme.textPrimary,
-                          ),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: isDark
+                            ? PlanoraTheme.darkTextPrimary
+                            : PlanoraTheme.textPrimary,
+                      ),
                     ),
                   ),
                   Icon(
@@ -1791,7 +1794,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final projectTasks = tasksForProject(project);
 
     if (projectTasks.isNotEmpty) {
-      final completed = projectTasks.where((item) => item.task.isCompleted).length;
+      final completed = projectTasks
+          .where((item) => item.task.isCompleted)
+          .length;
       return completed / projectTasks.length;
     }
 
@@ -1876,7 +1881,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             project.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   fontWeight: FontWeight.w900,
                                   color: isDark
                                       ? PlanoraTheme.darkTextPrimary
@@ -1886,7 +1892,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         Text(
                           '${(progress * 100).round()}%',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 color: color,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -1909,8 +1916,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             project.deadlineLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: project.daysLeft < 0 && !project.isCompleted
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color:
+                                      project.daysLeft < 0 &&
+                                          !project.isCompleted
                                       ? PlanoraTheme.error
                                       : mutedColor(context),
                                   fontWeight: FontWeight.w700,
@@ -1924,7 +1934,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               : '${projectTasks.length} tasks',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 color: mutedColor(context),
                                 fontWeight: FontWeight.w700,
                               ),
@@ -1990,9 +2001,9 @@ class _HomeScreenState extends State<HomeScreen> {
               title,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
           if (actionText != null && onAction != null) ...[
