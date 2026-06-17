@@ -6,22 +6,20 @@ import 'package:mobile/features/profile/profile_screen.dart';
 import 'package:mobile/features/projects/ai_project_wizard_screen.dart';
 import 'package:mobile/features/projects/project_detail_screen.dart';
 import 'package:mobile/features/projects/projects_screen.dart';
-import 'package:mobile/features/reports/reports_screen.dart';
 import 'package:mobile/features/search/search_screen.dart';
-import 'package:mobile/features/teams/teams_screen.dart';
 import 'package:mobile/features/tasks/data/tasks_api.dart';
 import 'package:mobile/features/tasks/models/task_models.dart';
 import 'package:mobile/features/tasks/task_detail_screen.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
+import 'package:mobile/features/teams/data/teams_api.dart';
+import 'package:mobile/features/teams/teams_screen.dart';
 
-import '../../core/config/app_config.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/auth_models.dart';
 import '../auth/models/project_models.dart';
 import 'widgets/home_bottom_nav.dart';
-import 'package:mobile/features/teams/data/teams_api.dart';
 
 enum DashboardRange {
   week('This Week'),
@@ -68,9 +66,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int pendingTeamInvitationCount = 0;
   bool isLoadingDashboard = true;
   bool shouldOpenTaskCreateOnStart = false;
+  bool shouldOpenProjectCreateOnStart = false;
 
   String? dashboardError;
-  bool shouldOpenProjectCreateOnStart = false;
 
   List<ProjectModel> dashboardProjects = [];
   List<TaskListItem> dashboardTasks = [];
@@ -117,25 +115,83 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String? get profilePicUrl {
-    return normalizeProfilePicUrl(widget.user.profilePic);
+    final value = widget.user.profilePic?.trim();
+    return value == null || value.isEmpty ? null : value;
   }
 
-  String? normalizeProfilePicUrl(String? value) {
-    final trimmed = value?.trim();
+  DateTime? get dashboardRangeStart {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
 
-    if (trimmed == null || trimmed.isEmpty) {
-      return null;
+    switch (dashboardRange) {
+      case DashboardRange.week:
+        return today.subtract(Duration(days: today.weekday - 1));
+      case DashboardRange.month:
+        return DateTime(today.year, today.month);
+      case DashboardRange.all:
+        return null;
+    }
+  }
+
+  List<ProjectModel> get filteredDashboardProjects {
+    return dashboardProjects.where(projectMatchesDashboardRange).toList();
+  }
+
+  List<TaskListItem> get filteredDashboardTasks {
+    return dashboardTasks.where(taskMatchesDashboardRange).toList();
+  }
+
+  int get activeProjectCount {
+    return filteredDashboardProjects.where((project) => project.isActive).length;
+  }
+
+  int get completedProjectCount {
+    return filteredDashboardProjects
+        .where((project) => project.isCompleted)
+        .length;
+  }
+
+  int get overdueProjectCount {
+    return filteredDashboardProjects
+        .where((project) => !project.isCompleted && project.daysLeft < 0)
+        .length;
+  }
+
+  int get completedTaskCount {
+    return filteredDashboardTasks.where((item) => item.task.isCompleted).length;
+  }
+
+  int get overdueTaskCount {
+    return filteredDashboardTasks.where((item) => item.task.isOverdue).length;
+  }
+
+  int get blockedTaskCount {
+    return filteredDashboardTasks.where((item) => item.task.isBlocked).length;
+  }
+
+  int get atRiskCount {
+    return overdueProjectCount + overdueTaskCount + blockedTaskCount;
+  }
+
+  double get dashboardProgress {
+    final filteredTasks = filteredDashboardTasks;
+    final filteredProjects = filteredDashboardProjects;
+
+    if (filteredTasks.isNotEmpty) {
+      return completedTaskCount / filteredTasks.length;
     }
 
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
+    if (filteredProjects.isNotEmpty) {
+      return completedProjectCount / filteredProjects.length;
     }
 
-    if (trimmed.startsWith('/')) {
-      return '${AppConfig.apiBaseUrl}$trimmed';
-    }
+    return 0;
+  }
 
-    return '${AppConfig.apiBaseUrl}/$trimmed';
+  String get dashboardProgressLabel {
+    if (filteredDashboardTasks.isNotEmpty) return 'Tasks Done';
+    if (filteredDashboardProjects.isNotEmpty) return 'Projects Done';
+    return 'No Data';
   }
 
   Future<void> loadDashboardData() async {
@@ -167,13 +223,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);
 
-      final nextTasks =
-          loadedTasks.where((item) => !item.task.isCompleted).toList()
-            ..sort(compareUpcomingTaskItems);
+      final nextTasks = loadedTasks.where((item) => !item.task.isCompleted).toList()
+        ..sort(compareUpcomingTaskItems);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         dashboardProjects = loadedProjects;
@@ -185,9 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('Dashboard load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       final message = error is ApiException
           ? 'Could not load dashboard: ${error.message}'
@@ -203,26 +254,66 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> loadUnreadNotificationCount() async {
     try {
       final unreadCount = await _notificationsApi.getUnreadCount();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        hasUnreadNotifications = unreadCount > 0;
-      });
+      if (!mounted) return;
+      setState(() => hasUnreadNotifications = unreadCount > 0);
     } catch (error, stackTrace) {
       debugPrint('Unread notification count load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        hasUnreadNotifications = false;
-      });
+      if (!mounted) return;
+      setState(() => hasUnreadNotifications = false);
     }
+  }
+
+  Future<void> loadPendingTeamInvitationCount() async {
+    try {
+      final invitations = await _teamsApi.getMyInvitations();
+      final pendingCount = invitations.where((item) => item.isPending).length;
+      if (!mounted) return;
+      setState(() => pendingTeamInvitationCount = pendingCount);
+    } catch (error, stackTrace) {
+      debugPrint('Team invitation count load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => pendingTeamInvitationCount = 0);
+    }
+  }
+
+  Future<void> refreshDashboard() async {
+    await Future.wait([
+      loadDashboardData(),
+      loadUnreadNotificationCount(),
+      loadPendingTeamInvitationCount(),
+    ]);
+  }
+
+  bool isDateInDashboardRange(DateTime? date) {
+    if (dashboardRange == DashboardRange.all) return true;
+    if (date == null) return false;
+
+    final start = dashboardRangeStart;
+    if (start == null) return true;
+
+    final nextStart = switch (dashboardRange) {
+      DashboardRange.week => start.add(const Duration(days: 7)),
+      DashboardRange.month => DateTime(start.year, start.month + 1),
+      DashboardRange.all => null,
+    };
+
+    return !date.isBefore(start) &&
+        (nextStart == null || date.isBefore(nextStart));
+  }
+
+  bool projectMatchesDashboardRange(ProjectModel project) {
+    if (dashboardRange == DashboardRange.all) return true;
+    return isDateInDashboardRange(project.createdAt) ||
+        isDateInDashboardRange(project.deadline);
+  }
+
+  bool taskMatchesDashboardRange(TaskListItem item) {
+    if (dashboardRange == DashboardRange.all) return true;
+    return isDateInDashboardRange(item.task.createdAt) ||
+        isDateInDashboardRange(item.task.dueDate) ||
+        isDateInDashboardRange(item.task.completedAt);
   }
 
   void openNewTaskFlow() {
@@ -231,32 +322,6 @@ class _HomeScreenState extends State<HomeScreen> {
       taskCreateRequestId += 1;
       shouldOpenTaskCreateOnStart = true;
     });
-  }
-
-  Future<void> loadPendingTeamInvitationCount() async {
-    try {
-      final invitations = await _teamsApi.getMyInvitations();
-      final pendingCount = invitations.where((item) => item.isPending).length;
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        pendingTeamInvitationCount = pendingCount;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Team invitation count load failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        pendingTeamInvitationCount = 0;
-      });
-    }
   }
 
   void openNewProjectFlow({
@@ -281,17 +346,12 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     loadDashboardData();
   }
 
   void openAiPlannerTab() {
-    setState(() {
-      selectedIndex = 2;
-    });
+    setState(() => selectedIndex = 2);
   }
 
   void openTasksTab() {
@@ -311,6 +371,10 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void openTeamsTab() {
+    setState(() => selectedIndex = 4);
+  }
+
   Future<void> openUpcomingTaskDetail(TaskListItem item) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -320,6 +384,23 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+
+    if (!mounted) return;
+    loadDashboardData();
+  }
+
+  Future<void> openProjectDetail(ProjectModel project) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => ProjectDetailScreen(
+          project: project,
+          onProjectChanged: loadDashboardData,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    loadDashboardData();
   }
 
   Future<void> openSearch() async {
@@ -327,10 +408,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const SearchScreen()));
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     loadDashboardData();
   }
 
@@ -342,24 +420,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     loadUnreadNotificationCount();
     loadPendingTeamInvitationCount();
-  }
-
-  Future<void> openReports() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const ReportsScreen()));
-
-    if (!mounted) {
-      return;
-    }
-
-    loadDashboardData();
   }
 
   Future<void> openTeams() async {
@@ -376,11 +439,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     loadDashboardData();
+    loadPendingTeamInvitationCount();
   }
 
   Future<void> openProfile() async {
@@ -403,124 +464,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  int compareTaskItemsByDueDate(TaskListItem left, TaskListItem right) {
+    final leftDue = left.task.dueDate;
+    final rightDue = right.task.dueDate;
+
+    if (leftDue == null && rightDue == null) {
+      return left.task.createdAt.compareTo(right.task.createdAt);
+    }
+
+    if (leftDue == null) return 1;
+    if (rightDue == null) return -1;
+    return leftDue.compareTo(rightDue);
+  }
+
+  int compareUpcomingTaskItems(TaskListItem left, TaskListItem right) {
+    if (left.task.isOverdue != right.task.isOverdue) {
+      return left.task.isOverdue ? -1 : 1;
+    }
+
+    return compareTaskItemsByDueDate(left, right);
+  }
+
   Color mutedColor(BuildContext context) {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
         : PlanoraTheme.textSecondary;
-  }
-
-  DateTime? get dashboardRangeStart {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    switch (dashboardRange) {
-      case DashboardRange.week:
-        return today.subtract(Duration(days: today.weekday - 1));
-      case DashboardRange.month:
-        return DateTime(today.year, today.month);
-      case DashboardRange.all:
-        return null;
-    }
-  }
-
-  bool isDateInDashboardRange(DateTime? date) {
-    if (dashboardRange == DashboardRange.all) {
-      return true;
-    }
-
-    if (date == null) {
-      return false;
-    }
-
-    final start = dashboardRangeStart;
-
-    if (start == null) {
-      return true;
-    }
-
-    final nextStart = switch (dashboardRange) {
-      DashboardRange.week => start.add(const Duration(days: 7)),
-      DashboardRange.month => DateTime(start.year, start.month + 1),
-      DashboardRange.all => null,
-    };
-
-    return !date.isBefore(start) &&
-        (nextStart == null || date.isBefore(nextStart));
-  }
-
-  bool projectMatchesDashboardRange(ProjectModel project) {
-    if (dashboardRange == DashboardRange.all) {
-      return true;
-    }
-
-    return isDateInDashboardRange(project.createdAt) ||
-        isDateInDashboardRange(project.deadline);
-  }
-
-  bool taskMatchesDashboardRange(TaskListItem item) {
-    if (dashboardRange == DashboardRange.all) {
-      return true;
-    }
-
-    return isDateInDashboardRange(item.task.createdAt) ||
-        isDateInDashboardRange(item.task.dueDate);
-  }
-
-  List<ProjectModel> get filteredDashboardProjects {
-    return dashboardProjects.where(projectMatchesDashboardRange).toList();
-  }
-
-  List<TaskListItem> get filteredDashboardTasks {
-    return dashboardTasks.where(taskMatchesDashboardRange).toList();
-  }
-
-  void showDashboardRangeSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final isDark = PlanoraTheme.isDark(sheetContext);
-
-        return Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final range in DashboardRange.values)
-                ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  leading: Icon(
-                    dashboardRange == range
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_off_rounded,
-                    color: dashboardRange == range
-                        ? Theme.of(sheetContext).colorScheme.primary
-                        : mutedColor(sheetContext),
-                  ),
-                  title: Text(
-                    range.label,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    setState(() {
-                      dashboardRange = range;
-                    });
-                  },
-                ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   BoxDecoration cardDecoration(BuildContext context, {double radius = 18}) {
@@ -537,9 +505,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void openProfileActions(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -550,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   leading: const Icon(Icons.dark_mode_outlined),
                   title: const Text('Toggle theme'),
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(sheetContext);
                     widget.onThemeToggle();
                   },
                 ),
@@ -558,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   leading: const Icon(Icons.groups_2_outlined),
                   title: const Text('Teams'),
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(sheetContext);
                     openTeams();
                   },
                 ),
@@ -566,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   leading: const Icon(Icons.logout_rounded),
                   title: const Text('Logout'),
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(sheetContext);
                     if (widget.onLoggedOut != null) {
                       widget.onLoggedOut!();
                       return;
@@ -579,6 +547,197 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  void showDashboardRangeSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final isDark = PlanoraTheme.isDark(sheetContext);
+
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+              ),
+              boxShadow: PlanoraTheme.cardShadowFor(sheetContext),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final range in DashboardRange.values)
+                  ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    leading: Icon(
+                      dashboardRange == range
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      color: dashboardRange == range
+                          ? Theme.of(sheetContext).colorScheme.primary
+                          : mutedColor(sheetContext),
+                    ),
+                    title: Text(
+                      range.label,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      setState(() => dashboardRange = range);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Scaffold(
+      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
+        child: SafeArea(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: KeyedSubtree(
+              key: ValueKey<int>(selectedIndex),
+              child: buildSelectedContent(context),
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: HomeBottomNav(
+        selectedIndex: selectedIndex,
+        teamsBadgeCount: pendingTeamInvitationCount,
+        onTap: (index) {
+          setState(() {
+            selectedIndex = index;
+            if (index != 1) {
+              shouldOpenProjectCreateOnStart = false;
+              projectCreateRequestId = 0;
+            }
+            if (index != 3) {
+              shouldOpenTaskCreateOnStart = false;
+              taskCreateRequestId = 0;
+            }
+          });
+        },
+      ),
+    );
+  }
+
+  Widget buildSelectedContent(BuildContext context) {
+    switch (selectedIndex) {
+      case 1:
+        return ProjectsScreen(
+          onBack: () => setState(() => selectedIndex = 0),
+          createRequestId: projectCreateRequestId,
+          openCreateOnStart: shouldOpenProjectCreateOnStart,
+          createStartMode: projectCreateStartMode,
+          onCreateRequestConsumed: () {
+            if (!mounted) return;
+            setState(() => shouldOpenProjectCreateOnStart = false);
+          },
+        );
+      case 2:
+        return AiChatScreen(onOpenProjects: openProjectsTab);
+      case 3:
+        return TasksScreen(
+          onBack: () => setState(() => selectedIndex = 0),
+          createRequestId: taskCreateRequestId,
+          openCreateOnStart: shouldOpenTaskCreateOnStart,
+          profilePic: profilePicUrl,
+          userInitials: initials,
+          onTasksChanged: loadDashboardData,
+          onCreateAiPlan: openAiPlanningFlow,
+          onCreateRequestConsumed: () {
+            if (!mounted) return;
+            setState(() => shouldOpenTaskCreateOnStart = false);
+          },
+        );
+      case 4:
+        return TeamsScreen(
+          currentUserId: widget.user.userId,
+          onTeamsChanged: () {
+            loadDashboardData();
+            loadPendingTeamInvitationCount();
+          },
+        );
+      case 0:
+      default:
+        return buildHomeDashboard(context);
+    }
+  }
+
+  Widget buildHomeDashboard(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: refreshDashboard,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  buildAnimatedEntrance(0, buildHeader(context)),
+                  const SizedBox(height: 18),
+                  buildAnimatedEntrance(1, buildMainAiPlanningCard(context)),
+                  const SizedBox(height: 18),
+                  buildAnimatedEntrance(2, buildTodayFocus(context)),
+                  const SizedBox(height: 18),
+                  buildProjectOverview(context),
+                  const SizedBox(height: 18),
+                  buildQuickActions(context),
+                  const SizedBox(height: 18),
+                  buildProjects(context),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildAnimatedEntrance(int index, Widget child) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 340 + (index * 60)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, animatedChild) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 18),
+            child: Transform.scale(
+              scale: 0.96 + (value * 0.04),
+              child: animatedChild,
+            ),
+          ),
+        );
+      },
+      child: child,
     );
   }
 
@@ -647,11 +806,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: isDark
-                      ? PlanoraTheme.darkTextPrimary
-                      : PlanoraTheme.textPrimary,
-                ),
+                      fontWeight: FontWeight.w900,
+                      color: isDark
+                          ? PlanoraTheme.darkTextPrimary
+                          : PlanoraTheme.textPrimary,
+                    ),
               ),
               const SizedBox(height: 3),
               Text(
@@ -659,9 +818,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor(context),
-                  fontWeight: FontWeight.w500,
-                ),
+                      color: mutedColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
             ],
           ),
@@ -713,178 +872,128 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  int get activeProjectCount {
-    return filteredDashboardProjects
-        .where((project) => project.isActive)
-        .length;
-  }
-
-  int get completedProjectCount {
-    return filteredDashboardProjects
-        .where((project) => project.isCompleted)
-        .length;
-  }
-
-  int get overdueProjectCount {
-    return filteredDashboardProjects
-        .where((project) => !project.isCompleted && project.daysLeft < 0)
-        .length;
-  }
-
-  int get completedTaskCount {
-    return filteredDashboardTasks.where((item) => item.task.isCompleted).length;
-  }
-
-  int get overdueTaskCount {
-    return filteredDashboardTasks.where((item) => item.task.isOverdue).length;
-  }
-
-  int get blockedTaskCount {
-    return filteredDashboardTasks.where((item) => item.task.isBlocked).length;
-  }
-
-  int get atRiskCount {
-    return overdueProjectCount + overdueTaskCount + blockedTaskCount;
-  }
-
-  double get dashboardProgress {
-    if (filteredDashboardTasks.isNotEmpty) {
-      return completedTaskCount / filteredDashboardTasks.length;
-    }
-
-    if (filteredDashboardProjects.isNotEmpty) {
-      return completedProjectCount / filteredDashboardProjects.length;
-    }
-
-    return 0;
-  }
-
-  String get dashboardProgressLabel {
-    if (filteredDashboardTasks.isNotEmpty) {
-      return 'Tasks Done';
-    }
-
-    if (filteredDashboardProjects.isNotEmpty) {
-      return 'Projects Done';
-    }
-
-    return 'No Data';
-  }
-
   Widget buildMainAiPlanningCard(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
 
-    return InkWell(
-      onTap: openAiPlanningFlow,
-      borderRadius: BorderRadius.circular(26),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.primaryGradientFor(context),
-          borderRadius: BorderRadius.circular(26),
-          boxShadow: PlanoraTheme.floatingShadowFor(context),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.24),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Colors.white,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'AI-first',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'What do you want to plan today?',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              'Describe an idea and Planora will shape the plan, tasks, timeline, and risks.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.white.withValues(alpha: isDark ? 0.84 : 0.90),
-                height: 1.45,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Text(
-                      'Plan with AI',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: openAiPlannerTab,
-                  borderRadius: BorderRadius.circular(15),
-                  child: Container(
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(30),
+      child: InkWell(
+        onTap: openAiPlanningFlow,
+        borderRadius: BorderRadius.circular(30),
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: PlanoraTheme.primaryGradientFor(context),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: PlanoraTheme.floatingShadowFor(context),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(15),
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(17),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.22),
+                        color: Colors.white.withValues(alpha: 0.24),
                       ),
                     ),
                     child: const Icon(
-                      Icons.chat_bubble_outline_rounded,
+                      Icons.auto_awesome_rounded,
                       color: Colors.white,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'AI-first',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'What do you want to plan today?',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Describe an idea and Planora will shape the plan, tasks, timeline, and risks.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: isDark ? 0.84 : 0.90),
+                      height: 1.45,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Text(
+                        'Plan with AI',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(15),
+                    child: InkWell(
+                      onTap: openAiPlannerTab,
+                      borderRadius: BorderRadius.circular(15),
+                      child: Ink(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -912,14 +1021,13 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final overdueTasks =
-        dashboardTasks.where((item) => item.task.isOverdue).toList()
-          ..sort(compareUpcomingTaskItems);
+    final overdueTasks = dashboardTasks.where((item) => item.task.isOverdue).toList()
+      ..sort(compareUpcomingTaskItems);
     final focusTask = overdueTasks.isNotEmpty
         ? overdueTasks.first
         : upcomingTasks.isEmpty
-        ? null
-        : upcomingTasks.first;
+            ? null
+            : upcomingTasks.first;
 
     if (focusTask == null) {
       return buildFocusSection(
@@ -930,9 +1038,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'Start with an idea and let Planora build the first plan.'
             : 'No urgent tasks. Ask Planora to refine a plan or create the next task.',
         actionText: dashboardProjects.isEmpty ? 'Plan with AI' : 'Ask Planora',
-        onAction: dashboardProjects.isEmpty
-            ? openAiPlanningFlow
-            : openAiPlannerTab,
+        onAction: dashboardProjects.isEmpty ? openAiPlanningFlow : openAiPlannerTab,
       );
     }
 
@@ -970,13 +1076,13 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: cardDecoration(context),
+          decoration: cardDecoration(context, radius: 22),
           child: Row(
             children: [
               if (showSpinner)
                 const SizedBox(
-                  width: 30,
-                  height: 30,
+                  width: 32,
+                  height: 32,
                   child: CircularProgressIndicator(strokeWidth: 2.6),
                 )
               else
@@ -999,8 +1105,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1008,10 +1114,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: mutedColor(context),
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: mutedColor(context),
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -1029,194 +1135,316 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildProjectOverview(BuildContext context) {
     if (isLoadingDashboard) {
-      return buildUpcomingStateCard(
-        context,
-        icon: Icons.sync_rounded,
-        title: 'Loading dashboard from backend...',
-        showSpinner: true,
+      return buildAnimatedEntrance(
+        3,
+        buildUpcomingStateCard(
+          context,
+          icon: Icons.sync_rounded,
+          title: 'Loading dashboard from backend...',
+          showSpinner: true,
+        ),
       );
     }
 
     if (dashboardError != null) {
-      return buildUpcomingStateCard(
-        context,
-        icon: Icons.wifi_off_rounded,
-        title: dashboardError!,
-        actionText: 'Try Again',
-        onAction: loadDashboardData,
+      return buildAnimatedEntrance(
+        3,
+        buildUpcomingStateCard(
+          context,
+          icon: Icons.wifi_off_rounded,
+          title: dashboardError!,
+          actionText: 'Try Again',
+          onAction: loadDashboardData,
+        ),
       );
     }
 
     final progress = dashboardProgress;
     final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: cardDecoration(context, radius: 24),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Project Health',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: isDark
-                        ? PlanoraTheme.darkTextPrimary
-                        : PlanoraTheme.textPrimary,
+    return buildAnimatedEntrance(
+      3,
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [
+                    PlanoraTheme.darkSurface,
+                    PlanoraTheme.darkSurfaceVariant,
+                  ]
+                : [
+                    Colors.white,
+                    const Color(0xFFF7F0FF),
+                  ],
+          ),
+          border: Border.all(
+            color: primary.withValues(alpha: isDark ? 0.20 : 0.12),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: primary.withValues(alpha: isDark ? 0.18 : 0.12),
+              blurRadius: 28,
+              offset: const Offset(0, 16),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: PlanoraTheme.primaryGradientFor(context),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: PlanoraTheme.floatingShadowFor(context),
+                  ),
+                  child: const Icon(
+                    Icons.monitor_heart_outlined,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
-              ),
-              InkWell(
-                onTap: showDashboardRangeSheet,
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(
-                      alpha: isDark ? 0.12 : 0.08,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        dashboardRange.label,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: mutedColor(context),
-                          fontWeight: FontWeight.w700,
-                        ),
+                        'Project Health',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: isDark
+                                  ? PlanoraTheme.darkTextPrimary
+                                  : PlanoraTheme.textPrimary,
+                            ),
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 16,
-                        color: mutedColor(context),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Live overview of your current workload',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: mutedColor(context),
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              SizedBox(
-                width: 112,
-                height: 112,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 96,
-                      height: 96,
-                      child: CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 9,
-                        strokeCap: StrokeCap.round,
-                        color: Theme.of(context).colorScheme.primary,
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.12),
+                InkWell(
+                  onTap: showDashboardRangeSheet,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: primary.withValues(alpha: isDark ? 0.16 : 0.09),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: primary.withValues(alpha: 0.12),
                       ),
                     ),
-                    Column(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${(progress * 100).round()}%',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        Text(
-                          dashboardProgressLabel,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w800,
+                          dashboardRange.label,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: primary,
+                                fontWeight: FontWeight.w900,
                               ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: primary,
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 22),
-              Expanded(
-                child: Column(
-                  children: [
-                    buildLegendRow(
-                      context,
-                      'Projects',
-                      filteredDashboardProjects.length.toString(),
-                      Theme.of(context).colorScheme.primary,
-                    ),
-                    buildLegendRow(
-                      context,
-                      'Active',
-                      activeProjectCount.toString(),
-                      Colors.blueAccent,
-                    ),
-                    buildLegendRow(
-                      context,
-                      'At Risk',
-                      atRiskCount.toString(),
-                      atRiskCount > 0
-                          ? PlanoraTheme.error
-                          : PlanoraTheme.warning,
-                    ),
-                    buildLegendRow(
-                      context,
-                      'Completed Tasks',
-                      completedTaskCount.toString(),
-                      PlanoraTheme.success,
-                    ),
-                  ],
+              ],
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: progress),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, animatedProgress, _) {
+                    return SizedBox(
+                      width: 118,
+                      height: 118,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 112,
+                            height: 112,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: primary.withValues(alpha: 0.06),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 94,
+                            height: 94,
+                            child: CircularProgressIndicator(
+                              value: animatedProgress,
+                              strokeWidth: 10,
+                              strokeCap: StrokeCap.round,
+                              color: primary,
+                              backgroundColor: primary.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${(animatedProgress * 100).round()}%',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: isDark
+                                          ? PlanoraTheme.darkTextPrimary
+                                          : PlanoraTheme.textPrimary,
+                                    ),
+                              ),
+                              Text(
+                                dashboardProgressLabel,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: primary,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    children: [
+                      buildHealthMetricPill(
+                        context,
+                        icon: Icons.folder_copy_outlined,
+                        label: 'Projects',
+                        value: filteredDashboardProjects.length.toString(),
+                        color: primary,
+                      ),
+                      const SizedBox(height: 8),
+                      buildHealthMetricPill(
+                        context,
+                        icon: Icons.play_circle_outline_rounded,
+                        label: 'Active',
+                        value: activeProjectCount.toString(),
+                        color: PlanoraTheme.info,
+                      ),
+                      const SizedBox(height: 8),
+                      buildHealthMetricPill(
+                        context,
+                        icon: Icons.warning_amber_rounded,
+                        label: 'At Risk',
+                        value: atRiskCount.toString(),
+                        color: atRiskCount > 0
+                            ? PlanoraTheme.error
+                            : PlanoraTheme.warning,
+                      ),
+                      const SizedBox(height: 8),
+                      buildHealthMetricPill(
+                        context,
+                        icon: Icons.task_alt_rounded,
+                        label: 'Done Tasks',
+                        value: completedTaskCount.toString(),
+                        color: PlanoraTheme.success,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget buildLegendRow(
-    BuildContext context,
-    String label,
-    String value,
-    Color color,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+  Widget buildHealthMetricPill(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.white.withValues(alpha: 0.74),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withValues(alpha: isDark ? 0.20 : 0.12),
+        ),
+      ),
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 15, color: color),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w700,
-              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
           ),
           Text(
             value,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                ),
           ),
         ],
       ),
@@ -1234,9 +1462,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         if (action != null)
@@ -1254,16 +1483,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget buildQuickActions(BuildContext context) {
     final actions = [
       _HomeQuickAction(
-        icon: Icons.auto_awesome_rounded,
-        label: 'Plan with AI',
-        isFilled: true,
-        onTap: openAiPlanningFlow,
-      ),
-      _HomeQuickAction(
         icon: Icons.edit_note_rounded,
         label: 'Create Manually',
         isFilled: false,
         onTap: openManualProjectFlow,
+      ),
+      _HomeQuickAction(
+        icon: Icons.add_task_rounded,
+        label: 'New Task',
+        isFilled: false,
+        onTap: openNewTaskFlow,
       ),
       _HomeQuickAction(
         icon: Icons.chat_bubble_outline_rounded,
@@ -1275,7 +1504,7 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.groups_2_outlined,
         label: 'Teams',
         isFilled: false,
-        onTap: openTeams,
+        onTap: openTeamsTab,
       ),
       _HomeQuickAction(
         icon: Icons.check_box_outlined,
@@ -1285,28 +1514,115 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ];
 
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         buildSectionTitle(context, 'Quick Actions'),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
+        buildAnimatedEntrance(
+          4,
+          InkWell(
+            onTap: openAiPlanningFlow,
+            borderRadius: BorderRadius.circular(28),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: PlanoraTheme.primaryGradientFor(context),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withValues(alpha: 0.28),
+                    blurRadius: 26,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Plan with AI',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Generate a project, tasks, timeline, and risks instantly.',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.white.withValues(alpha: 0.86),
+                                height: 1.35,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      color: primary,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
-            final tileWidth = (constraints.maxWidth - 10) / 2;
+            final tileWidth = (constraints.maxWidth - 12) / 2;
 
             return Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                for (final action in actions)
+                for (var index = 0; index < actions.length; index++)
                   SizedBox(
                     width: tileWidth,
-                    child: buildQuickActionTile(
-                      context,
-                      icon: action.icon,
-                      label: action.label,
-                      isFilled: action.isFilled,
-                      onTap: action.onTap,
+                    child: buildAnimatedEntrance(
+                      index + 5,
+                      buildQuickActionTile(
+                        context,
+                        icon: actions[index].icon,
+                        label: actions[index].label,
+                        isFilled: actions[index].isFilled,
+                        onTap: actions[index].onTap,
+                      ),
                     ),
                   ),
               ],
@@ -1327,59 +1643,74 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 74,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-        decoration: BoxDecoration(
-          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          height: 92,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? PlanoraTheme.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: isDark
+                  ? PlanoraTheme.darkBorder
+                  : primary.withValues(alpha: 0.08),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (isFilled)
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  gradient: PlanoraTheme.primaryGradientFor(context),
-                  borderRadius: BorderRadius.circular(9),
+                  gradient: isFilled ? PlanoraTheme.primaryGradientFor(context) : null,
+                  color: isFilled ? null : primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(icon, size: 18, color: Colors.white),
-              )
-            else
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Icon(icon, size: 24, color: primary),
+                child: Icon(
+                  icon,
+                  size: 19,
+                  color: isFilled ? Colors.white : primary,
+                ),
               ),
-            const SizedBox(height: 7),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w800,
-                color: isDark
-                    ? PlanoraTheme.darkTextPrimary
-                    : PlanoraTheme.textPrimary,
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: isDark
+                                ? PlanoraTheme.darkTextPrimary
+                                : PlanoraTheme.textPrimary,
+                          ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.north_east_rounded,
+                    size: 14,
+                    color: mutedColor(context),
+                  ),
+                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1441,25 +1772,11 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         else
           for (final project in visibleProjects) ...[
-            buildProjectTile(context, project),
+            buildAnimatedEntrance(7, buildProjectTile(context, project)),
             if (project != visibleProjects.last) const SizedBox(height: 10),
           ],
       ],
     );
-  }
-
-  Future<void> openProjectDetail(ProjectModel project) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => ProjectDetailScreen(project: project),
-      ),
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    loadDashboardData();
   }
 
   List<TaskListItem> tasksForProject(ProjectModel project) {
@@ -1474,9 +1791,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final projectTasks = tasksForProject(project);
 
     if (projectTasks.isNotEmpty) {
-      final completed = projectTasks
-          .where((item) => item.task.isCompleted)
-          .length;
+      final completed = projectTasks.where((item) => item.task.isCompleted).length;
       return completed / projectTasks.length;
     }
 
@@ -1488,9 +1803,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Color projectAccentColor(ProjectModel project) {
-    if (!project.isCompleted && project.daysLeft < 0) {
-      return PlanoraTheme.error;
-    }
+    if (!project.isCompleted && project.daysLeft < 0) return PlanoraTheme.error;
 
     switch (project.status) {
       case 'completed':
@@ -1512,160 +1825,131 @@ class _HomeScreenState extends State<HomeScreen> {
     final color = projectAccentColor(project);
     final progress = projectProgress(project);
     final projectTasks = tasksForProject(project);
+    final isDark = PlanoraTheme.isDark(context);
 
-    return InkWell(
-      onTap: () => openProjectDetail(project),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: cardDecoration(context),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [color, color.withValues(alpha: 0.68)],
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.24),
-                    blurRadius: 14,
-                    offset: const Offset(0, 8),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        onTap: () => openProjectDetail(project),
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: cardDecoration(context, radius: 22),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [color, color.withValues(alpha: 0.68)],
                   ),
-                ],
-              ),
-              child: Icon(
-                project.isTeamProject
-                    ? Icons.groups_2_rounded
-                    : Icons.folder_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    project.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.24),
+                      blurRadius: 14,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today_outlined,
-                        size: 12,
-                        color: project.daysLeft < 0 && !project.isCompleted
-                            ? PlanoraTheme.error
-                            : mutedColor(context),
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          project.deadlineLabel,
+                  ],
+                ),
+                child: Icon(
+                  project.isTeamProject
+                      ? Icons.groups_2_rounded
+                      : Icons.folder_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            project.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: isDark
+                                      ? PlanoraTheme.darkTextPrimary
+                                      : PlanoraTheme.textPrimary,
+                                ),
+                          ),
+                        ),
+                        Text(
+                          '${(progress * 100).round()}%',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: color,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 12,
+                          color: project.daysLeft < 0 && !project.isCompleted
+                              ? PlanoraTheme.error
+                              : mutedColor(context),
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            project.deadlineLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: project.daysLeft < 0 && !project.isCompleted
+                                      ? PlanoraTheme.error
+                                      : mutedColor(context),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          projectTasks.isEmpty
+                              ? project.statusLabel
+                              : '${projectTasks.length} tasks',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color:
-                                    project.daysLeft < 0 && !project.isCompleted
-                                    ? PlanoraTheme.error
-                                    : mutedColor(context),
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: mutedColor(context),
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        projectTasks.isEmpty
-                            ? project.statusLabel
-                            : '${projectTasks.length} tasks',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: mutedColor(context),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 5,
-                      color: color,
-                      backgroundColor: color.withValues(alpha: 0.12),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 9),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: progress.clamp(0, 1),
+                        minHeight: 5,
+                        color: color,
+                        backgroundColor: color.withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '${(progress * 100).round()}%',
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(width: 6),
-            Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
-          ],
+              const SizedBox(width: 10),
+              Icon(Icons.chevron_right_rounded, color: mutedColor(context)),
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  Widget buildUpcomingTask(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        buildSectionTitle(
-          context,
-          'Upcoming Tasks',
-          action: 'See All',
-          onAction: openTasksTab,
-        ),
-        const SizedBox(height: 10),
-        if (isLoadingDashboard)
-          buildUpcomingStateCard(
-            context,
-            icon: Icons.sync_rounded,
-            title: 'Loading upcoming tasks...',
-            showSpinner: true,
-          )
-        else if (dashboardError != null)
-          buildUpcomingStateCard(
-            context,
-            icon: Icons.wifi_off_rounded,
-            title: 'Could not load upcoming tasks.',
-            actionText: 'Try Again',
-            onAction: loadDashboardData,
-          )
-        else if (upcomingTasks.isEmpty)
-          buildUpcomingStateCard(
-            context,
-            icon: Icons.check_circle_outline_rounded,
-            title: 'No upcoming tasks',
-            actionText: 'New Task',
-            onAction: openNewTaskFlow,
-          )
-        else
-          for (final item in upcomingTasks) ...[
-            buildUpcomingTaskTile(context, item),
-            if (item != upcomingTasks.last) const SizedBox(height: 10),
-          ],
-      ],
     );
   }
 
@@ -1673,33 +1957,42 @@ class _HomeScreenState extends State<HomeScreen> {
     BuildContext context, {
     required IconData icon,
     required String title,
-    bool showSpinner = false,
     String? actionText,
     VoidCallback? onAction,
+    bool showSpinner = false,
   }) {
+    final color = Theme.of(context).colorScheme.primary;
+
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: cardDecoration(context),
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(context, radius: 22),
       child: Row(
         children: [
           if (showSpinner)
             const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.4),
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(strokeWidth: 2.6),
             )
           else
-            Icon(icon, color: mutedColor(context)),
-          const SizedBox(width: 12),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: color),
+            ),
+          const SizedBox(width: 13),
           Expanded(
             child: Text(
               title,
-              maxLines: 2,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w800,
-              ),
+                    fontWeight: FontWeight.w900,
+                  ),
             ),
           ),
           if (actionText != null && onAction != null) ...[
@@ -1707,359 +2000,6 @@ class _HomeScreenState extends State<HomeScreen> {
             TextButton(onPressed: onAction, child: Text(actionText)),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget buildUpcomingTaskTile(BuildContext context, TaskListItem item) {
-    final task = item.task;
-    final priorityColor = upcomingPriorityColor(task.priority);
-
-    return InkWell(
-      onTap: () => openUpcomingTaskDetail(item),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: cardDecoration(context),
-        child: Row(
-          children: [
-            Icon(
-              task.isBlocked
-                  ? Icons.pause_circle_outline_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: task.isBlocked
-                  ? PlanoraTheme.warning
-                  : mutedColor(context),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.folder_rounded,
-                        size: 13,
-                        color: mutedColor(context),
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          item.project.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: mutedColor(context),
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today_outlined,
-                        size: 13,
-                        color: task.isOverdue
-                            ? PlanoraTheme.error
-                            : mutedColor(context),
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          task.dueDateLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: task.isOverdue
-                                    ? PlanoraTheme.error
-                                    : mutedColor(context),
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              constraints: const BoxConstraints(maxWidth: 72),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: priorityColor.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                task.priority.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: priorityColor,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color upcomingPriorityColor(TaskPriority priority) {
-    switch (priority) {
-      case TaskPriority.low:
-        return PlanoraTheme.success;
-      case TaskPriority.medium:
-        return PlanoraTheme.info;
-      case TaskPriority.high:
-        return Theme.of(context).colorScheme.primary;
-    }
-  }
-
-  Widget buildHomeDashboard(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          buildMainAiPlanningCard(context),
-          const SizedBox(height: 22),
-          buildTodayFocus(context),
-          const SizedBox(height: 22),
-          buildProjectOverview(context),
-          const SizedBox(height: 22),
-          buildQuickActions(context),
-          const SizedBox(height: 22),
-          buildProjects(context),
-        ],
-      ),
-    );
-  }
-
-  Widget buildComingSoonPage(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String message,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-
-    return Center(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: cardDecoration(context, radius: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                gradient: PlanoraTheme.primaryGradientFor(context),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Icon(icon, color: Colors.white, size: 30),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: isDark
-                    ? PlanoraTheme.darkTextPrimary
-                    : PlanoraTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildCurrentPage(BuildContext context) {
-    switch (selectedIndex) {
-      case 0:
-        return buildHomeDashboard(context);
-
-      case 1:
-        return ProjectsScreen(
-          createRequestId: projectCreateRequestId,
-          openCreateOnStart: shouldOpenProjectCreateOnStart,
-          createStartMode: projectCreateStartMode,
-          onCreateRequestConsumed: () {
-            if (!mounted) {
-              return;
-            }
-
-            setState(() {
-              projectCreateRequestId = 0;
-              shouldOpenProjectCreateOnStart = false;
-              projectCreateStartMode = ProjectCreateStartMode.modeChoice;
-            });
-          },
-          onBack: () {
-            setState(() {
-              selectedIndex = 0;
-              projectCreateRequestId = 0;
-              shouldOpenProjectCreateOnStart = false;
-              projectCreateStartMode = ProjectCreateStartMode.modeChoice;
-            });
-            loadDashboardData();
-          },
-        );
-
-      case 2:
-        return AiChatScreen(onOpenProjects: openProjectsTab);
-
-      case 3:
-        return TasksScreen(
-          profilePic: profilePicUrl,
-          userInitials: initials,
-          createRequestId: taskCreateRequestId,
-          openCreateOnStart: shouldOpenTaskCreateOnStart,
-          onCreateRequestConsumed: () {
-            if (!mounted) {
-              return;
-            }
-
-            setState(() {
-              taskCreateRequestId = 0;
-              shouldOpenTaskCreateOnStart = false;
-            });
-          },
-          onTasksChanged: loadDashboardData,
-          onCreateAiPlan: () {
-            openAiPlanningFlow();
-          },
-          onBack: () {
-            setState(() {
-              selectedIndex = 0;
-              taskCreateRequestId = 0;
-              shouldOpenTaskCreateOnStart = false;
-            });
-            loadDashboardData();
-          },
-        );
-
-      case 4:
-        return TeamsScreen(
-          showBackButton: false,
-          currentUserId: widget.user.userId,
-          onTeamsChanged: () {
-            loadDashboardData();
-            loadPendingTeamInvitationCount();
-          },
-        );
-
-      default:
-        return buildHomeDashboard(context);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      bottomNavigationBar: HomeBottomNav(
-        selectedIndex: selectedIndex,
-        teamsBadgeCount: pendingTeamInvitationCount,
-        onTap: (index) {
-          setState(() {
-            if (index == 1) {
-              projectCreateRequestId = 0;
-              shouldOpenProjectCreateOnStart = false;
-              projectCreateStartMode = ProjectCreateStartMode.modeChoice;
-            }
-
-            if (index == 3) {
-              taskCreateRequestId = 0;
-              shouldOpenTaskCreateOnStart = false;
-            }
-
-            selectedIndex = index;
-          });
-
-          if (index == 4) {
-            loadPendingTeamInvitationCount();
-          }
-
-          if (index == 0) {
-            loadDashboardData();
-          }
-        },
-      ),
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.onboardingBackgroundFor(context),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                child: Column(
-                  children: [
-                    if (selectedIndex == 0) ...[
-                      buildHeader(context),
-                      const SizedBox(height: 24),
-                    ],
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        layoutBuilder: (currentChild, previousChildren) {
-                          return Stack(
-                            fit: StackFit.expand,
-                            alignment: Alignment.topCenter,
-                            children: [
-                              for (final child in previousChildren)
-                                Positioned.fill(child: child),
-                              if (currentChild != null)
-                                Positioned.fill(child: currentChild),
-                            ],
-                          );
-                        },
-                        child: KeyedSubtree(
-                          key: ValueKey<int>(selectedIndex),
-                          child: buildCurrentPage(context),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
