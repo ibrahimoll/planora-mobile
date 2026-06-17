@@ -35,65 +35,55 @@ class TeamsScreen extends StatefulWidget {
 }
 
 class _TeamsScreenState extends State<TeamsScreen> {
-  final TextEditingController _searchController = TextEditingController();
+  final searchController = TextEditingController();
 
-  int _selectedTabIndex = 0;
-  String _searchQuery = '';
-  bool _isLoading = true;
-  String? _errorMessage;
+  int selectedTab = 0;
+  String searchQuery = '';
+  bool isLoading = true;
+  String? errorMessage;
 
-  List<TeamModel> _teams = [];
-  List<TeamInvitationModel> _invitations = [];
-  final Map<int, List<TeamMemberModel>> _membersByTeamId = {};
-  final Map<int, List<ProjectModel>> _projectsByTeamId = {};
-  final Map<int, _TeamStats> _statsByTeamId = {};
+  List<TeamModel> teams = [];
+  List<TeamInvitationModel> invitations = [];
+  final membersByTeamId = <int, List<TeamMemberModel>>{};
+  final projectsByTeamId = <int, List<ProjectModel>>{};
+  final statsByTeamId = <int, _TeamStats>{};
 
   @override
   void initState() {
     super.initState();
-    _selectedTabIndex = widget.openInvitations ? 1 : 0;
-    _loadTeams();
+    selectedTab = widget.openInvitations ? 1 : 0;
+    loadTeams();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
-  List<TeamInvitationModel> get _pendingInvitations {
-    return _invitations.where((item) => item.isPending).toList();
-  }
+  List<TeamInvitationModel> get pendingInvitations =>
+      invitations.where((item) => item.isPending).toList();
 
-  int get _totalMembers {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.memberCount);
-  }
+  int get totalMembers =>
+      statsByTeamId.values.fold(0, (sum, item) => sum + item.memberCount);
+  int get totalProjects =>
+      statsByTeamId.values.fold(0, (sum, item) => sum + item.projectCount);
+  int get totalTasks =>
+      statsByTeamId.values.fold(0, (sum, item) => sum + item.taskCount);
+  int get completedTasks => statsByTeamId.values.fold(
+        0,
+        (sum, item) => sum + item.completedTaskCount,
+      );
+  double get completion => _progress(completedTasks, totalTasks);
 
-  int get _totalProjects {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.projectCount);
-  }
+  List<TeamModel> get visibleTeams {
+    final query = searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return teams;
 
-  int get _totalTasks {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.taskCount);
-  }
-
-  int get _completedTasks {
-    return _statsByTeamId.values.fold<int>(0, (sum, item) => sum + item.completedTaskCount);
-  }
-
-  double get _teamCompletion {
-    if (_totalTasks == 0) return 0;
-    return (_completedTasks / _totalTasks).clamp(0.0, 1.0);
-  }
-
-  List<TeamModel> get _visibleTeams {
-    final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return _teams;
-
-    return _teams.where((team) {
-      final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
-      final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
-      final stats = _statsByTeamId[team.teamId];
+    return teams.where((team) {
+      final members = membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+      final projects = projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+      final stats = statsByTeamId[team.teamId];
 
       return team.name.toLowerCase().contains(query) ||
           team.teamId.toString().contains(query) ||
@@ -114,81 +104,76 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }).toList();
   }
 
-  Future<void> _loadTeams({bool showLoading = true}) async {
+  Future<void> loadTeams({bool showLoading = true}) async {
     if (showLoading && mounted) {
       setState(() {
-        _isLoading = true;
-        _errorMessage = null;
+        isLoading = true;
+        errorMessage = null;
       });
     }
 
     try {
-      final teams = await widget.teamsApi.getTeams();
-      final invitations = await widget.teamsApi.getMyInvitations();
+      final loadedTeams = await widget.teamsApi.getTeams();
+      final loadedInvitations = await widget.teamsApi.getMyInvitations();
       if (!mounted) return;
 
       setState(() {
-        _teams = teams;
-        _invitations = invitations;
-        _membersByTeamId.clear();
-        _projectsByTeamId.clear();
-        _statsByTeamId.clear();
-        _errorMessage = null;
-        _isLoading = false;
+        teams = loadedTeams;
+        invitations = loadedInvitations;
+        membersByTeamId.clear();
+        projectsByTeamId.clear();
+        statsByTeamId.clear();
+        isLoading = false;
+        errorMessage = null;
       });
 
-      await _loadTeamDetails(teams);
+      await loadTeamDetails(loadedTeams);
     } catch (error, stackTrace) {
-      debugPrint('Teams page load failed: $error');
+      debugPrint('Teams load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-
       setState(() {
-        _isLoading = false;
-        _errorMessage = error is ApiException
+        isLoading = false;
+        errorMessage = error is ApiException
             ? 'Could not load teams: ${error.message}'
             : 'Could not load teams. Pull down or tap retry.';
       });
     }
   }
 
-  Future<void> _loadTeamDetails(List<TeamModel> teams) async {
-    for (final team in teams) {
+  Future<void> loadTeamDetails(List<TeamModel> loadedTeams) async {
+    for (final team in loadedTeams) {
       try {
         final members = await widget.teamsApi.getTeamMembers(team.teamId);
         var projects = <ProjectModel>[];
-
         try {
           projects = await widget.projectsApi.getTeamProjects(team.teamId);
         } catch (error, stackTrace) {
-          debugPrint('Team project load failed for ${team.teamId}: $error');
+          debugPrint('Team projects load failed: $error');
           debugPrintStack(stackTrace: stackTrace);
         }
 
         var taskCount = 0;
         var completedTaskCount = 0;
-
         for (final project in projects) {
           try {
             final tasks = await widget.tasksApi.getProjectTasks(
               project: TaskProjectSummary.fromProject(project),
             );
             taskCount += tasks.length;
-            completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
+            completedTaskCount +=
+                tasks.where((item) => item.task.isCompleted).length;
           } catch (error, stackTrace) {
-            debugPrint(
-              'Team task load failed for team ${team.teamId}, project ${project.projectId}: $error',
-            );
+            debugPrint('Team task load failed: $error');
             debugPrintStack(stackTrace: stackTrace);
           }
         }
 
         if (!mounted) return;
-
         setState(() {
-          _membersByTeamId[team.teamId] = members;
-          _projectsByTeamId[team.teamId] = projects;
-          _statsByTeamId[team.teamId] = _TeamStats(
+          membersByTeamId[team.teamId] = members;
+          projectsByTeamId[team.teamId] = projects;
+          statsByTeamId[team.teamId] = _TeamStats(
             memberCount: members.length,
             projectCount: projects.length,
             taskCount: taskCount,
@@ -196,14 +181,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
           );
         });
       } catch (error, stackTrace) {
-        debugPrint('Team member/stat load failed for ${team.teamId}: $error');
+        debugPrint('Team details load failed: $error');
         debugPrintStack(stackTrace: stackTrace);
         if (!mounted) return;
-
         setState(() {
-          _membersByTeamId[team.teamId] = const [];
-          _projectsByTeamId[team.teamId] = const [];
-          _statsByTeamId[team.teamId] = const _TeamStats(
+          membersByTeamId[team.teamId] = const [];
+          projectsByTeamId[team.teamId] = const [];
+          statsByTeamId[team.teamId] = const _TeamStats(
             memberCount: 0,
             projectCount: 0,
             taskCount: 0,
@@ -218,41 +202,43 @@ class _TeamsScreenState extends State<TeamsScreen> {
   Widget build(BuildContext context) {
     final content = RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
-      onRefresh: () => _loadTeams(showLoading: false),
+      onRefresh: () => loadTeams(showLoading: false),
       child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
         padding: EdgeInsets.fromLTRB(0, 0, 0, widget.showBackButton ? 28 : 112),
         children: [
-          _AnimatedEntrance(
+          _Entrance(
             index: 0,
             child: _TeamsHero(
               showBackButton: widget.showBackButton,
               onBackPressed: () => Navigator.of(context).maybePop(),
-              onCreatePressed: _openCreateTeamSheet,
-              teamCount: _teams.length,
-              memberCount: _totalMembers,
-              projectCount: _totalProjects,
-              taskCount: _totalTasks,
-              pendingInviteCount: _pendingInvitations.length,
-              completion: _teamCompletion,
+              onCreatePressed: openCreateTeamSheet,
+              teamCount: teams.length,
+              memberCount: totalMembers,
+              projectCount: totalProjects,
+              taskCount: totalTasks,
+              pendingInviteCount: pendingInvitations.length,
+              completion: completion,
             ),
           ),
           const SizedBox(height: 14),
-          _AnimatedEntrance(
+          _Entrance(
             index: 1,
             child: _SearchField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _searchQuery = value),
-              onClear: _clearSearch,
+              controller: searchController,
+              onChanged: (value) => setState(() => searchQuery = value),
+              onClear: clearSearch,
             ),
           ),
           const SizedBox(height: 14),
-          _AnimatedEntrance(
+          _Entrance(
             index: 2,
             child: _TeamTabs(
-              selectedIndex: _selectedTabIndex,
-              invitationCount: _pendingInvitations.length,
-              onChanged: (index) => setState(() => _selectedTabIndex = index),
+              selectedIndex: selectedTab,
+              invitationCount: pendingInvitations.length,
+              onChanged: (index) => setState(() => selectedTab = index),
             ),
           ),
           const SizedBox(height: 14),
@@ -260,14 +246,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
             duration: const Duration(milliseconds: 260),
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.easeInCubic,
-            child: _selectedTabIndex == 0
-                ? Column(
-                    key: const ValueKey('teams-list'),
-                    children: _buildTeamContent(),
-                  )
+            child: selectedTab == 0
+                ? Column(key: const ValueKey('teams'), children: buildTeamContent())
                 : Column(
-                    key: const ValueKey('invitations-list'),
-                    children: [_buildInvitationContent()],
+                    key: const ValueKey('invitations'),
+                    children: [buildInvitationContent()],
                   ),
           ),
         ],
@@ -280,7 +263,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
         child: SafeArea(
           bottom: false,
           child: Center(
@@ -297,13 +282,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
   }
 
-  void _clearSearch() {
-    _searchController.clear();
-    setState(() => _searchQuery = '');
+  void clearSearch() {
+    searchController.clear();
+    setState(() => searchQuery = '');
   }
 
-  List<Widget> _buildTeamContent() {
-    if (_isLoading && _teams.isEmpty) {
+  List<Widget> buildTeamContent() {
+    if (isLoading && teams.isEmpty) {
       return const [
         _TeamLoadingCard(),
         SizedBox(height: 12),
@@ -313,28 +298,28 @@ class _TeamsScreenState extends State<TeamsScreen> {
       ];
     }
 
-    if (_errorMessage != null && _teams.isEmpty) {
+    if (errorMessage != null && teams.isEmpty) {
       return [
         _StateCard(
           icon: Icons.wifi_off_rounded,
           title: 'Teams could not load',
-          message: _errorMessage!,
+          message: errorMessage!,
           actionText: 'Retry',
-          onAction: () => _loadTeams(),
+          onAction: () => loadTeams(),
         ),
       ];
     }
 
-    if (_visibleTeams.isEmpty) {
+    if (visibleTeams.isEmpty) {
       return [
         _StateCard(
           icon: Icons.groups_2_outlined,
-          title: _searchQuery.trim().isEmpty ? 'No teams yet' : 'No teams found',
-          message: _searchQuery.trim().isEmpty
+          title: searchQuery.trim().isEmpty ? 'No teams yet' : 'No teams found',
+          message: searchQuery.trim().isEmpty
               ? 'Create your first team and manage members, plans, and tasks from one workspace.'
               : 'Try another team, member, project, or role name.',
-          actionText: _searchQuery.trim().isEmpty ? 'Create Team' : null,
-          onAction: _searchQuery.trim().isEmpty ? _openCreateTeamSheet : null,
+          actionText: searchQuery.trim().isEmpty ? 'Create Team' : null,
+          onAction: searchQuery.trim().isEmpty ? openCreateTeamSheet : null,
         ),
       ];
     }
@@ -342,17 +327,17 @@ class _TeamsScreenState extends State<TeamsScreen> {
     return [
       const _SwipeHint(),
       const SizedBox(height: 10),
-      for (int index = 0; index < _visibleTeams.length; index++) ...[
-        _AnimatedEntrance(index: index + 3, child: _buildSlidableTeamCard(_visibleTeams[index])),
+      for (int index = 0; index < visibleTeams.length; index++) ...[
+        _Entrance(index: index + 3, child: buildSlidableTeamCard(visibleTeams[index])),
         const SizedBox(height: 12),
       ],
     ];
   }
 
-  Widget _buildSlidableTeamCard(TeamModel team) {
-    final currentMember = _currentMemberForTeam(team);
-    final canManage = _canManageTeam(team);
-    final canDelete = _canDeleteTeam(team);
+  Widget buildSlidableTeamCard(TeamModel team) {
+    final currentMember = currentMemberForTeam(team);
+    final canManage = canManageTeam(team);
+    final canDelete = canDeleteTeam(team);
 
     return Slidable(
       key: ValueKey('team-${team.teamId}'),
@@ -362,7 +347,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
         extentRatio: canManage ? 0.56 : 0.28,
         children: [
           SlidableAction(
-            onPressed: (_) => _openTeamDetailsSheet(team),
+            onPressed: (_) => openTeamDetailsSheet(team),
             backgroundColor: const Color(0xFF6366F1),
             foregroundColor: Colors.white,
             icon: Icons.visibility_outlined,
@@ -371,7 +356,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
           ),
           if (canManage)
             SlidableAction(
-              onPressed: (_) => _openInviteMemberSheet(team),
+              onPressed: (_) => openInviteMemberSheet(team),
               backgroundColor: const Color(0xFF06B6D4),
               foregroundColor: Colors.white,
               icon: Icons.person_add_alt_1_rounded,
@@ -386,7 +371,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
         children: [
           if (canManage)
             SlidableAction(
-              onPressed: (_) => _openRenameTeamSheet(team),
+              onPressed: (_) => openRenameTeamSheet(team),
               backgroundColor: const Color(0xFF8B5CF6),
               foregroundColor: Colors.white,
               icon: Icons.edit_outlined,
@@ -395,7 +380,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
             ),
           if (canDelete)
             SlidableAction(
-              onPressed: (_) => _confirmDeleteTeam(team),
+              onPressed: (_) => confirmDeleteTeam(team),
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
               icon: Icons.delete_outline_rounded,
@@ -406,24 +391,24 @@ class _TeamsScreenState extends State<TeamsScreen> {
       ),
       child: _TeamCard(
         team: team,
-        members: _membersByTeamId[team.teamId] ?? const [],
-        projects: _projectsByTeamId[team.teamId] ?? const [],
-        stats: _statsByTeamId[team.teamId],
+        members: membersByTeamId[team.teamId] ?? const [],
+        projects: projectsByTeamId[team.teamId] ?? const [],
+        stats: statsByTeamId[team.teamId],
         currentMember: currentMember,
         canManage: canManage,
-        onTap: () => _openTeamDetailsSheet(team),
-        onInvitePressed: canManage ? () => _openInviteMemberSheet(team) : null,
-        onMenuPressed: () => _openTeamActionsSheet(team),
+        onTap: () => openTeamDetailsSheet(team),
+        onInvitePressed: canManage ? () => openInviteMemberSheet(team) : null,
+        onMenuPressed: () => openTeamActionsSheet(team),
       ),
     );
   }
 
-  Widget _buildInvitationContent() {
-    if (_isLoading && _invitations.isEmpty) {
+  Widget buildInvitationContent() {
+    if (isLoading && invitations.isEmpty) {
       return const _TeamLoadingCard();
     }
 
-    if (_pendingInvitations.isEmpty) {
+    if (pendingInvitations.isEmpty) {
       return const _StateCard(
         icon: Icons.mail_outline_rounded,
         title: 'No invitations yet',
@@ -433,13 +418,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
     return Column(
       children: [
-        for (int index = 0; index < _pendingInvitations.length; index++) ...[
-          _AnimatedEntrance(
+        for (int index = 0; index < pendingInvitations.length; index++) ...[
+          _Entrance(
             index: index,
             child: _InvitationCard(
-              invitation: _pendingInvitations[index],
-              onAccept: () => _respondToInvitation(_pendingInvitations[index], accept: true),
-              onReject: () => _respondToInvitation(_pendingInvitations[index], accept: false),
+              invitation: pendingInvitations[index],
+              onAccept: () => respondToInvitation(pendingInvitations[index], accept: true),
+              onReject: () => respondToInvitation(pendingInvitations[index], accept: false),
             ),
           ),
           const SizedBox(height: 12),
@@ -448,8 +433,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
   }
 
-  Future<void> _openCreateTeamSheet() async {
-    await _openTeamNameSheet(
+  Future<void> openCreateTeamSheet() async {
+    await openTeamNameSheet(
       title: 'Create team',
       subtitle: 'Name the workspace where members, plans, and tasks live.',
       initialName: '',
@@ -457,13 +442,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
       loadingLabel: 'Creating...',
       onSubmit: (name) async {
         await widget.teamsApi.createTeam(name);
-        _showMessage('Team created.');
+        showMessage('Team created.');
       },
     );
   }
 
-  Future<void> _openRenameTeamSheet(TeamModel team) async {
-    await _openTeamNameSheet(
+  Future<void> openRenameTeamSheet(TeamModel team) async {
+    await openTeamNameSheet(
       title: 'Rename team',
       subtitle: 'Keep the name clear for members and projects.',
       initialName: team.name,
@@ -471,12 +456,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
       loadingLabel: 'Saving...',
       onSubmit: (name) async {
         await widget.teamsApi.updateTeam(teamId: team.teamId, name: name);
-        _showMessage('Team updated.');
+        showMessage('Team updated.');
       },
     );
   }
 
-  Future<void> _openTeamNameSheet({
+  Future<void> openTeamNameSheet({
     required String title,
     required String subtitle,
     required String initialName,
@@ -497,7 +482,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
             Future<void> submit() async {
               final name = controller.text.trim();
               if (name.length < 2) {
-                _showMessage('Team name must be at least 2 letters.');
+                showMessage('Team name must be at least 2 letters.');
                 return;
               }
               if (isSubmitting) return;
@@ -510,7 +495,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               } catch (error, stackTrace) {
                 debugPrint('Team name submit failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                _showMessage(_genericApiMessage(error, fallback: 'Could not save team.'));
+                showMessage(genericApiMessage(error, fallback: 'Could not save team.'));
               } finally {
                 if (sheetContext.mounted) {
                   setSheetState(() => isSubmitting = false);
@@ -520,7 +505,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               if (!success || !mounted || !sheetContext.mounted) return;
               Navigator.of(sheetContext).pop();
               widget.onTeamsChanged?.call();
-              await _loadTeams(showLoading: false);
+              await loadTeams(showLoading: false);
             }
 
             return _BottomSheetShell(
@@ -553,10 +538,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
     controller.dispose();
   }
 
-  Future<void> _openTeamActionsSheet(TeamModel team) async {
-    final currentMember = _currentMemberForTeam(team);
-    final canManage = _canManageTeam(team);
-    final canDelete = _canDeleteTeam(team);
+  Future<void> openTeamActionsSheet(TeamModel team) async {
+    final currentMember = currentMemberForTeam(team);
+    final canManage = canManageTeam(team);
+    final canDelete = canDeleteTeam(team);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -574,7 +559,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 subtitle: 'Members, plans, roles, and progress',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  _openTeamDetailsSheet(team);
+                  openTeamDetailsSheet(team);
                 },
               ),
               if (canManage) ...[
@@ -584,7 +569,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   subtitle: 'Send an invitation by username',
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    _openInviteMemberSheet(team);
+                    openInviteMemberSheet(team);
                   },
                 ),
                 _ActionTile(
@@ -593,7 +578,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   subtitle: 'Update the team workspace name',
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    _openRenameTeamSheet(team);
+                    openRenameTeamSheet(team);
                   },
                 ),
               ],
@@ -603,7 +588,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 subtitle: 'Reload members, plans, and task stats',
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  _loadTeams(showLoading: false);
+                  loadTeams(showLoading: false);
                 },
               ),
               if (canDelete)
@@ -614,7 +599,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   color: const Color(0xFFEF4444),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    _confirmDeleteTeam(team);
+                    confirmDeleteTeam(team);
                   },
                 ),
             ],
@@ -624,99 +609,93 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
   }
 
-  Future<void> _openTeamDetailsSheet(TeamModel team) async {
-    final currentMember = _currentMemberForTeam(team);
-
+  Future<void> openTeamDetailsSheet(TeamModel team) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
-            final projects = _projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
-            final stats = _statsByTeamId[team.teamId];
-            final canManage = _canManageTeam(team);
-            final canEditRoles = _canEditMemberRoles(team);
+        final members = membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+        final projects = projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+        final stats = statsByTeamId[team.teamId];
+        final currentMember = currentMemberForTeam(team);
+        final canManage = canManageTeam(team);
+        final canEditRoles = canEditMemberRoles(team);
 
-            return _BottomSheetShell(
-              title: team.name,
-              subtitle: currentMember == null ? 'Team workspace' : 'Your role: ${currentMember.roleLabel}',
-              maxHeightFactor: 0.90,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+        return _BottomSheetShell(
+          title: team.name,
+          subtitle: currentMember == null ? 'Team workspace' : 'Your role: ${currentMember.roleLabel}',
+          maxHeightFactor: 0.90,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _TeamOverviewPanel(team: team, currentMember: currentMember, stats: stats),
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    _TeamOverviewPanel(team: team, currentMember: currentMember, stats: stats),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
-                        const SizedBox(width: 9),
-                        _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
-                        const SizedBox(width: 9),
-                        _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    _SheetSectionHeader(
-                      title: 'Members',
-                      actionLabel: canManage ? 'Invite' : null,
-                      onAction: canManage
-                          ? () {
-                              Navigator.of(sheetContext).pop();
-                              _openInviteMemberSheet(team);
-                            }
-                          : null,
-                    ),
-                    const SizedBox(height: 9),
-                    if (members.isEmpty)
-                      const _SmallMutedText('Members are loading or unavailable.')
-                    else
-                      for (final member in members)
-                        _MemberRow(
-                          member: member,
-                          canManage: canManage,
-                          canEditRole: canEditRoles && member.role != 'owner' && member.userId != widget.currentUserId,
-                          canRemove: canManage && member.role != 'owner' && member.userId != widget.currentUserId,
-                          onChangeRole: () => _openChangeRoleSheet(team: team, member: member, parentContext: sheetContext),
-                          onRemove: () => _confirmRemoveMember(team: team, member: member),
-                        ),
-                    const SizedBox(height: 16),
-                    const _SheetSectionHeader(title: 'Team plans'),
-                    const SizedBox(height: 9),
-                    if (projects.isEmpty)
-                      const _SmallMutedText('No team plans yet.')
-                    else
-                      for (final project in projects.take(10))
-                        _ProjectMiniRow(
-                          project: project,
-                          onTap: () async {
-                            Navigator.of(sheetContext).pop();
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ProjectDetailScreen(
-                                  project: project,
-                                  onProjectChanged: () => _loadTeams(showLoading: false),
-                                ),
-                              ),
-                            );
-                            if (mounted) _loadTeams(showLoading: false);
-                          },
-                        ),
+                    _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
+                    const SizedBox(width: 9),
+                    _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
+                    const SizedBox(width: 9),
+                    _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
                   ],
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 18),
+                _SheetSectionHeader(
+                  title: 'Members',
+                  actionLabel: canManage ? 'Invite' : null,
+                  onAction: canManage
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          openInviteMemberSheet(team);
+                        }
+                      : null,
+                ),
+                const SizedBox(height: 9),
+                if (members.isEmpty)
+                  const _SmallMutedText('Members are loading or unavailable.')
+                else
+                  for (final member in members)
+                    _MemberRow(
+                      member: member,
+                      canEditRole: canEditRoles && member.role != 'owner' && member.userId != widget.currentUserId,
+                      canRemove: canManage && member.role != 'owner' && member.userId != widget.currentUserId,
+                      onChangeRole: () => openChangeRoleSheet(team: team, member: member, parentContext: sheetContext),
+                      onRemove: () => confirmRemoveMember(team: team, member: member),
+                    ),
+                const SizedBox(height: 16),
+                const _SheetSectionHeader(title: 'Team plans'),
+                const SizedBox(height: 9),
+                if (projects.isEmpty)
+                  const _SmallMutedText('No team plans yet.')
+                else
+                  for (final project in projects.take(10))
+                    _ProjectMiniRow(
+                      project: project,
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ProjectDetailScreen(
+                              project: project,
+                              onProjectChanged: () => loadTeams(showLoading: false),
+                            ),
+                          ),
+                        );
+                        if (mounted) loadTeams(showLoading: false);
+                      },
+                    ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  Future<void> _openInviteMemberSheet(TeamModel team) async {
+  Future<void> openInviteMemberSheet(TeamModel team) async {
     final usernameController = TextEditingController();
     var selectedRole = 'member';
 
@@ -731,7 +710,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
             Future<void> submit() async {
               final username = usernameController.text.trim();
               if (username.length < 3) {
-                _showMessage('Enter a valid username first.');
+                showMessage('Enter a valid username first.');
                 return;
               }
               if (isSubmitting) return;
@@ -748,7 +727,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               } catch (error, stackTrace) {
                 debugPrint('Invite member failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                _showMessage(_genericApiMessage(error, fallback: 'Could not send invitation.'));
+                showMessage(genericApiMessage(error, fallback: 'Could not send invitation.'));
               } finally {
                 if (sheetContext.mounted) {
                   setSheetState(() => isSubmitting = false);
@@ -757,8 +736,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
               if (!success || !mounted || !sheetContext.mounted) return;
               Navigator.of(sheetContext).pop();
-              _showMessage('Invitation sent.');
-              await _loadTeams(showLoading: false);
+              showMessage('Invitation sent.');
+              await loadTeams(showLoading: false);
             }
 
             return _BottomSheetShell(
@@ -796,7 +775,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     usernameController.dispose();
   }
 
-  Future<void> _openChangeRoleSheet({
+  Future<void> openChangeRoleSheet({
     required TeamModel team,
     required TeamMemberModel member,
     required BuildContext parentContext,
@@ -825,7 +804,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
               } catch (error, stackTrace) {
                 debugPrint('Change role failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                _showMessage(_genericApiMessage(error, fallback: 'Could not update role.'));
+                showMessage(genericApiMessage(error, fallback: 'Could not update role.'));
               } finally {
                 if (sheetContext.mounted) {
                   setSheetState(() => isSubmitting = false);
@@ -835,9 +814,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
               if (!success || !mounted || !sheetContext.mounted) return;
               Navigator.of(sheetContext).pop();
               if (parentContext.mounted) Navigator.of(parentContext).pop();
-              _showMessage('Member role updated.');
-              await _loadTeams(showLoading: false);
-              if (mounted) _openTeamDetailsSheet(team);
+              showMessage('Member role updated.');
+              await loadTeams(showLoading: false);
+              if (mounted) openTeamDetailsSheet(team);
             }
 
             return _BottomSheetShell(
@@ -867,188 +846,142 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
   }
 
-  Future<bool?> _confirmDeleteTeam(TeamModel team, {bool executeDelete = true}) async {
+  Future<bool?> confirmDeleteTeam(TeamModel team, {bool executeDelete = true}) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF14122A) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: const Text('Delete team?'),
-          content: Text(
+      builder: (_) => _ConfirmDialog(
+        title: 'Delete team?',
+        message:
             'This will remove "${team.name}" if your account has permission. Team plans may also be affected.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+        destructiveLabel: 'Delete',
+      ),
     );
 
-    if (confirmed == true && executeDelete) {
-      await _deleteTeam(team);
-    }
+    if (confirmed == true && executeDelete) await deleteTeam(team);
     return confirmed;
   }
 
-  Future<void> _deleteTeam(TeamModel team) async {
-    final oldTeams = List<TeamModel>.from(_teams);
-    final oldMembers = Map<int, List<TeamMemberModel>>.from(_membersByTeamId);
-    final oldProjects = Map<int, List<ProjectModel>>.from(_projectsByTeamId);
-    final oldStats = Map<int, _TeamStats>.from(_statsByTeamId);
+  Future<void> deleteTeam(TeamModel team) async {
+    final oldTeams = List<TeamModel>.from(teams);
+    final oldMembers = Map<int, List<TeamMemberModel>>.from(membersByTeamId);
+    final oldProjects = Map<int, List<ProjectModel>>.from(projectsByTeamId);
+    final oldStats = Map<int, _TeamStats>.from(statsByTeamId);
 
     setState(() {
-      _teams.removeWhere((item) => item.teamId == team.teamId);
-      _membersByTeamId.remove(team.teamId);
-      _projectsByTeamId.remove(team.teamId);
-      _statsByTeamId.remove(team.teamId);
+      teams.removeWhere((item) => item.teamId == team.teamId);
+      membersByTeamId.remove(team.teamId);
+      projectsByTeamId.remove(team.teamId);
+      statsByTeamId.remove(team.teamId);
     });
 
     try {
       await widget.teamsApi.deleteTeam(team.teamId);
       if (!mounted) return;
-      _showMessage('Team deleted.');
+      showMessage('Team deleted.');
       widget.onTeamsChanged?.call();
     } catch (error, stackTrace) {
       debugPrint('Delete team failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-
       setState(() {
-        _teams = oldTeams;
-        _membersByTeamId
+        teams = oldTeams;
+        membersByTeamId
           ..clear()
           ..addAll(oldMembers);
-        _projectsByTeamId
+        projectsByTeamId
           ..clear()
           ..addAll(oldProjects);
-        _statsByTeamId
+        statsByTeamId
           ..clear()
           ..addAll(oldStats);
       });
-
-      _showMessage(_teamDeleteErrorMessage(error));
+      showMessage(teamDeleteErrorMessage(error));
     }
   }
 
-  Future<void> _confirmRemoveMember({
+  Future<void> confirmRemoveMember({
     required TeamModel team,
     required TeamMemberModel member,
   }) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF14122A) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: const Text('Remove member?'),
-          content: Text('Remove ${member.displayName} from ${team.name}?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
-              child: const Text('Remove'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _ConfirmDialog(
+        title: 'Remove member?',
+        message: 'Remove ${member.displayName} from ${team.name}?',
+        destructiveLabel: 'Remove',
+      ),
     );
-
     if (confirmed != true) return;
 
     try {
       await widget.teamsApi.removeMember(teamId: team.teamId, userId: member.userId);
       if (!mounted) return;
-      _showMessage('Member removed.');
-      await _loadTeams(showLoading: false);
+      showMessage('Member removed.');
+      await loadTeams(showLoading: false);
     } catch (error, stackTrace) {
       debugPrint('Remove member failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _showMessage(_genericApiMessage(error, fallback: 'Could not remove member.'));
+      showMessage(genericApiMessage(error, fallback: 'Could not remove member.'));
     }
   }
 
-  Future<void> _respondToInvitation(TeamInvitationModel invitation, {required bool accept}) async {
+  Future<void> respondToInvitation(
+    TeamInvitationModel invitation, {
+    required bool accept,
+  }) async {
     try {
       if (accept) {
         await widget.teamsApi.acceptInvitation(invitation.invitationId);
       } else {
         await widget.teamsApi.rejectInvitation(invitation.invitationId);
       }
-
       if (!mounted) return;
-      _showMessage(accept ? 'Invitation accepted.' : 'Invitation rejected.');
+      showMessage(accept ? 'Invitation accepted.' : 'Invitation rejected.');
       widget.onTeamsChanged?.call();
-      await _loadTeams(showLoading: false);
+      await loadTeams(showLoading: false);
     } catch (error, stackTrace) {
       debugPrint('Invitation response failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _showMessage(_genericApiMessage(error, fallback: 'Could not update invitation.'));
+      showMessage(genericApiMessage(error, fallback: 'Could not update invitation.'));
     }
   }
 
-  TeamMemberModel? _currentMemberForTeam(TeamModel team) {
+  TeamMemberModel? currentMemberForTeam(TeamModel team) {
     final id = widget.currentUserId;
     if (id == null) return null;
-
-    final members = _membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+    final members = membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
     for (final member in members) {
       if (member.userId == id) return member;
     }
     return null;
   }
 
-  bool _canManageTeam(TeamModel team) {
-    final role = _currentMemberForTeam(team)?.role;
+  bool canManageTeam(TeamModel team) {
+    final role = currentMemberForTeam(team)?.role;
     return role == 'owner' || role == 'admin';
   }
 
-  bool _canEditMemberRoles(TeamModel team) {
-    return _currentMemberForTeam(team)?.role == 'owner';
-  }
+  bool canEditMemberRoles(TeamModel team) => currentMemberForTeam(team)?.role == 'owner';
+  bool canDeleteTeam(TeamModel team) => currentMemberForTeam(team)?.role == 'owner';
 
-  bool _canDeleteTeam(TeamModel team) {
-    return _currentMemberForTeam(team)?.role == 'owner';
-  }
-
-  String _teamDeleteErrorMessage(Object error) {
+  String teamDeleteErrorMessage(Object error) {
     if (error is ApiException) {
-      if (error.statusCode == 403) {
-        return 'Only team owners can delete this team.';
-      }
+      if (error.statusCode == 403) return 'Only team owners can delete this team.';
       final message = error.message.trim();
-      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
-        return message;
-      }
+      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') return message;
     }
     return 'Could not delete team. Try again.';
   }
 
-  String _genericApiMessage(Object error, {required String fallback}) {
+  String genericApiMessage(Object error, {required String fallback}) {
     if (error is ApiException) {
       final message = error.message.trim();
-      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
-        return message;
-      }
+      if (message.isNotEmpty && message != 'Something went wrong. Please try again.') return message;
     }
     return fallback;
   }
 
-  void _showMessage(String message) {
+  void showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -1062,27 +995,25 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }
 }
 
-class _AnimatedEntrance extends StatelessWidget {
-  const _AnimatedEntrance({required this.index, required this.child});
+class _Entrance extends StatelessWidget {
+  const _Entrance({required this.index, required this.child});
 
   final int index;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
+    final delay = 320 + ((index * 55).clamp(0, 320) as int);
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 320 + (index * 55).clamp(0, 320)),
+      duration: Duration(milliseconds: delay),
       curve: Curves.easeOutCubic,
       builder: (context, value, animatedChild) {
         return Opacity(
           opacity: value,
           child: Transform.translate(
             offset: Offset(0, (1 - value) * 18),
-            child: Transform.scale(
-              scale: 0.97 + (value * 0.03),
-              child: animatedChild,
-            ),
+            child: Transform.scale(scale: 0.97 + (value * 0.03), child: animatedChild),
           ),
         );
       },
@@ -1263,7 +1194,6 @@ class _HeroChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-
     return Container(
       width: 104,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
@@ -1304,7 +1234,6 @@ class _HeroChip extends StatelessWidget {
 
 class _SearchField extends StatelessWidget {
   const _SearchField({required this.controller, required this.onChanged, required this.onClear});
-
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
@@ -1313,7 +1242,6 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDark ? Colors.white60 : const Color(0xFF8A91AA);
-
     return _CardShell(
       height: 54,
       borderRadius: 18,
@@ -1324,20 +1252,13 @@ class _SearchField extends StatelessWidget {
         style: TextStyle(color: isDark ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w700),
         decoration: InputDecoration(
           hintText: 'Search teams, members, plans, roles...',
-          hintStyle: TextStyle(
-            color: isDark ? Colors.white38 : const Color(0xFF98A0B8),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          hintStyle: TextStyle(color: isDark ? Colors.white38 : const Color(0xFF98A0B8), fontSize: 14, fontWeight: FontWeight.w600),
           prefixIcon: Icon(Icons.search_rounded, color: iconColor, size: 22),
           suffixIcon: ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, child) {
               if (value.text.trim().isEmpty) return const SizedBox.shrink();
-              return IconButton(
-                onPressed: onClear,
-                icon: Icon(Icons.close_rounded, color: iconColor, size: 20),
-              );
+              return IconButton(onPressed: onClear, icon: Icon(Icons.close_rounded, color: iconColor, size: 20));
             },
           ),
           border: InputBorder.none,
@@ -1350,7 +1271,6 @@ class _SearchField extends StatelessWidget {
 
 class _TeamTabs extends StatelessWidget {
   const _TeamTabs({required this.selectedIndex, required this.invitationCount, required this.onChanged});
-
   final int selectedIndex;
   final int invitationCount;
   final ValueChanged<int> onChanged;
@@ -1358,7 +1278,6 @@ class _TeamTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       height: 50,
       padding: const EdgeInsets.all(4),
@@ -1370,12 +1289,7 @@ class _TeamTabs extends StatelessWidget {
       child: Row(
         children: [
           _TabButton(label: 'My Teams', selected: selectedIndex == 0, onTap: () => onChanged(0)),
-          _TabButton(
-            label: 'Invitations',
-            selected: selectedIndex == 1,
-            badge: invitationCount,
-            onTap: () => onChanged(1),
-          ),
+          _TabButton(label: 'Invitations', selected: selectedIndex == 1, badge: invitationCount, onTap: () => onChanged(1)),
         ],
       ),
     );
@@ -1384,7 +1298,6 @@ class _TeamTabs extends StatelessWidget {
 
 class _TabButton extends StatelessWidget {
   const _TabButton({required this.label, required this.selected, required this.onTap, this.badge});
-
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -1394,7 +1307,6 @@ class _TabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-
     return Expanded(
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -1416,11 +1328,7 @@ class _TabButton extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: selected ? primary : (isDark ? Colors.white70 : const Color(0xFF6C7391)),
-                  ),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: selected ? primary : (isDark ? Colors.white70 : const Color(0xFF6C7391))),
                 ),
               ),
               if (badge != null && badge! > 0) ...[
@@ -1441,7 +1349,6 @@ class _TabButton extends StatelessWidget {
 
 class _SwipeHint extends StatelessWidget {
   const _SwipeHint();
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1474,7 +1381,6 @@ class _TeamCard extends StatelessWidget {
     required this.onMenuPressed,
     this.onInvitePressed,
   });
-
   final TeamModel team;
   final List<TeamMemberModel> members;
   final List<ProjectModel> projects;
@@ -1493,7 +1399,7 @@ class _TeamCard extends StatelessWidget {
     final projectCount = stats?.projectCount ?? projects.length;
     final taskCount = stats?.taskCount ?? 0;
     final doneCount = stats?.completedTaskCount ?? 0;
-    final completion = taskCount == 0 ? 0.0 : doneCount / taskCount;
+    final completion = _progress(doneCount, taskCount);
     final previewMembers = members.take(4).toList();
     final activeProjects = projects.where((item) => item.isActive).length;
 
@@ -1516,17 +1422,9 @@ class _TeamCard extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [primary.withValues(alpha: 0.95), const Color(0xFF06B6D4)],
-                        ),
+                        gradient: LinearGradient(colors: [primary.withValues(alpha: 0.95), const Color(0xFF06B6D4)]),
                         borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primary.withValues(alpha: 0.22),
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+                        boxShadow: [BoxShadow(color: primary.withValues(alpha: 0.22), blurRadius: 18, offset: const Offset(0, 10))],
                       ),
                       child: Icon(_teamIcon(team.name), color: Colors.white, size: 28),
                     ),
@@ -1537,19 +1435,7 @@ class _TeamCard extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Flexible(
-                                child: Text(
-                                  team.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w900,
-                                    color: isDark ? Colors.white : const Color(0xFF171B2E),
-                                  ),
-                                ),
-                              ),
+                              Flexible(child: Text(team.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, height: 1.1, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)))),
                               if (currentMember != null) ...[
                                 const SizedBox(width: 7),
                                 _RoleBadge(label: currentMember!.roleLabel),
@@ -1557,16 +1443,7 @@ class _TeamCard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 5),
-                          Text(
-                            '$activeProjects active plans • ${(completion * 100).round()}% tasks complete',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white54 : const Color(0xFF6C7391),
-                            ),
-                          ),
+                          Text('$activeProjects active plans • ${(completion * 100).round()}% tasks complete', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF6C7391))),
                         ],
                       ),
                     ),
@@ -1581,55 +1458,35 @@ class _TeamCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 13),
                 TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: completion.clamp(0.0, 1.0)),
+                  tween: Tween<double>(begin: 0, end: completion),
                   duration: const Duration(milliseconds: 700),
                   curve: Curves.easeOutCubic,
                   builder: (context, value, _) {
                     return ClipRRect(
                       borderRadius: BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        value: value,
-                        minHeight: 6,
-                        backgroundColor: isDark ? const Color(0xFF2C2845) : const Color(0xFFE9EBF4),
-                        valueColor: AlwaysStoppedAnimation<Color>(primary),
-                      ),
+                      child: LinearProgressIndicator(value: value, minHeight: 6, backgroundColor: isDark ? const Color(0xFF2C2845) : const Color(0xFFE9EBF4), valueColor: AlwaysStoppedAnimation<Color>(primary)),
                     );
                   },
                 ),
                 const SizedBox(height: 13),
                 Row(
                   children: [
-                    _AvatarStack(
-                      members: previewMembers,
-                      extraCount: memberCount > previewMembers.length ? memberCount - previewMembers.length : 0,
-                    ),
+                    _AvatarStack(members: previewMembers, extraCount: memberCount > previewMembers.length ? memberCount - previewMembers.length : 0),
                     const Spacer(),
-                    _MiniStat(icon: Icons.group_outlined, value: memberCount, label: 'Members'),
+                    _MiniStat(icon: Icons.group_outlined, value: memberCount),
                     const SizedBox(width: 13),
-                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount, label: 'Plans'),
+                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount),
                     const SizedBox(width: 13),
-                    _MiniStat(icon: Icons.check_box_outlined, value: taskCount, label: 'Tasks'),
+                    _MiniStat(icon: Icons.check_box_outlined, value: taskCount),
                   ],
                 ),
                 if (canManage) ...[
                   const SizedBox(height: 13),
                   Row(
                     children: [
-                      Expanded(
-                        child: _InlineActionButton(
-                          icon: Icons.person_add_alt_1_rounded,
-                          label: 'Invite member',
-                          onTap: onInvitePressed,
-                        ),
-                      ),
+                      Expanded(child: _InlineActionButton(icon: Icons.person_add_alt_1_rounded, label: 'Invite member', onTap: onInvitePressed)),
                       const SizedBox(width: 10),
-                      Expanded(
-                        child: _InlineActionButton(
-                          icon: Icons.dashboard_customize_outlined,
-                          label: 'Manage team',
-                          onTap: onTap,
-                        ),
-                      ),
+                      Expanded(child: _InlineActionButton(icon: Icons.dashboard_customize_outlined, label: 'Manage team', onTap: onTap)),
                     ],
                   ),
                 ],
@@ -1644,7 +1501,6 @@ class _TeamCard extends StatelessWidget {
 
 class _TeamOverviewPanel extends StatelessWidget {
   const _TeamOverviewPanel({required this.team, required this.currentMember, required this.stats});
-
   final TeamModel team;
   final TeamMemberModel? currentMember;
   final _TeamStats? stats;
@@ -1653,17 +1509,11 @@ class _TeamOverviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-    final taskCount = stats?.taskCount ?? 0;
-    final completion = taskCount == 0 ? 0.0 : (stats?.completedTaskCount ?? 0) / taskCount;
-
+    final completion = _progress(stats?.completedTaskCount ?? 0, stats?.taskCount ?? 0);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [primary.withValues(alpha: isDark ? 0.30 : 0.13), const Color(0xFF06B6D4).withValues(alpha: isDark ? 0.16 : 0.07)],
-        ),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [primary.withValues(alpha: isDark ? 0.30 : 0.13), const Color(0xFF06B6D4).withValues(alpha: isDark ? 0.16 : 0.07)]),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: primary.withValues(alpha: 0.18)),
       ),
@@ -1672,31 +1522,15 @@ class _TeamOverviewPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [primary, const Color(0xFF06B6D4)]),
-                  borderRadius: BorderRadius.circular(17),
-                ),
-                child: Icon(_teamIcon(team.name), color: Colors.white),
-              ),
+              Container(width: 50, height: 50, decoration: BoxDecoration(gradient: LinearGradient(colors: [primary, const Color(0xFF06B6D4)]), borderRadius: BorderRadius.circular(17)), child: Icon(_teamIcon(team.name), color: Colors.white)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      team.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: isDark ? Colors.white : const Color(0xFF111827)),
-                    ),
+                    Text(team.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: isDark ? Colors.white : const Color(0xFF111827))),
                     const SizedBox(height: 4),
-                    Text(
-                      currentMember == null ? 'Team workspace' : 'Your role: ${currentMember!.roleLabel}',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
-                    ),
+                    Text(currentMember == null ? 'Team workspace' : 'Your role: ${currentMember!.roleLabel}', style: TextStyle(fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B))),
                   ],
                 ),
               ),
@@ -1704,26 +1538,13 @@ class _TeamOverviewPanel extends StatelessWidget {
           ),
           const SizedBox(height: 15),
           TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: completion.clamp(0.0, 1.0)),
+            tween: Tween<double>(begin: 0, end: completion),
             duration: const Duration(milliseconds: 800),
             curve: Curves.easeOutCubic,
-            builder: (context, value, _) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  value: value,
-                  minHeight: 8,
-                  backgroundColor: isDark ? const Color(0xFF2C2845) : Colors.white,
-                  valueColor: AlwaysStoppedAnimation<Color>(primary),
-                ),
-              );
-            },
+            builder: (context, value, _) => ClipRRect(borderRadius: BorderRadius.circular(99), child: LinearProgressIndicator(value: value, minHeight: 8, backgroundColor: isDark ? const Color(0xFF2C2845) : Colors.white, valueColor: AlwaysStoppedAnimation<Color>(primary))),
           ),
           const SizedBox(height: 8),
-          Text(
-            '${(completion * 100).round()}% team tasks completed',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: isDark ? Colors.white70 : const Color(0xFF4B5563)),
-          ),
+          Text('${(completion * 100).round()}% team tasks completed', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: isDark ? Colors.white70 : const Color(0xFF4B5563))),
         ],
       ),
     );
@@ -1732,36 +1553,23 @@ class _TeamOverviewPanel extends StatelessWidget {
 
 class _AvatarStack extends StatelessWidget {
   const _AvatarStack({required this.members, required this.extraCount});
-
   final List<TeamMemberModel> members;
   final int extraCount;
 
   @override
   Widget build(BuildContext context) {
-    const double size = 26;
-    const double overlap = 17;
+    const size = 26.0;
+    const overlap = 17.0;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (members.isEmpty) {
-      return Text(
-        'No members loaded',
-        style: TextStyle(fontSize: 11, color: isDark ? Colors.white38 : const Color(0xFF8A91AA), fontWeight: FontWeight.w700),
-      );
-    }
-
+    if (members.isEmpty) return Text('No members loaded', style: TextStyle(fontSize: 11, color: isDark ? Colors.white38 : const Color(0xFF8A91AA), fontWeight: FontWeight.w700));
     final width = (members.length * overlap) + (extraCount > 0 ? 32 : 12);
-
     return SizedBox(
       height: size,
-      width: width,
+      width: width.toDouble(),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          for (int index = 0; index < members.length; index++)
-            Positioned(
-              left: index * overlap,
-              child: _InitialsAvatar(label: members[index].initials, color: _avatarColor(members[index].userId), size: size),
-            ),
+          for (int index = 0; index < members.length; index++) Positioned(left: index * overlap, child: _InitialsAvatar(label: members[index].initials, color: _avatarColor(members[index].userId), size: size)),
           if (extraCount > 0)
             Positioned(
               left: members.length * overlap,
@@ -1769,15 +1577,8 @@ class _AvatarStack extends StatelessWidget {
                 width: size,
                 height: size,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2),
-                ),
-                child: Text(
-                  '+$extraCount',
-                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 9, fontWeight: FontWeight.w900),
-                ),
+                decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12), shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2)),
+                child: Text('+$extraCount', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 9, fontWeight: FontWeight.w900)),
               ),
             ),
         ],
@@ -1788,7 +1589,6 @@ class _AvatarStack extends StatelessWidget {
 
 class _InvitationCard extends StatelessWidget {
   const _InvitationCard({required this.invitation, required this.onAccept, required this.onReject});
-
   final TeamInvitationModel invitation;
   final VoidCallback onAccept;
   final VoidCallback onReject;
@@ -1806,80 +1606,52 @@ class _InvitationCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
-                  child: Icon(Icons.mail_outline_rounded, color: primary),
-                ),
+                Container(width: 48, height: 48, decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)), child: Icon(Icons.mail_outline_rounded, color: primary)),
                 const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Team #${invitation.teamId}',
-                        style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Invited as ${_roleLabel(invitation.role)}',
-                        style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF6C7391), fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                ),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Team #${invitation.teamId}', style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E))), const SizedBox(height: 4), Text('Invited as ${_roleLabel(invitation.role)}', style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF6C7391), fontWeight: FontWeight.w700))])),
               ],
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: _OutlineActionButton(label: 'Reject', color: const Color(0xFFEF4444), onTap: onReject)),
-                const SizedBox(width: 10),
-                Expanded(child: _FilledActionButton(label: 'Accept', color: primary, onTap: onAccept)),
-              ],
-            ),
+            Row(children: [Expanded(child: _OutlineActionButton(label: 'Reject', color: const Color(0xFFEF4444), onTap: onReject)), const SizedBox(width: 10), Expanded(child: _FilledActionButton(label: 'Accept', color: primary, onTap: onAccept))]),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ConfirmDialog extends StatelessWidget {
+  const _ConfirmDialog({required this.title, required this.message, required this.destructiveLabel});
+  final String title;
+  final String message;
+  final String destructiveLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AlertDialog(
+      backgroundColor: isDark ? const Color(0xFF14122A) : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.of(context).pop(true), style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)), child: Text(destructiveLabel)),
+      ],
     );
   }
 }
 
 class _TeamLoadingCard extends StatelessWidget {
   const _TeamLoadingCard();
-
   @override
   Widget build(BuildContext context) {
-    return const _CardShell(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Row(
-          children: [
-            _SkeletonBox(size: 52),
-            SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SkeletonLine(width: 140),
-                  SizedBox(height: 10),
-                  _SkeletonLine(width: 210),
-                  SizedBox(height: 14),
-                  _SkeletonLine(width: 90),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const _CardShell(child: Padding(padding: EdgeInsets.all(16), child: Row(children: [_SkeletonBox(size: 52), SizedBox(width: 13), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_SkeletonLine(width: 140), SizedBox(height: 10), _SkeletonLine(width: 210), SizedBox(height: 14), _SkeletonLine(width: 90)]))])));
   }
 }
 
 class _StateCard extends StatelessWidget {
   const _StateCard({required this.icon, required this.title, required this.message, this.actionText, this.onAction});
-
   final IconData icon;
   final String title;
   final String message;
@@ -1895,28 +1667,12 @@ class _StateCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         child: Column(
           children: [
-            Container(
-              width: 62,
-              height: 62,
-              decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(22)),
-              child: Icon(icon, size: 34, color: primary),
-            ),
+            Container(width: 62, height: 62, decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(22)), child: Icon(icon, size: 34, color: primary)),
             const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
-            ),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E))),
             const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF6C7391)),
-            ),
-            if (actionText != null && onAction != null) ...[
-              const SizedBox(height: 16),
-              _FilledActionButton(label: actionText!, color: primary, onTap: onAction!),
-            ],
+            Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF6C7391))),
+            if (actionText != null && onAction != null) ...[const SizedBox(height: 16), _FilledActionButton(label: actionText!, color: primary, onTap: onAction!)],
           ],
         ),
       ),
@@ -1926,28 +1682,15 @@ class _StateCard extends StatelessWidget {
 
 class _CardShell extends StatelessWidget {
   const _CardShell({required this.child, this.height, this.borderRadius = 20});
-
   final Widget child;
   final double? height;
   final double borderRadius;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: height,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : Colors.white,
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE8EAF4)),
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.045),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : Colors.white, border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE8EAF4)), borderRadius: BorderRadius.circular(borderRadius), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.045), blurRadius: 20, offset: const Offset(0, 10))]),
       child: child,
     );
   }
@@ -1955,679 +1698,234 @@ class _CardShell extends StatelessWidget {
 
 class _CircleIconButton extends StatelessWidget {
   const _CircleIconButton({required this.icon, required this.onPressed});
-
   final IconData icon;
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return _CardShell(
-      height: 46,
-      borderRadius: 16,
-      child: SizedBox(
-        width: 46,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onPressed,
-            child: Icon(icon, color: isDark ? Colors.white70 : const Color(0xFF68708C), size: 23),
-          ),
-        ),
-      ),
-    );
+    return _CardShell(height: 46, borderRadius: 16, child: SizedBox(width: 46, child: Material(color: Colors.transparent, borderRadius: BorderRadius.circular(16), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onPressed, child: Icon(icon, color: isDark ? Colors.white70 : const Color(0xFF68708C), size: 23)))));
   }
 }
 
 class _GradientIconButton extends StatelessWidget {
   const _GradientIconButton({required this.icon, required this.onPressed});
-
   final IconData icon;
   final VoidCallback onPressed;
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)]),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.28), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Icon(icon, color: Colors.white, size: 30),
-        ),
-      ),
-    );
+    return Container(width: 48, height: 48, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)]), borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: const Color(0xFF7C3AED).withValues(alpha: 0.28), blurRadius: 20, offset: const Offset(0, 10))]), child: Material(color: Colors.transparent, borderRadius: BorderRadius.circular(16), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onPressed, child: Icon(icon, color: Colors.white, size: 30))));
   }
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.icon, required this.value, required this.label});
-
+  const _MiniStat({required this.icon, required this.value});
   final IconData icon;
   final int value;
-  final String label;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: isDark ? Colors.white54 : const Color(0xFF69718D)),
-        const SizedBox(width: 4),
-        Text('$value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF24283B))),
-      ],
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: isDark ? Colors.white54 : const Color(0xFF69718D)), const SizedBox(width: 4), Text('$value', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF24283B)))]);
   }
 }
 
 class _InitialsAvatar extends StatelessWidget {
   const _InitialsAvatar({required this.label, required this.color, this.size = 34});
-
   final String label;
   final Color color;
   final double size;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final text = label.trim().isEmpty ? '?' : label.trim();
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2),
-      ),
-      child: Text(
-        text.length > 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase(),
-        style: TextStyle(color: Colors.white, fontSize: size <= 26 ? 9 : 12, fontWeight: FontWeight.w900),
-      ),
-    );
+    return Container(width: size, height: size, alignment: Alignment.center, decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: isDark ? const Color(0xFF14122A) : Colors.white, width: 2)), child: Text(text.length > 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase(), style: TextStyle(color: Colors.white, fontSize: size <= 26 ? 9 : 12, fontWeight: FontWeight.w900)));
   }
 }
 
 class _RoleBadge extends StatelessWidget {
   const _RoleBadge({required this.label});
-
   final String label;
-
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-      child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: primary)),
-    );
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)), child: Text(label, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900, color: primary)));
   }
 }
 
 class _InlineActionButton extends StatelessWidget {
   const _InlineActionButton({required this.icon, required this.label, required this.onTap});
-
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Material(
-      color: primary.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 16, color: primary),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: primary)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return Material(color: primary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(14), child: InkWell(borderRadius: BorderRadius.circular(14), onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: primary), const SizedBox(width: 6), Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900, color: primary)))]))));
   }
 }
 
 class _FilledActionButton extends StatelessWidget {
   const _FilledActionButton({required this.label, required this.color, required this.onTap});
-
   final String label;
   final Color color;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color,
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
-        ),
-      ),
-    );
+    return Material(color: color, borderRadius: BorderRadius.circular(13), child: InkWell(borderRadius: BorderRadius.circular(13), onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11), child: Text(label, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)))));
   }
 }
 
 class _OutlineActionButton extends StatelessWidget {
   const _OutlineActionButton({required this.label, required this.color, required this.onTap});
-
   final String label;
   final Color color;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(13),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(13),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900)),
-        ),
-      ),
-    );
+    return Material(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(13), child: InkWell(borderRadius: BorderRadius.circular(13), onTap: onTap, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11), child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900)))));
   }
 }
 
 class _BottomSheetShell extends StatelessWidget {
   const _BottomSheetShell({required this.title, required this.child, this.subtitle, this.maxHeightFactor});
-
   final String title;
   final String? subtitle;
   final Widget child;
   final double? maxHeightFactor;
-
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding + 16),
-      child: FractionallySizedBox(
-        heightFactor: maxHeightFactor,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF0B0820) : Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.24), blurRadius: 32, offset: const Offset(0, 14))],
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                child: Column(
-                  mainAxisSize: maxHeightFactor == null ? MainAxisSize.min : MainAxisSize.max,
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(color: isDark ? const Color(0xFF334155) : const Color(0xFFE6E8F2), borderRadius: BorderRadius.circular(99)),
-                    ),
-                    const SizedBox(height: 15),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)),
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          subtitle!,
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    if (maxHeightFactor == null) child else Expanded(child: child),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    return Padding(padding: EdgeInsets.fromLTRB(16, 0, 16, bottomPadding + 16), child: FractionallySizedBox(heightFactor: maxHeightFactor, child: DecoratedBox(decoration: BoxDecoration(color: isDark ? const Color(0xFF0B0820) : Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.24), blurRadius: 32, offset: const Offset(0, 14))]), child: Material(type: MaterialType.transparency, child: SafeArea(top: false, child: Padding(padding: const EdgeInsets.fromLTRB(18, 18, 18, 18), child: Column(mainAxisSize: maxHeightFactor == null ? MainAxisSize.min : MainAxisSize.max, children: [Container(width: 42, height: 4, decoration: BoxDecoration(color: isDark ? const Color(0xFF334155) : const Color(0xFFE6E8F2), borderRadius: BorderRadius.circular(99))), const SizedBox(height: 15), Align(alignment: Alignment.centerLeft, child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF171B2E)))), if (subtitle != null) ...[const SizedBox(height: 4), Align(alignment: Alignment.centerLeft, child: Text(subtitle!, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: isDark ? Colors.white60 : const Color(0xFF64748B))))], const SizedBox(height: 16), if (maxHeightFactor == null) child else Expanded(child: child)])))))));
   }
 }
 
 class _ActionTile extends StatelessWidget {
   const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.onTap, this.color});
-
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
   final Color? color;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final itemColor = color ?? Theme.of(context).colorScheme.primary;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        leading: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(color: itemColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
-          child: Icon(icon, color: itemColor, size: 20),
-        ),
-        title: Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: color ?? (isDark ? Colors.white : const Color(0xFF111827)))),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF64748B))),
-        trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
-        onTap: onTap,
-      ),
-    );
+    return Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))), child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2), leading: Container(width: 38, height: 38, decoration: BoxDecoration(color: itemColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: itemColor, size: 20)), title: Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: color ?? (isDark ? Colors.white : const Color(0xFF111827)))), subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : const Color(0xFF64748B))), trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)), onTap: onTap));
   }
 }
 
 class _SheetTextField extends StatelessWidget {
   const _SheetTextField({required this.controller, required this.label, required this.hintText, required this.icon, this.onSubmitted});
-
   final TextEditingController controller;
   final String label;
   final String hintText;
   final IconData icon;
   final ValueChanged<String>? onSubmitted;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-    return TextField(
-      controller: controller,
-      textInputAction: TextInputAction.done,
-      onSubmitted: onSubmitted,
-      style: TextStyle(color: isDark ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w700),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hintText,
-        prefixIcon: Icon(icon, color: primary),
-        filled: true,
-        fillColor: isDark ? const Color(0xFF14122A) : Colors.white,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: primary, width: 1.4),
-        ),
-      ),
-    );
+    return TextField(controller: controller, textInputAction: TextInputAction.done, onSubmitted: onSubmitted, style: TextStyle(color: isDark ? Colors.white : const Color(0xFF111827), fontWeight: FontWeight.w700), decoration: InputDecoration(labelText: label, hintText: hintText, prefixIcon: Icon(icon, color: primary), filled: true, fillColor: isDark ? const Color(0xFF14122A) : Colors.white, enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: primary, width: 1.4))));
   }
 }
 
 class _PrimarySheetButton extends StatelessWidget {
   const _PrimarySheetButton({required this.label, required this.isLoading, required this.onPressed});
-
   final String label;
   final bool isLoading;
   final VoidCallback? onPressed;
-
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        child: isLoading
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white))
-            : Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white)),
-      ),
-    );
+    return SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: onPressed, style: ElevatedButton.styleFrom(elevation: 0, backgroundColor: Theme.of(context).colorScheme.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white)) : Text(label, style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.white))));
   }
 }
 
 class _RolePicker extends StatelessWidget {
   const _RolePicker({required this.selectedRole, required this.onChanged});
-
   final String selectedRole;
   final ValueChanged<String> onChanged;
-
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _RoleChoice(
-            label: 'Member',
-            description: 'Can collaborate',
-            selected: selectedRole == 'member',
-            onTap: () => onChanged('member'),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _RoleChoice(
-            label: 'Admin',
-            description: 'Can manage',
-            selected: selectedRole == 'admin',
-            onTap: () => onChanged('admin'),
-          ),
-        ),
-      ],
-    );
+    return Row(children: [Expanded(child: _RoleChoice(label: 'Member', description: 'Can collaborate', selected: selectedRole == 'member', onTap: () => onChanged('member'))), const SizedBox(width: 10), Expanded(child: _RoleChoice(label: 'Admin', description: 'Can manage', selected: selectedRole == 'admin', onTap: () => onChanged('admin')))]);
   }
 }
 
 class _RoleChoice extends StatelessWidget {
   const _RoleChoice({required this.label, required this.description, required this.selected, required this.onTap});
-
   final String label;
   final String description;
   final bool selected;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? primary.withValues(alpha: 0.12) : (isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC)),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: selected ? primary : (isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: selected ? primary : (isDark ? Colors.white38 : const Color(0xFF94A3B8))),
-                const SizedBox(width: 8),
-                Text(label, style: TextStyle(fontWeight: FontWeight.w900, color: selected ? primary : (isDark ? Colors.white : const Color(0xFF111827)))),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(description, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
-          ],
-        ),
-      ),
-    );
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: AnimatedContainer(duration: const Duration(milliseconds: 180), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? primary.withValues(alpha: 0.12) : (isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC)), borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? primary : (isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, size: 18, color: selected ? primary : (isDark ? Colors.white38 : const Color(0xFF94A3B8))), const SizedBox(width: 8), Text(label, style: TextStyle(fontWeight: FontWeight.w900, color: selected ? primary : (isDark ? Colors.white : const Color(0xFF111827))))]), const SizedBox(height: 4), Text(description, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)))])));
   }
 }
 
 class _SheetStat extends StatelessWidget {
   const _SheetStat({required this.label, required this.value});
-
   final String label;
   final String value;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
-            const SizedBox(height: 3),
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
-          ],
-        ),
-      ),
-    );
+    return Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))), child: Column(children: [Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))), const SizedBox(height: 3), Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: isDark ? Colors.white54 : const Color(0xFF64748B)))])));
   }
 }
 
 class _SheetSectionHeader extends StatelessWidget {
   const _SheetSectionHeader({required this.title, this.actionLabel, this.onAction});
-
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
-
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
-    return Row(
-      children: [
-        Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))),
-        if (actionLabel != null && onAction != null)
-          TextButton(
-            onPressed: onAction,
-            child: Text(actionLabel!, style: TextStyle(color: primary, fontWeight: FontWeight.w900)),
-          ),
-      ],
-    );
+    return Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))), if (actionLabel != null && onAction != null) TextButton(onPressed: onAction, child: Text(actionLabel!, style: TextStyle(color: primary, fontWeight: FontWeight.w900)))]);
   }
 }
 
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({
-    required this.member,
-    required this.canManage,
-    required this.canEditRole,
-    required this.canRemove,
-    required this.onChangeRole,
-    required this.onRemove,
-  });
-
+  const _MemberRow({required this.member, required this.canEditRole, required this.canRemove, required this.onChangeRole, required this.onRemove});
   final TeamMemberModel member;
-  final bool canManage;
   final bool canEditRole;
   final bool canRemove;
   final VoidCallback onChangeRole;
   final VoidCallback onRemove;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 36),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  member.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  member.user?.username ?? 'User #${member.userId}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-                ),
-              ],
-            ),
-          ),
-          _RoleBadge(label: member.roleLabel),
-          if (canEditRole || canRemove) ...[
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              tooltip: 'Member actions',
-              icon: Icon(Icons.more_vert_rounded, size: 20, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-              onSelected: (value) {
-                if (value == 'role') onChangeRole();
-                if (value == 'remove') onRemove();
-              },
-              itemBuilder: (context) => [
-                if (canEditRole) const PopupMenuItem(value: 'role', child: Text('Change role')),
-                if (canRemove) const PopupMenuItem(value: 'remove', child: Text('Remove member')),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
+    return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(15), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))), child: Row(children: [_InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 36), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))), const SizedBox(height: 2), Text(member.user?.username ?? 'User #${member.userId}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)))])), _RoleBadge(label: member.roleLabel), if (canEditRole || canRemove) PopupMenuButton<String>(tooltip: 'Member actions', icon: Icon(Icons.more_vert_rounded, size: 20, color: isDark ? Colors.white54 : const Color(0xFF64748B)), onSelected: (value) { if (value == 'role') onChangeRole(); if (value == 'remove') onRemove(); }, itemBuilder: (context) => [if (canEditRole) const PopupMenuItem(value: 'role', child: Text('Change role')), if (canRemove) const PopupMenuItem(value: 'remove', child: Text('Remove member'))])])) ;
   }
 }
 
 class _MemberPreview extends StatelessWidget {
   const _MemberPreview({required this.member});
-
   final TeamMemberModel member;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        children: [
-          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 38),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(member.displayName, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))),
-                const SizedBox(height: 2),
-                Text(member.roleLabel, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF64748B))),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))), child: Row(children: [_InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 38), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))), const SizedBox(height: 2), Text(member.roleLabel, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : const Color(0xFF64748B)))]))]));
   }
 }
 
 class _ProjectMiniRow extends StatelessWidget {
   const _ProjectMiniRow({required this.project, this.onTap});
-
   final ProjectModel project;
   final VoidCallback? onTap;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
-              child: Icon(Icons.folder_rounded, size: 21, color: primary),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    project.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827)),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${project.statusLabel} • ${project.deadlineLabel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8)),
-          ],
-        ),
-      ),
-    );
+    return InkWell(onTap: onTap, borderRadius: BorderRadius.circular(15), child: Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: isDark ? const Color(0xFF14122A) : const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(15), border: Border.all(color: isDark ? const Color(0xFF312A56) : const Color(0xFFE5E7EB))), child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.folder_rounded, size: 21, color: primary)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: isDark ? Colors.white : const Color(0xFF111827))), const SizedBox(height: 2), Text('${project.statusLabel} • ${project.deadlineLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white54 : const Color(0xFF64748B)))])), Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white38 : const Color(0xFF94A3B8))])));
   }
 }
 
 class _SmallMutedText extends StatelessWidget {
   const _SmallMutedText(this.text);
-
   final String text;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2637,33 +1935,21 @@ class _SmallMutedText extends StatelessWidget {
 
 class _SkeletonBox extends StatelessWidget {
   const _SkeletonBox({required this.size});
-
   final double size;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(16)),
-    );
+    return Container(width: size, height: size, decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(16)));
   }
 }
 
 class _SkeletonLine extends StatelessWidget {
   const _SkeletonLine({required this.width});
-
   final double width;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: width,
-      height: 10,
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(99)),
-    );
+    return Container(width: width, height: 10, decoration: BoxDecoration(color: isDark ? const Color(0xFF231D3E) : const Color(0xFFEDEFF7), borderRadius: BorderRadius.circular(99)));
   }
 }
 
@@ -2673,8 +1959,15 @@ class _TeamStats {
   final int projectCount;
   final int taskCount;
   final int completedTaskCount;
-
   const _TeamStats({required this.memberCount, required this.projectCount, required this.taskCount, required this.completedTaskCount});
+}
+
+double _progress(int completed, int total) {
+  if (total <= 0) return 0;
+  final value = completed / total;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
 }
 
 IconData _teamIcon(String name) {
@@ -2701,13 +1994,6 @@ String _roleLabel(String role) {
 }
 
 Color _avatarColor(int seed) {
-  const colors = [
-    Color(0xFF3B82F6),
-    Color(0xFF06B6D4),
-    Color(0xFF22C55E),
-    Color(0xFF8B5CF6),
-    Color(0xFFF97316),
-    Color(0xFFEC4899),
-  ];
+  const colors = [Color(0xFF3B82F6), Color(0xFF06B6D4), Color(0xFF22C55E), Color(0xFF8B5CF6), Color(0xFFF97316), Color(0xFFEC4899)];
   return colors[seed.abs() % colors.length];
 }
