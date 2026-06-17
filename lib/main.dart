@@ -45,13 +45,39 @@ class _PlanoraAppState extends State<PlanoraApp> {
     });
   }
 
-  Widget _buildInitialScreen() {
-    final uri = Uri.base;
-    final isResetPasswordPath = uri.path == '/reset-password';
+  bool _isResetPasswordPath(String path) {
+    final normalizedPath = path.trim().toLowerCase();
+    return normalizedPath == '/reset-password' ||
+        normalizedPath == '/reset-password/';
+  }
 
-    if (isResetPasswordPath) {
-      final email = uri.queryParameters['email'] ?? '';
-      final resetToken = uri.queryParameters['token'] ?? '';
+  Uri? _resetPasswordUriFrom(Uri uri) {
+    if (_isResetPasswordPath(uri.path)) {
+      return uri;
+    }
+
+    final fragment = uri.fragment.trim();
+    if (fragment.isEmpty) {
+      return null;
+    }
+
+    final fragmentUri = Uri.tryParse(
+      fragment.startsWith('/') ? fragment : '/$fragment',
+    );
+
+    if (fragmentUri != null && _isResetPasswordPath(fragmentUri.path)) {
+      return fragmentUri;
+    }
+
+    return null;
+  }
+
+  Widget _buildInitialScreen() {
+    final resetUri = _resetPasswordUriFrom(Uri.base);
+
+    if (resetUri != null) {
+      final email = resetUri.queryParameters['email'] ?? '';
+      final resetToken = resetUri.queryParameters['token'] ?? '';
 
       return ResetPasswordScreen(
         onThemeToggle: _toggleThemeMode,
