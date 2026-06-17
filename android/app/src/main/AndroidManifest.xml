@@ -32,8 +32,8 @@
             android:name="flutterEmbedding"
             android:value="2" />
         <meta-data
-        android:name="com.google.firebase.messaging.default_notification_icon"
-        android:resource="@drawable/ic_stat_planora" />
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_planora" />
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
