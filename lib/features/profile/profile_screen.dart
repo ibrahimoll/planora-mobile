@@ -143,7 +143,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String errorText(Object error, String fallback) {
@@ -191,8 +193,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (file == null) {
         if (!mounted) return;
+
         setState(() => isUploadingPhoto = false);
-        setSheetState(() {});
+        if (sheetContext.mounted) {
+          setSheetState(() {});
+        }
         return;
       }
 
@@ -206,8 +211,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
       widget.onUserUpdated?.call(updatedUser);
 
-      if (Navigator.of(sheetContext).canPop()) {
-        Navigator.of(sheetContext).pop();
+      if (sheetContext.mounted) {
+        final navigator = Navigator.of(sheetContext);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
       }
       showMessage('Profile picture updated.');
     } catch (error, stackTrace) {
@@ -216,7 +224,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
 
       setState(() => isUploadingPhoto = false);
-      setSheetState(() {});
+      if (sheetContext.mounted) {
+        setSheetState(() {});
+      }
       showMessage(errorText(error, 'Could not update profile picture.'));
     }
   }
@@ -226,9 +236,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isDark = PlanoraTheme.isDark(context);
 
     return Scaffold(
-      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
+      backgroundColor: isDark
+          ? PlanoraTheme.darkBackground
+          : PlanoraTheme.background,
       body: DecoratedBox(
-        decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
         child: SafeArea(
           child: RefreshIndicator(
             onRefresh: refreshProfile,
@@ -245,7 +259,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         buildStaggeredItem(0, buildHeader(context)),
                         const SizedBox(height: 18),
                         if (errorMessage != null) ...[
-                          buildStaggeredItem(1, buildErrorBanner(context, errorMessage!)),
+                          buildStaggeredItem(
+                            1,
+                            buildErrorBanner(context, errorMessage!),
+                          ),
                           const SizedBox(height: 14),
                         ],
                         buildStaggeredItem(2, buildProfileCard(context)),
@@ -287,7 +304,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onTap: () => openProfileInfoPage(
                                   title: 'Notification Settings',
                                   icon: Icons.notifications_none_rounded,
-                                  sections: ProfileInfoContent.notificationSettings,
+                                  sections:
+                                      ProfileInfoContent.notificationSettings,
                                 ),
                               ),
                             ],
@@ -317,7 +335,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onTap: () => openProfileInfoPage(
                                   title: 'Billing & Invoices',
                                   icon: Icons.credit_card_outlined,
-                                  sections: ProfileInfoContent.billingAndInvoices,
+                                  sections:
+                                      ProfileInfoContent.billingAndInvoices,
                                 ),
                               ),
                             ],
@@ -414,9 +433,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Expanded(
           child: Text(
             'Profile',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         buildCircleButton(
@@ -446,9 +465,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Ink(
             width: 44,
             height: 44,
-            decoration: cardDecoration(context).copyWith(
-              borderRadius: BorderRadius.circular(999),
-            ),
+            decoration: cardDecoration(
+              context,
+            ).copyWith(borderRadius: BorderRadius.circular(999)),
             child: Icon(icon, size: 21),
           ),
         ),
@@ -507,8 +526,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -516,9 +535,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -531,7 +550,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             'Tap photo to change',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   color: mutedColor(context),
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -760,9 +780,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 3),
         Text(
@@ -770,9 +790,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w600,
-              ),
+            color: mutedColor(context),
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -791,9 +811,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Text(
             title,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: mutedColor(context),
-                  fontWeight: FontWeight.w900,
-                ),
+              color: mutedColor(context),
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
         Container(
@@ -825,7 +845,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -842,15 +864,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       tile.title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       tile.subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                          ),
+                        color: mutedColor(context),
+                      ),
                     ),
                   ],
                 ),
@@ -886,7 +908,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             color: PlanoraTheme.error.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: PlanoraTheme.error.withValues(alpha: 0.22)),
+            border: Border.all(
+              color: PlanoraTheme.error.withValues(alpha: 0.22),
+            ),
           ),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -919,7 +943,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return buildSheetScaffold(
               sheetContext,
               title: 'Profile Picture',
-              subtitle: 'Set a clear photo so your Planora account feels complete.',
+              subtitle:
+                  'Set a clear photo so your Planora account feels complete.',
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -929,17 +954,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     displayName,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     user.email,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: mutedColor(context),
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: mutedColor(context),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   buildSheetActionTile(
@@ -950,10 +975,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: isUploadingPhoto
                         ? null
                         : () => pickAndUploadProfilePhoto(
-                              sheetContext,
-                              ImageSource.gallery,
-                              setSheetState,
-                            ),
+                            sheetContext,
+                            ImageSource.gallery,
+                            setSheetState,
+                          ),
                   ),
                   const SizedBox(height: 10),
                   buildSheetActionTile(
@@ -964,10 +989,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: isUploadingPhoto
                         ? null
                         : () => pickAndUploadProfilePhoto(
-                              sheetContext,
-                              ImageSource.camera,
-                              setSheetState,
-                            ),
+                            sheetContext,
+                            ImageSource.camera,
+                            setSheetState,
+                          ),
                   ),
                   if (isUploadingPhoto) ...[
                     const SizedBox(height: 16),
@@ -976,9 +1001,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       'Uploading your profile picture...',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ],
@@ -1025,14 +1050,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   setState(() => user = updatedUser);
                   widget.onUserUpdated?.call(updatedUser);
-                  Navigator.of(sheetContext).pop();
+                  if (sheetContext.mounted) {
+                    Navigator.of(sheetContext).pop();
+                  }
                   showMessage('Profile updated.');
                 } catch (error, stackTrace) {
                   debugPrint('Profile update failed: $error');
                   debugPrintStack(stackTrace: stackTrace);
                   if (!mounted) return;
+
                   showMessage(errorText(error, 'Could not update profile.'));
-                  setSheetState(() => isSaving = false);
+                  if (sheetContext.mounted) {
+                    setSheetState(() => isSaving = false);
+                  }
                 }
               }
 
@@ -1148,14 +1178,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                   if (!mounted) return;
 
-                  Navigator.of(sheetContext).pop();
+                  if (sheetContext.mounted) {
+                    Navigator.of(sheetContext).pop();
+                  }
                   showMessage('Password changed.');
                 } catch (error, stackTrace) {
                   debugPrint('Password update failed: $error');
                   debugPrintStack(stackTrace: stackTrace);
                   if (!mounted) return;
+
                   showMessage(errorText(error, 'Could not change password.'));
-                  setSheetState(() => isSaving = false);
+                  if (sheetContext.mounted) {
+                    setSheetState(() => isSaving = false);
+                  }
                 }
               }
 
@@ -1295,16 +1330,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Text(
                           title,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           subtitle,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: mutedColor(context),
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: mutedColor(context)),
                         ),
                       ],
                     ),
@@ -1337,7 +1370,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       prefixIcon: Icon(icon),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.surfaceVariant,
+      fillColor: isDark
+          ? PlanoraTheme.darkSurfaceVariant
+          : PlanoraTheme.surfaceVariant,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
         borderSide: BorderSide(
@@ -1371,7 +1406,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return TextField(
       controller: controller,
       obscureText: obscureText,
-      textInputAction: onSubmitted == null ? TextInputAction.next : TextInputAction.done,
+      textInputAction: onSubmitted == null
+          ? TextInputAction.next
+          : TextInputAction.done,
       onSubmitted: onSubmitted,
       decoration: inputDecoration(
         context,
@@ -1380,7 +1417,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         suffixIcon: IconButton(
           onPressed: onToggle,
           icon: Icon(
-            obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            obscureText
+                ? Icons.visibility_outlined
+                : Icons.visibility_off_outlined,
           ),
         ),
       ),
@@ -1398,10 +1437,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       height: 54,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: onPressed == null ? null : PlanoraTheme.primaryGradientFor(context),
-          color: onPressed == null ? mutedColor(context).withValues(alpha: 0.24) : null,
+          gradient: onPressed == null
+              ? null
+              : PlanoraTheme.primaryGradientFor(context),
+          color: onPressed == null
+              ? mutedColor(context).withValues(alpha: 0.24)
+              : null,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: onPressed == null ? null : PlanoraTheme.floatingShadowFor(context),
+          boxShadow: onPressed == null
+              ? null
+              : PlanoraTheme.floatingShadowFor(context),
         ),
         child: ElevatedButton.icon(
           onPressed: onPressed,
@@ -1438,7 +1483,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Ink(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
@@ -1457,16 +1504,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: disabled ? mutedColor(context) : null,
-                          ),
+                        fontWeight: FontWeight.w800,
+                        color: disabled ? mutedColor(context) : null,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                          ),
+                        color: mutedColor(context),
+                      ),
                     ),
                   ],
                 ),
