@@ -819,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 3),
               Text(
-                'What should Planora help you plan today?',
+                'What should Planora help you?',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
