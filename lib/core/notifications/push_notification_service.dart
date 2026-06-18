@@ -30,11 +30,11 @@ class PushNotificationService {
 
   static const AndroidNotificationChannel _androidChannel =
       AndroidNotificationChannel(
-    _channelId,
-    _channelName,
-    description: _channelDescription,
-    importance: Importance.high,
-  );
+        _channelId,
+        _channelName,
+        description: _channelDescription,
+        importance: Importance.high,
+      );
 
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
@@ -105,7 +105,7 @@ class PushNotificationService {
     );
 
     await _localNotifications.initialize(
-      settings,
+      settings: settings,
       onDidReceiveNotificationResponse: _handleLocalNotificationTap,
     );
 
@@ -276,10 +276,10 @@ class PushNotificationService {
     );
 
     await _localNotifications.show(
-      notificationId,
-      title,
-      body,
-      details,
+      id: notificationId,
+      title: title,
+      body: body,
+      notificationDetails: details,
       payload: payload.toLocalPayload(),
     );
   }
@@ -341,7 +341,8 @@ class PushNotificationService {
   }
 
   int _notificationIdFor(PushNotificationPayload payload) {
-    final notificationId = payload.intValue('notification_id') ??
+    final notificationId =
+        payload.intValue('notification_id') ??
         payload.intValue('notificationId') ??
         payload.intValue('id');
 
@@ -349,7 +350,8 @@ class PushNotificationService {
       return notificationId;
     }
 
-    final seed = payload.messageId ??
+    final seed =
+        payload.messageId ??
         '${payload.title}-${payload.body}-${DateTime.now().microsecondsSinceEpoch}';
     return seed.hashCode & 0x7fffffff;
   }
