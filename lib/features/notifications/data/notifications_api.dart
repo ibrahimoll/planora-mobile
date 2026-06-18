@@ -1,5 +1,5 @@
 import '../../../core/network/api_client.dart';
-import '../../../core/notifications/push_notification_service.dart';
+import '../../../core/notifications/push_notification_payload.dart';
 
 enum NotificationRouteKind { task, project, team, detail, missingIds }
 
