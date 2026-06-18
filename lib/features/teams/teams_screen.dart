@@ -149,7 +149,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
               project: TaskProjectSummary.fromProject(project),
             );
             taskCount += tasks.length;
-            completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
+            completedTaskCount += tasks
+                .where((item) => item.task.isCompleted)
+                .length;
           } catch (error, stackTrace) {
             debugPrint('Team task load failed: $error');
             debugPrintStack(stackTrace: stackTrace);
@@ -341,7 +343,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
         _StateCard(
           icon: Icons.mail_outline_rounded,
           title: 'No invitations',
-          message: 'Team invitations will appear here when someone invites you.',
+          message:
+              'Team invitations will appear here when someone invites you.',
         ),
       ];
     }
@@ -352,8 +355,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
           index: index,
           child: _InvitationCard(
             invitation: pendingInvitations[index],
-            onAccept: () => respondToInvitation(pendingInvitations[index], accept: true),
-            onReject: () => respondToInvitation(pendingInvitations[index], accept: false),
+            onAccept: () =>
+                respondToInvitation(pendingInvitations[index], accept: true),
+            onReject: () =>
+                respondToInvitation(pendingInvitations[index], accept: false),
           ),
         ),
         const SizedBox(height: 12),
@@ -365,7 +370,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
     final currentUserId = widget.currentUserId;
     if (currentUserId == null) return null;
 
-    for (final member in membersByTeamId[team.teamId] ?? const <TeamMemberModel>[]) {
+    for (final member
+        in membersByTeamId[team.teamId] ?? const <TeamMemberModel>[]) {
       if (member.userId == currentUserId) return member;
     }
 
@@ -387,7 +393,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       );
   }
@@ -470,13 +478,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
                       onPressed: isSubmitting
                           ? null
                           : () => submitTeamName(
-                                sheetContext,
-                                setSheetState,
-                                controller,
-                                isSubmitting,
-                                (value) => isSubmitting = value,
-                                onSubmit,
-                              ),
+                              sheetContext,
+                              setSheetState,
+                              controller,
+                              isSubmitting,
+                              (value) => isSubmitting = value,
+                              onSubmit,
+                            ),
                     ),
                   ],
                 ),
@@ -567,7 +575,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
                         prefixIcon: Icon(Icons.admin_panel_settings_outlined),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'member', child: Text('Member')),
+                        DropdownMenuItem(
+                          value: 'member',
+                          child: Text('Member'),
+                        ),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
@@ -601,7 +612,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                 debugPrintStack(stackTrace: stackTrace);
                                 if (!sheetContext.mounted) return;
                                 showMessage(
-                                  _apiMessage(error, fallback: 'Could not send invitation.'),
+                                  _apiMessage(
+                                    error,
+                                    fallback: 'Could not send invitation.',
+                                  ),
                                 );
                                 setSheetState(() => isSubmitting = false);
                               }
@@ -697,19 +711,26 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     },
                   ),
                   const SizedBox(height: 18),
-                  _SheetSectionTitle(title: 'Members', trailing: '${members.length}'),
+                  _SheetSectionTitle(
+                    title: 'Members',
+                    trailing: '${members.length}',
+                  ),
                   const SizedBox(height: 8),
                   if (members.isEmpty)
                     const _EmptyInlinePanel(message: 'No members loaded yet.')
                   else
                     for (final member in members) _MemberRow(member: member),
                   const SizedBox(height: 18),
-                  _SheetSectionTitle(title: 'Plans', trailing: '${projects.length}'),
+                  _SheetSectionTitle(
+                    title: 'Plans',
+                    trailing: '${projects.length}',
+                  ),
                   const SizedBox(height: 8),
                   if (projects.isEmpty)
                     const _EmptyInlinePanel(message: 'No team plans yet.')
                   else
-                    for (final project in projects.take(8)) _ProjectRow(project: project),
+                    for (final project in projects.take(8))
+                      _ProjectRow(project: project),
                 ],
               );
             },
@@ -729,7 +750,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
       } else {
         await widget.teamsApi.rejectInvitation(invitation.invitationId);
       }
-      await reloadAfterMutation(accept ? 'Invitation accepted.' : 'Invitation declined.');
+      await reloadAfterMutation(
+        accept ? 'Invitation accepted.' : 'Invitation declined.',
+      );
     } catch (error, stackTrace) {
       debugPrint('Invitation response failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -811,7 +834,10 @@ class _TeamsHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (showBackButton) ...[
-                _CircleIconButton(icon: Icons.arrow_back_rounded, onPressed: onBackPressed),
+                _CircleIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  onPressed: onBackPressed,
+                ),
                 const SizedBox(width: 10),
               ],
               _BrandTile(icon: Icons.groups_2_rounded, size: 52),
@@ -822,7 +848,8 @@ class _TeamsHero extends StatelessWidget {
                   children: [
                     Text(
                       'Teams',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
                             fontWeight: FontWeight.w900,
                             color: _textColor(context),
                             height: 1.05,
@@ -858,13 +885,37 @@ class _TeamsHero extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Expanded(child: _HeroMetric(label: 'Teams', value: '$teamCount', icon: Icons.groups_2_outlined)),
+                Expanded(
+                  child: _HeroMetric(
+                    label: 'Teams',
+                    value: '$teamCount',
+                    icon: Icons.groups_2_outlined,
+                  ),
+                ),
                 _MetricDivider(isDark: isDark),
-                Expanded(child: _HeroMetric(label: 'People', value: '$memberCount', icon: Icons.people_alt_outlined)),
+                Expanded(
+                  child: _HeroMetric(
+                    label: 'People',
+                    value: '$memberCount',
+                    icon: Icons.people_alt_outlined,
+                  ),
+                ),
                 _MetricDivider(isDark: isDark),
-                Expanded(child: _HeroMetric(label: 'Plans', value: '$projectCount', icon: Icons.folder_copy_outlined)),
+                Expanded(
+                  child: _HeroMetric(
+                    label: 'Plans',
+                    value: '$projectCount',
+                    icon: Icons.folder_copy_outlined,
+                  ),
+                ),
                 _MetricDivider(isDark: isDark),
-                Expanded(child: _HeroMetric(label: 'Tasks', value: '$taskCount', icon: Icons.checklist_rounded)),
+                Expanded(
+                  child: _HeroMetric(
+                    label: 'Tasks',
+                    value: '$taskCount',
+                    icon: Icons.checklist_rounded,
+                  ),
+                ),
               ],
             ),
           ),
@@ -888,7 +939,9 @@ class _MetricDivider extends StatelessWidget {
       width: 1,
       height: 36,
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFEAE7F7),
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.08)
+          : const Color(0xFFEAE7F7),
     );
   }
 }
@@ -898,7 +951,11 @@ class _HeroMetric extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _HeroMetric({required this.label, required this.value, required this.icon});
+  const _HeroMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -907,9 +964,25 @@ class _HeroMetric extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 5),
-        Text(value, style: TextStyle(color: _textColor(context), fontSize: 17, fontWeight: FontWeight.w900)),
+        Text(
+          value,
+          style: TextStyle(
+            color: _textColor(context),
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
         const SizedBox(height: 1),
-        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _mutedColor(context), fontSize: 10, fontWeight: FontWeight.w800)),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: _mutedColor(context),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ],
     );
   }
@@ -929,9 +1002,21 @@ class _InviteBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.mail_outline_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+          Icon(
+            Icons.mail_outline_rounded,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
           const SizedBox(width: 8),
-          Expanded(child: Text('$count pending invitation${count == 1 ? '' : 's'}', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900))),
+          Expanded(
+            child: Text(
+              '$count pending invitation${count == 1 ? '' : 's'}',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -943,7 +1028,11 @@ class _SearchField extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
 
-  const _SearchField({required this.controller, required this.onChanged, required this.onClear});
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -961,11 +1050,17 @@ class _SearchField extends StatelessWidget {
             valueListenable: controller,
             builder: (context, value, child) {
               if (value.text.trim().isEmpty) return const SizedBox.shrink();
-              return IconButton(onPressed: onClear, icon: Icon(Icons.close_rounded, color: _mutedColor(context)));
+              return IconButton(
+                onPressed: onClear,
+                icon: Icon(Icons.close_rounded, color: _mutedColor(context)),
+              );
             },
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 17,
+          ),
         ),
       ),
     );
@@ -977,7 +1072,11 @@ class _TeamTabs extends StatelessWidget {
   final int invitationCount;
   final ValueChanged<int> onChanged;
 
-  const _TeamTabs({required this.selectedIndex, required this.invitationCount, required this.onChanged});
+  const _TeamTabs({
+    required this.selectedIndex,
+    required this.invitationCount,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -987,8 +1086,18 @@ class _TeamTabs extends StatelessWidget {
       shadow: false,
       child: Row(
         children: [
-          _TabButton(label: 'My Teams', selected: selectedIndex == 0, onTap: () => onChanged(0)),
-          _TabButton(label: invitationCount > 0 ? 'Invitations ($invitationCount)' : 'Invitations', selected: selectedIndex == 1, onTap: () => onChanged(1)),
+          _TabButton(
+            label: 'My Teams',
+            selected: selectedIndex == 0,
+            onTap: () => onChanged(0),
+          ),
+          _TabButton(
+            label: invitationCount > 0
+                ? 'Invitations ($invitationCount)'
+                : 'Invitations',
+            selected: selectedIndex == 1,
+            onTap: () => onChanged(1),
+          ),
         ],
       ),
     );
@@ -1000,7 +1109,11 @@ class _TabButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  const _TabButton({required this.label, required this.selected, required this.onTap});
+  const _TabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1014,8 +1127,21 @@ class _TabButton extends StatelessWidget {
           curve: Curves.easeOutCubic,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(color: selected ? primary.withValues(alpha: 0.14) : Colors.transparent, borderRadius: BorderRadius.circular(17)),
-          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? primary : _mutedColor(context), fontWeight: FontWeight.w900)),
+          decoration: BoxDecoration(
+            color: selected
+                ? primary.withValues(alpha: 0.14)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(17),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: selected ? primary : _mutedColor(context),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
         ),
       ),
     );
@@ -1030,13 +1156,27 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text('Workspaces', style: TextStyle(color: _textColor(context), fontSize: 16, fontWeight: FontWeight.w900)),
+        Text(
+          'Workspaces',
+          style: TextStyle(
+            color: _textColor(context),
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
         const SizedBox(width: 8),
         _SmallBadge(label: '$count'),
         const Spacer(),
         Icon(Icons.touch_app_outlined, size: 16, color: _mutedColor(context)),
         const SizedBox(width: 5),
-        Text('Tap to manage', style: TextStyle(color: _mutedColor(context), fontSize: 12, fontWeight: FontWeight.w700)),
+        Text(
+          'Tap to manage',
+          style: TextStyle(
+            color: _mutedColor(context),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
@@ -1095,7 +1235,19 @@ class _TeamCard extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Expanded(child: Text(team.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _textColor(context), fontSize: 17, height: 1.1, fontWeight: FontWeight.w900))),
+                              Expanded(
+                                child: Text(
+                                  team.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: _textColor(context),
+                                    fontSize: 17,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
                               if (currentMember != null) ...[
                                 const SizedBox(width: 8),
                                 _RolePill(label: currentMember!.roleLabel),
@@ -1103,12 +1255,28 @@ class _TeamCard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 7),
-                          Text('$activeProjects active plans • $progressPercent% task completion', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _mutedColor(context), fontSize: 12, fontWeight: FontWeight.w700)),
+                          Text(
+                            '$activeProjects active plans • $progressPercent% task completion',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: _mutedColor(context),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ),
                     const SizedBox(width: 4),
-                    IconButton(tooltip: 'Team actions', onPressed: onMenuPressed, icon: Icon(Icons.more_horiz_rounded, color: _mutedColor(context))),
+                    IconButton(
+                      tooltip: 'Team actions',
+                      onPressed: onMenuPressed,
+                      icon: Icon(
+                        Icons.more_horiz_rounded,
+                        color: _mutedColor(context),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -1118,20 +1286,49 @@ class _TeamCard extends StatelessWidget {
                   children: [
                     _AvatarStack(members: members),
                     const SizedBox(width: 10),
-                    Expanded(child: Text(members.isEmpty ? 'No members loaded' : members.take(2).map((item) => item.displayName).join(', '), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _mutedColor(context), fontSize: 12, fontWeight: FontWeight.w700))),
+                    Expanded(
+                      child: Text(
+                        members.isEmpty
+                            ? 'No members loaded'
+                            : members
+                                  .take(2)
+                                  .map((item) => item.displayName)
+                                  .join(', '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _mutedColor(context),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _MetricChip(icon: Icons.people_outline_rounded, value: '${safeStats.memberCount}'),
+                    _MetricChip(
+                      icon: Icons.people_outline_rounded,
+                      value: '${safeStats.memberCount}',
+                    ),
                     const SizedBox(width: 8),
-                    _MetricChip(icon: Icons.folder_copy_outlined, value: '${safeStats.projectCount}'),
+                    _MetricChip(
+                      icon: Icons.folder_copy_outlined,
+                      value: '${safeStats.projectCount}',
+                    ),
                     const SizedBox(width: 8),
-                    _MetricChip(icon: Icons.check_box_outlined, value: '${safeStats.taskCount}'),
+                    _MetricChip(
+                      icon: Icons.check_box_outlined,
+                      value: '${safeStats.taskCount}',
+                    ),
                     const Spacer(),
                     if (canManage && onInvitePressed != null)
-                      _GhostButton(label: 'Invite', icon: Icons.person_add_alt_1_rounded, onTap: onInvitePressed!),
+                      _GhostButton(
+                        label: 'Invite',
+                        icon: Icons.person_add_alt_1_rounded,
+                        onTap: onInvitePressed!,
+                      ),
                   ],
                 ),
               ],
@@ -1148,7 +1345,11 @@ class _InvitationCard extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onReject;
 
-  const _InvitationCard({required this.invitation, required this.onAccept, required this.onReject});
+  const _InvitationCard({
+    required this.invitation,
+    required this.onAccept,
+    required this.onReject,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1165,9 +1366,22 @@ class _InvitationCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Team invitation', style: TextStyle(color: _textColor(context), fontSize: 17, fontWeight: FontWeight.w900)),
+                    Text(
+                      'Team invitation',
+                      style: TextStyle(
+                        color: _textColor(context),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text('Role: ${_roleLabel(invitation.role)}', style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w700)),
+                    Text(
+                      'Role: ${_roleLabel(invitation.role)}',
+                      style: TextStyle(
+                        color: _mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1176,9 +1390,16 @@ class _InvitationCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: OutlinedButton(onPressed: onReject, child: const Text('Decline'))),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onReject,
+                  child: const Text('Decline'),
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _PrimaryButton(label: 'Accept', onPressed: onAccept)),
+              Expanded(
+                child: _PrimaryButton(label: 'Accept', onPressed: onAccept),
+              ),
             ],
           ),
         ],
@@ -1194,13 +1415,23 @@ class _TeamDetailHero extends StatelessWidget {
   final bool canManage;
   final VoidCallback onInvitePressed;
 
-  const _TeamDetailHero({required this.team, required this.stats, required this.currentMember, required this.canManage, required this.onInvitePressed});
+  const _TeamDetailHero({
+    required this.team,
+    required this.stats,
+    required this.currentMember,
+    required this.canManage,
+    required this.onInvitePressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(gradient: PlanoraTheme.softPurpleGradientFor(context), borderRadius: BorderRadius.circular(26), border: Border.all(color: _borderColor(context))),
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.softPurpleGradientFor(context),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: _borderColor(context)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1212,13 +1443,35 @@ class _TeamDetailHero extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(team.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _textColor(context), fontSize: 19, fontWeight: FontWeight.w900)),
+                    Text(
+                      team.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _textColor(context),
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(currentMember == null ? 'Shared workspace' : 'Your role: ${currentMember!.roleLabel}', style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w700)),
+                    Text(
+                      currentMember == null
+                          ? 'Shared workspace'
+                          : 'Your role: ${currentMember!.roleLabel}',
+                      style: TextStyle(
+                        color: _mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              if (canManage) IconButton.filledTonal(tooltip: 'Invite member', onPressed: onInvitePressed, icon: const Icon(Icons.person_add_alt_1_rounded)),
+              if (canManage)
+                IconButton.filledTonal(
+                  tooltip: 'Invite member',
+                  onPressed: onInvitePressed,
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1226,11 +1479,29 @@ class _TeamDetailHero extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: _DetailMetric(label: 'Members', value: '${stats.memberCount}', icon: Icons.people_outline_rounded)),
+              Expanded(
+                child: _DetailMetric(
+                  label: 'Members',
+                  value: '${stats.memberCount}',
+                  icon: Icons.people_outline_rounded,
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _DetailMetric(label: 'Plans', value: '${stats.projectCount}', icon: Icons.folder_copy_outlined)),
+              Expanded(
+                child: _DetailMetric(
+                  label: 'Plans',
+                  value: '${stats.projectCount}',
+                  icon: Icons.folder_copy_outlined,
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _DetailMetric(label: 'Tasks', value: '${stats.taskCount}', icon: Icons.check_box_outlined)),
+              Expanded(
+                child: _DetailMetric(
+                  label: 'Tasks',
+                  value: '${stats.taskCount}',
+                  icon: Icons.check_box_outlined,
+                ),
+              ),
             ],
           ),
         ],
@@ -1244,19 +1515,40 @@ class _DetailMetric extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _DetailMetric({required this.label, required this.value, required this.icon});
+  const _DetailMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Column(
         children: [
           Icon(icon, color: Theme.of(context).colorScheme.primary, size: 18),
           const SizedBox(height: 5),
-          Text(value, style: TextStyle(color: _textColor(context), fontWeight: FontWeight.w900, fontSize: 16)),
-          Text(label, style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w800, fontSize: 10)),
+          Text(
+            value,
+            style: TextStyle(
+              color: _textColor(context),
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: _mutedColor(context),
+              fontWeight: FontWeight.w800,
+              fontSize: 10,
+            ),
+          ),
         ],
       ),
     );
@@ -1270,7 +1562,13 @@ class _StateCard extends StatelessWidget {
   final String? actionText;
   final VoidCallback? onAction;
 
-  const _StateCard({required this.icon, required this.title, required this.message, this.actionText, this.onAction});
+  const _StateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionText,
+    this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1280,9 +1578,24 @@ class _StateCard extends StatelessWidget {
         children: [
           _BrandTile(icon: icon, size: 58),
           const SizedBox(height: 14),
-          Text(title, textAlign: TextAlign.center, style: TextStyle(color: _textColor(context), fontSize: 18, fontWeight: FontWeight.w900)),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _textColor(context),
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(message, textAlign: TextAlign.center, style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w600)),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _mutedColor(context),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           if (actionText != null && onAction != null) ...[
             const SizedBox(height: 16),
             _PrimaryButton(label: actionText!, onPressed: onAction),
@@ -1332,14 +1645,23 @@ class _SkeletonBox extends StatelessWidget {
   final double height;
   final double radius;
 
-  const _SkeletonBox({required this.width, required this.height, required this.radius});
+  const _SkeletonBox({
+    required this.width,
+    required this.height,
+    required this.radius,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: width,
       height: height,
-      decoration: BoxDecoration(color: PlanoraTheme.isDark(context) ? const Color(0xFF334155) : const Color(0xFFEDE9FE), borderRadius: BorderRadius.circular(radius)),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.isDark(context)
+            ? const Color(0xFF334155)
+            : const Color(0xFFEDE9FE),
+        borderRadius: BorderRadius.circular(radius),
+      ),
     );
   }
 }
@@ -1350,13 +1672,23 @@ class _SurfaceCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final bool shadow;
 
-  const _SurfaceCard({required this.child, this.radius = 24, this.padding = const EdgeInsets.all(16), this.shadow = true});
+  const _SurfaceCard({
+    required this.child,
+    this.radius = 24,
+    this.padding = const EdgeInsets.all(16),
+    this.shadow = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: padding,
-      decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: BorderRadius.circular(radius), border: Border.all(color: _borderColor(context)), boxShadow: shadow ? PlanoraTheme.cardShadowFor(context) : null),
+      decoration: BoxDecoration(
+        color: _surfaceColor(context),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _borderColor(context)),
+        boxShadow: shadow ? PlanoraTheme.cardShadowFor(context) : null,
+      ),
       child: child,
     );
   }
@@ -1374,9 +1706,19 @@ class _BrandTile extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF7C3AED), Color(0xFF06B6D4)]),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF7C3AED), Color(0xFF06B6D4)],
+        ),
         borderRadius: BorderRadius.circular(size * 0.34),
-        boxShadow: const [BoxShadow(color: Color(0x337C3AED), blurRadius: 18, offset: Offset(0, 8))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x337C3AED),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
       child: Icon(icon, color: Colors.white, size: size * 0.50),
     );
@@ -1398,7 +1740,11 @@ class _AddButton extends StatelessWidget {
           width: 50,
           height: 50,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)]),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+            ),
             borderRadius: BorderRadius.circular(18),
             boxShadow: PlanoraTheme.floatingShadowFor(context),
           ),
@@ -1431,7 +1777,9 @@ class _ProgressLine extends StatelessWidget {
       child: LinearProgressIndicator(
         value: value.clamp(0.0, 1.0),
         minHeight: 8,
-        backgroundColor: PlanoraTheme.isDark(context) ? const Color(0xFF334155) : const Color(0xFFEDE9FE),
+        backgroundColor: PlanoraTheme.isDark(context)
+            ? const Color(0xFF334155)
+            : const Color(0xFFEDE9FE),
         color: Theme.of(context).colorScheme.primary,
       ),
     );
@@ -1444,7 +1792,9 @@ class _AvatarStack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (members.isEmpty) return const SizedBox(width: 34, height: 34, child: _EmptyAvatar());
+    if (members.isEmpty) {
+      return const SizedBox(width: 34, height: 34, child: _EmptyAvatar());
+    }
     final visible = members.take(3).toList();
     return SizedBox(
       width: 34.0 + ((visible.length - 1) * 22),
@@ -1452,7 +1802,10 @@ class _AvatarStack extends StatelessWidget {
       child: Stack(
         children: [
           for (int index = 0; index < visible.length; index++)
-            Positioned(left: index * 22.0, child: _InitialAvatar(label: visible[index].initials)),
+            Positioned(
+              left: index * 22.0,
+              child: _InitialAvatar(label: visible[index].initials),
+            ),
         ],
       ),
     );
@@ -1469,8 +1822,21 @@ class _InitialAvatar extends StatelessWidget {
       width: 34,
       height: 34,
       alignment: Alignment.center,
-      decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF06B6D4)]), shape: BoxShape.circle, border: Border.all(color: _surfaceColor(context), width: 2)),
-      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7C3AED), Color(0xFF06B6D4)],
+        ),
+        shape: BoxShape.circle,
+        border: Border.all(color: _surfaceColor(context), width: 2),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
@@ -1480,7 +1846,18 @@ class _EmptyAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(alignment: Alignment.center, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10), shape: BoxShape.circle), child: Icon(Icons.person_outline_rounded, color: Theme.of(context).colorScheme.primary, size: 18));
+    return Container(
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.person_outline_rounded,
+        color: Theme.of(context).colorScheme.primary,
+        size: 18,
+      ),
+    );
   }
 }
 
@@ -1492,8 +1869,18 @@ class _RolePill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(999)),
-      child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 10, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
@@ -1507,8 +1894,27 @@ class _MetricChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(color: PlanoraTheme.isDark(context) ? const Color(0xFF273449) : const Color(0xFFF8F5FF), borderRadius: BorderRadius.circular(999)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 14, color: _mutedColor(context)), const SizedBox(width: 5), Text(value, style: TextStyle(color: _textColor(context), fontSize: 12, fontWeight: FontWeight.w900))]),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.isDark(context)
+            ? const Color(0xFF273449)
+            : const Color(0xFFF8F5FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: _mutedColor(context)),
+          const SizedBox(width: 5),
+          Text(
+            value,
+            style: TextStyle(
+              color: _textColor(context),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1517,7 +1923,11 @@ class _GhostButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-  const _GhostButton({required this.label, required this.icon, required this.onTap});
+  const _GhostButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1527,8 +1937,25 @@ class _GhostButton extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: primary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(999)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 15, color: primary), const SizedBox(width: 5), Text(label, style: TextStyle(color: primary, fontSize: 12, fontWeight: FontWeight.w900))]),
+        decoration: BoxDecoration(
+          color: primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: primary),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1540,7 +1967,21 @@ class _SmallBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)), child: Text(label, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 11, fontWeight: FontWeight.w900)));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
   }
 }
 
@@ -1550,7 +1991,15 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(contentPadding: EdgeInsets.zero, leading: _InitialAvatar(label: member.initials), title: Text(member.displayName, style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text(member.roleLabel));
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: _InitialAvatar(label: member.initials),
+      title: Text(
+        member.displayName,
+        style: const TextStyle(fontWeight: FontWeight.w900),
+      ),
+      subtitle: Text(member.roleLabel),
+    );
   }
 }
 
@@ -1562,8 +2011,25 @@ class _ProjectRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(14)), child: Icon(Icons.folder_copy_outlined, color: Theme.of(context).colorScheme.primary, size: 19)),
-      title: Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(
+          Icons.folder_copy_outlined,
+          color: Theme.of(context).colorScheme.primary,
+          size: 19,
+        ),
+      ),
+      title: Text(
+        project.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w900),
+      ),
       subtitle: Text('${project.statusLabel} • ${project.deadlineLabel}'),
     );
   }
@@ -1576,7 +2042,19 @@ class _SheetSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))), _SmallBadge(label: trailing)]);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+        _SmallBadge(label: trailing),
+      ],
+    );
   }
 }
 
@@ -1586,7 +2064,23 @@ class _EmptyInlinePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: PlanoraTheme.isDark(context) ? const Color(0xFF273449) : const Color(0xFFF8F5FF), borderRadius: BorderRadius.circular(18)), child: Text(message, style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w700)));
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: PlanoraTheme.isDark(context)
+            ? const Color(0xFF273449)
+            : const Color(0xFFF8F5FF),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: _mutedColor(context),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 
@@ -1596,7 +2090,14 @@ class _BottomSheetShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(decoration: BoxDecoration(color: _surfaceColor(context), borderRadius: const BorderRadius.vertical(top: Radius.circular(30)), border: Border.all(color: _borderColor(context))), child: child);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: _surfaceColor(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        border: Border.all(color: _borderColor(context)),
+      ),
+      child: child,
+    );
   }
 }
 
@@ -1605,7 +2106,16 @@ class _SheetHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Container(width: 42, height: 5, decoration: BoxDecoration(color: _borderColor(context), borderRadius: BorderRadius.circular(999))));
+    return Center(
+      child: Container(
+        width: 42,
+        height: 5,
+        decoration: BoxDecoration(
+          color: _borderColor(context),
+          borderRadius: BorderRadius.circular(999),
+        ),
+      ),
+    );
   }
 }
 
@@ -1616,7 +2126,25 @@ class _SheetTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(subtitle, style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w600))]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: _mutedColor(context),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1628,10 +2156,29 @@ class _PrimaryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(gradient: onPressed == null ? null : PlanoraTheme.primaryGradientFor(context), color: onPressed == null ? _borderColor(context) : null, borderRadius: BorderRadius.circular(16), boxShadow: onPressed == null ? null : PlanoraTheme.floatingShadowFor(context)),
+      decoration: BoxDecoration(
+        gradient: onPressed == null
+            ? null
+            : PlanoraTheme.primaryGradientFor(context),
+        color: onPressed == null ? _borderColor(context) : null,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: onPressed == null
+            ? null
+            : PlanoraTheme.floatingShadowFor(context),
+      ),
       child: ElevatedButton(
         onPressed: onPressed,
-        style: ElevatedButton.styleFrom(elevation: 0, shadowColor: Colors.transparent, backgroundColor: Colors.transparent, foregroundColor: Colors.white, disabledBackgroundColor: Colors.transparent, minimumSize: const Size.fromHeight(48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.transparent,
+          minimumSize: const Size.fromHeight(48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
         child: Text(label),
       ),
     );
@@ -1650,7 +2197,13 @@ class _Entrance extends StatelessWidget {
       duration: Duration(milliseconds: 260 + (index * 38).clamp(0, 220)),
       curve: Curves.easeOutCubic,
       builder: (context, value, animatedChild) {
-        return Opacity(opacity: value, child: Transform.translate(offset: Offset(0, (1 - value) * 14), child: animatedChild));
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 14),
+            child: animatedChild,
+          ),
+        );
       },
       child: child,
     );
@@ -1658,27 +2211,41 @@ class _Entrance extends StatelessWidget {
 }
 
 Color _surfaceColor(BuildContext context) {
-  return PlanoraTheme.isDark(context) ? PlanoraTheme.darkSurface : PlanoraTheme.surface;
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkSurface
+      : PlanoraTheme.surface;
 }
 
 Color _textColor(BuildContext context) {
-  return PlanoraTheme.isDark(context) ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary;
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkTextPrimary
+      : PlanoraTheme.textPrimary;
 }
 
 Color _mutedColor(BuildContext context) {
-  return PlanoraTheme.isDark(context) ? PlanoraTheme.darkTextMuted : PlanoraTheme.textMuted;
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkTextMuted
+      : PlanoraTheme.textMuted;
 }
 
 Color _borderColor(BuildContext context) {
-  return PlanoraTheme.isDark(context) ? PlanoraTheme.darkBorder : PlanoraTheme.border;
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkBorder
+      : PlanoraTheme.border;
 }
 
 IconData _teamIcon(String name) {
   final normalized = name.toLowerCase();
-  if (normalized.contains('qa') || normalized.contains('test')) return Icons.fact_check_outlined;
-  if (normalized.contains('business') || normalized.contains('sales')) return Icons.business_center_outlined;
+  if (normalized.contains('qa') || normalized.contains('test')) {
+    return Icons.fact_check_outlined;
+  }
+  if (normalized.contains('business') || normalized.contains('sales')) {
+    return Icons.business_center_outlined;
+  }
   if (normalized.contains('design')) return Icons.palette_outlined;
-  if (normalized.contains('dev') || normalized.contains('planora')) return Icons.code_rounded;
+  if (normalized.contains('dev') || normalized.contains('planora')) {
+    return Icons.code_rounded;
+  }
   return Icons.groups_2_rounded;
 }
 
@@ -1696,6 +2263,8 @@ String _roleLabel(String role) {
 }
 
 String _apiMessage(Object error, {required String fallback}) {
-  if (error is ApiException && error.message.trim().isNotEmpty) return error.message;
+  if (error is ApiException && error.message.trim().isNotEmpty) {
+    return error.message;
+  }
   return fallback;
 }
