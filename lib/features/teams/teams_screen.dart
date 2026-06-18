@@ -524,7 +524,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
               } catch (error, stackTrace) {
                 debugPrint('Team name submit failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                showMessage(_apiMessage(error, fallback: 'Could not save team.'));
+                showMessage(
+                  _apiMessage(error, fallback: 'Could not save team.'),
+                );
               } finally {
                 if (sheetContext.mounted) {
                   setSheetState(() => isSubmitting = false);
@@ -649,8 +651,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        final members = membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
-        final projects = projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+        final members =
+            membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
+        final projects =
+            projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
         final stats = statsByTeamId[team.teamId];
         final currentMember = currentMemberForTeam(team);
         final canManage = canManageTeam(team);
@@ -671,11 +675,20 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _SheetStat(label: 'Members', value: '${stats?.memberCount ?? members.length}'),
+                    _SheetStat(
+                      label: 'Members',
+                      value: '${stats?.memberCount ?? members.length}',
+                    ),
                     const SizedBox(width: 8),
-                    _SheetStat(label: 'Plans', value: '${stats?.projectCount ?? projects.length}'),
+                    _SheetStat(
+                      label: 'Plans',
+                      value: '${stats?.projectCount ?? projects.length}',
+                    ),
                     const SizedBox(width: 8),
-                    _SheetStat(label: 'Tasks', value: '${stats?.taskCount ?? 0}'),
+                    _SheetStat(
+                      label: 'Tasks',
+                      value: '${stats?.taskCount ?? 0}',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -696,10 +709,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   for (final member in members)
                     _MemberRow(
                       member: member,
-                      canEditRole: canEditRoles &&
+                      canEditRole:
+                          canEditRoles &&
                           member.role != 'owner' &&
                           member.userId != widget.currentUserId,
-                      canRemove: canManage &&
+                      canRemove:
+                          canManage &&
                           member.role != 'owner' &&
                           member.userId != widget.currentUserId,
                       onChangeRole: () => openChangeRoleSheet(
@@ -707,7 +722,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
                         member: member,
                         parentContext: sheetContext,
                       ),
-                      onRemove: () => confirmRemoveMember(team: team, member: member),
+                      onRemove: () =>
+                          confirmRemoveMember(team: team, member: member),
                     ),
                 const SizedBox(height: 18),
                 const _SheetSectionHeader(title: 'Team plans'),
@@ -797,7 +813,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   const SizedBox(height: 14),
                   _RoleSelector(
                     selectedRole: selectedRole,
-                    onChanged: (role) => setSheetState(() => selectedRole = role),
+                    onChanged: (role) =>
+                        setSheetState(() => selectedRole = role),
                   ),
                   const SizedBox(height: 16),
                   _PrimarySheetButton(
@@ -850,7 +867,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
               } catch (error, stackTrace) {
                 debugPrint('Change role failed: $error');
                 debugPrintStack(stackTrace: stackTrace);
-                showMessage(_apiMessage(error, fallback: 'Could not update role.'));
+                showMessage(
+                  _apiMessage(error, fallback: 'Could not update role.'),
+                );
               } finally {
                 if (sheetContext.mounted) {
                   setSheetState(() => isSubmitting = false);
@@ -882,7 +901,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   const SizedBox(height: 14),
                   _RoleSelector(
                     selectedRole: selectedRole,
-                    onChanged: (role) => setSheetState(() => selectedRole = role),
+                    onChanged: (role) =>
+                        setSheetState(() => selectedRole = role),
                   ),
                   const SizedBox(height: 16),
                   _PrimarySheetButton(
@@ -917,7 +937,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     try {
-      await widget.teamsApi.removeMember(teamId: team.teamId, userId: member.userId);
+      await widget.teamsApi.removeMember(
+        teamId: team.teamId,
+        userId: member.userId,
+      );
 
       if (!mounted) {
         return;
@@ -937,7 +960,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
       context: context,
       builder: (_) => _ConfirmDialog(
         title: 'Delete team?',
-        message: 'This will remove "${team.name}" if your account has permission.',
+        message:
+            'This will remove "${team.name}" if your account has permission.',
         destructiveLabel: 'Delete',
       ),
     );
@@ -1183,14 +1207,19 @@ class _TeamsHero extends StatelessWidget {
                         fontSize: 12.5,
                         height: 1.35,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white60 : const Color(0xFF6D7390),
+                        color: isDark
+                            ? Colors.white60
+                            : const Color(0xFF6D7390),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              _GradientIconButton(icon: Icons.add_rounded, onPressed: onCreatePressed),
+              _GradientIconButton(
+                icon: Icons.add_rounded,
+                onPressed: onCreatePressed,
+              ),
             ],
           ),
           const SizedBox(height: 18),
@@ -1198,12 +1227,32 @@ class _TeamsHero extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _HeroStatPill(icon: Icons.groups_outlined, label: 'Teams', value: teamCount),
-              _HeroStatPill(icon: Icons.person_outline_rounded, label: 'Members', value: memberCount),
-              _HeroStatPill(icon: Icons.folder_copy_outlined, label: 'Plans', value: projectCount),
-              _HeroStatPill(icon: Icons.check_box_outlined, label: 'Tasks', value: taskCount),
+              _HeroStatPill(
+                icon: Icons.groups_outlined,
+                label: 'Teams',
+                value: teamCount,
+              ),
+              _HeroStatPill(
+                icon: Icons.person_outline_rounded,
+                label: 'Members',
+                value: memberCount,
+              ),
+              _HeroStatPill(
+                icon: Icons.folder_copy_outlined,
+                label: 'Plans',
+                value: projectCount,
+              ),
+              _HeroStatPill(
+                icon: Icons.check_box_outlined,
+                label: 'Tasks',
+                value: taskCount,
+              ),
               if (pendingInviteCount > 0)
-                _HeroStatPill(icon: Icons.mail_outline_rounded, label: 'Invites', value: pendingInviteCount),
+                _HeroStatPill(
+                  icon: Icons.mail_outline_rounded,
+                  label: 'Invites',
+                  value: pendingInviteCount,
+                ),
             ],
           ),
         ],
@@ -1318,7 +1367,10 @@ class _SearchField extends StatelessWidget {
             },
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 16,
+          ),
         ),
       ),
     );
@@ -1422,7 +1474,10 @@ class _TabButton extends StatelessWidget {
               if (badge != null && badge! > 0) ...[
                 const SizedBox(width: 7),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(99),
@@ -1545,7 +1600,9 @@ class _TeamCard extends StatelessWidget {
                                     fontSize: 17,
                                     height: 1.1,
                                     fontWeight: FontWeight.w900,
-                                    color: isDark ? Colors.white : const Color(0xFF171B2E),
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF171B2E),
                                   ),
                                 ),
                               ),
@@ -1563,7 +1620,9 @@ class _TeamCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white54 : const Color(0xFF6D7390),
+                              color: isDark
+                                  ? Colors.white54
+                                  : const Color(0xFF6D7390),
                             ),
                           ),
                         ],
@@ -1572,11 +1631,16 @@ class _TeamCard extends StatelessWidget {
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                      constraints: const BoxConstraints(
+                        minWidth: 34,
+                        minHeight: 34,
+                      ),
                       onPressed: onMenuPressed,
                       icon: Icon(
                         Icons.more_vert_rounded,
-                        color: isDark ? Colors.white54 : const Color(0xFF68708A),
+                        color: isDark
+                            ? Colors.white54
+                            : const Color(0xFF68708A),
                       ),
                     ),
                   ],
@@ -1587,7 +1651,9 @@ class _TeamCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: completion,
                     minHeight: 5,
-                    backgroundColor: isDark ? const Color(0xFF2C2845) : const Color(0xFFE9EBF4),
+                    backgroundColor: isDark
+                        ? const Color(0xFF2C2845)
+                        : const Color(0xFFE9EBF4),
                     valueColor: AlwaysStoppedAnimation<Color>(primary),
                   ),
                 ),
@@ -1598,19 +1664,27 @@ class _TeamCard extends StatelessWidget {
                       child: Text(
                         members.isEmpty
                             ? 'Members loading'
-                            : members.take(3).map((member) => member.displayName).join(', '),
+                            : members
+                                  .take(3)
+                                  .map((member) => member.displayName)
+                                  .join(', '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white38 : const Color(0xFF8A91AA),
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF8A91AA),
                         ),
                       ),
                     ),
                     _MiniStat(icon: Icons.group_outlined, value: memberCount),
                     const SizedBox(width: 12),
-                    _MiniStat(icon: Icons.folder_copy_outlined, value: projectCount),
+                    _MiniStat(
+                      icon: Icons.folder_copy_outlined,
+                      value: projectCount,
+                    ),
                     const SizedBox(width: 12),
                     _MiniStat(icon: Icons.check_box_outlined, value: taskCount),
                   ],
@@ -1743,7 +1817,9 @@ class _InvitationCard extends StatelessWidget {
                         'Team #${invitation.teamId}',
                         style: TextStyle(
                           fontWeight: FontWeight.w900,
-                          color: isDark ? Colors.white : const Color(0xFF171B2E),
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF171B2E),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1751,7 +1827,9 @@ class _InvitationCard extends StatelessWidget {
                         'Invited as ${_roleLabel(invitation.role)}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark ? Colors.white60 : const Color(0xFF6D7390),
+                          color: isDark
+                              ? Colors.white60
+                              : const Color(0xFF6D7390),
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -1764,7 +1842,10 @@ class _InvitationCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _OutlineActionButton(label: 'Decline', onTap: onReject),
+                  child: _OutlineActionButton(
+                    label: 'Decline',
+                    onTap: onReject,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1780,10 +1861,7 @@ class _InvitationCard extends StatelessWidget {
 }
 
 class _CardShell extends StatelessWidget {
-  const _CardShell({
-    required this.child,
-    this.borderRadius = 22,
-  });
+  const _CardShell({required this.child, this.borderRadius = 22});
 
   final Widget child;
   final double borderRadius;
@@ -1893,7 +1971,9 @@ class _CircleIconButton extends StatelessWidget {
       child: IconButton(
         onPressed: onPressed,
         style: IconButton.styleFrom(
-          backgroundColor: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white,
+          backgroundColor: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : Colors.white,
           foregroundColor: isDark ? Colors.white : const Color(0xFF1E2233),
         ),
         icon: Icon(icon, size: 20),
@@ -1918,7 +1998,7 @@ class _MiniStat extends StatelessWidget {
         Icon(
           icon,
           size: 15,
-          color: isDark ? Colors.white45 : const Color(0xFF667085),
+          color: isDark ? Colors.white : const Color(0xFF667085),
         ),
         const SizedBox(width: 4),
         Text(
@@ -2001,7 +2081,9 @@ class _PrimaryMiniButton extends StatelessWidget {
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
       ),
@@ -2028,7 +2110,9 @@ class _OutlineActionButton extends StatelessWidget {
           side: BorderSide(
             color: isDark ? const Color(0xFF302A56) : const Color(0xFFE5E7EB),
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
       ),
@@ -2095,7 +2179,9 @@ class _BottomSheetShell extends StatelessWidget {
               color: isDark ? const Color(0xFF111026) : Colors.white,
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: isDark ? const Color(0xFF302A56) : const Color(0xFFE9EAF2),
+                color: isDark
+                    ? const Color(0xFF302A56)
+                    : const Color(0xFFE9EAF2),
               ),
               boxShadow: [
                 BoxShadow(
@@ -2227,13 +2313,18 @@ class _PrimarySheetButton extends StatelessWidget {
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Colors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: isLoading
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
       ),
@@ -2303,7 +2394,9 @@ class _RoleChoice extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? primary.withValues(alpha: 0.32)
-                  : (isDark ? const Color(0xFF302A56) : const Color(0xFFE5E7EB)),
+                  : (isDark
+                        ? const Color(0xFF302A56)
+                        : const Color(0xFFE5E7EB)),
             ),
           ),
           child: Center(
@@ -2388,7 +2481,7 @@ class _ActionTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white45 : const Color(0xFF667085),
+                        color: isDark ? Colors.white : const Color(0xFF667085),
                       ),
                     ),
                   ],
@@ -2442,7 +2535,7 @@ class _SheetStat extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: isDark ? Colors.white45 : const Color(0xFF667085),
+                color: isDark ? Colors.white : const Color(0xFF667085),
               ),
             ),
           ],
@@ -2520,7 +2613,11 @@ class _MemberRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 36),
+          _InitialsAvatar(
+            label: member.initials,
+            color: _avatarColor(member.userId),
+            size: 36,
+          ),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -2543,7 +2640,7 @@ class _MemberRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white45 : const Color(0xFF667085),
+                    color: isDark ? Colors.white : const Color(0xFF667085),
                   ),
                 ),
               ],
@@ -2566,7 +2663,10 @@ class _MemberRow extends StatelessWidget {
               },
               itemBuilder: (context) => [
                 if (canEditRole)
-                  const PopupMenuItem(value: 'role', child: Text('Change role')),
+                  const PopupMenuItem(
+                    value: 'role',
+                    child: Text('Change role'),
+                  ),
                 if (canRemove)
                   const PopupMenuItem(value: 'remove', child: Text('Remove')),
               ],
@@ -2630,7 +2730,7 @@ class _ProjectRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white45 : const Color(0xFF667085),
+                    color: isDark ? Colors.white : const Color(0xFF667085),
                   ),
                 ),
               ],
@@ -2659,7 +2759,11 @@ class _MemberPreview extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _InitialsAvatar(label: member.initials, color: _avatarColor(member.userId), size: 42),
+          _InitialsAvatar(
+            label: member.initials,
+            color: _avatarColor(member.userId),
+            size: 42,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -2677,7 +2781,7 @@ class _MemberPreview extends StatelessWidget {
                   'Current role: ${member.roleLabel}',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white45 : const Color(0xFF667085),
+                    color: isDark ? Colors.white : const Color(0xFF667085),
                   ),
                 ),
               ],
@@ -2690,7 +2794,11 @@ class _MemberPreview extends StatelessWidget {
 }
 
 class _InitialsAvatar extends StatelessWidget {
-  const _InitialsAvatar({required this.label, required this.color, required this.size});
+  const _InitialsAvatar({
+    required this.label,
+    required this.color,
+    required this.size,
+  });
 
   final String label;
   final Color color;
@@ -2729,7 +2837,7 @@ class _MutedText extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          color: isDark ? Colors.white45 : const Color(0xFF8A91AA),
+          color: isDark ? Colors.white : const Color(0xFF8A91AA),
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -2969,7 +3077,8 @@ String _apiMessage(Object error, {required String fallback}) {
   if (error is ApiException) {
     final message = error.message.trim();
 
-    if (message.isNotEmpty && message != 'Something went wrong. Please try again.') {
+    if (message.isNotEmpty &&
+        message != 'Something went wrong. Please try again.') {
       return message;
     }
   }
