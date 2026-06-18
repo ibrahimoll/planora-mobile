@@ -59,17 +59,28 @@ class _TeamsScreenState extends State<TeamsScreen> {
     super.dispose();
   }
 
-  List<TeamInvitationModel> get pendingInvitations =>
-      invitations.where((item) => item.isPending).toList();
+  List<TeamInvitationModel> get pendingInvitations {
+    return invitations.where((item) => item.isPending).toList();
+  }
 
-  int get totalMembers =>
-      statsByTeamId.values.fold(0, (sum, item) => sum + item.memberCount);
+  int get totalMembers {
+    return statsByTeamId.values.fold(0, (sum, stats) => sum + stats.memberCount);
+  }
 
-  int get totalProjects =>
-      statsByTeamId.values.fold(0, (sum, item) => sum + item.projectCount);
+  int get totalPlans {
+    return statsByTeamId.values.fold(0, (sum, stats) => sum + stats.projectCount);
+  }
 
-  int get totalTasks =>
-      statsByTeamId.values.fold(0, (sum, item) => sum + item.taskCount);
+  int get totalTasks {
+    return statsByTeamId.values.fold(0, (sum, stats) => sum + stats.taskCount);
+  }
+
+  int get completedTasks {
+    return statsByTeamId.values.fold(
+      0,
+      (sum, stats) => sum + stats.completedTaskCount,
+    );
+  }
 
   List<TeamModel> get visibleTeams {
     final query = searchQuery.trim().toLowerCase();
@@ -78,6 +89,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     return teams.where((team) {
       final members = membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
       final projects = projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
+
       return team.name.toLowerCase().contains(query) ||
           members.any(
             (member) =>
@@ -105,6 +117,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     try {
       final loadedTeams = await widget.teamsApi.getTeams();
       final loadedInvitations = await widget.teamsApi.getMyInvitations();
+
       if (!mounted) return;
 
       setState(() {
@@ -121,7 +134,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
     } catch (error, stackTrace) {
       debugPrint('Teams load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
+
       setState(() {
         isLoading = false;
         errorMessage = _apiMessage(error, fallback: 'Could not load teams.');
@@ -133,6 +148,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
     for (final team in loadedTeams) {
       try {
         final members = await widget.teamsApi.getTeamMembers(team.teamId);
+
         var projects = <ProjectModel>[];
         try {
           projects = await widget.projectsApi.getTeamProjects(team.teamId);
@@ -143,15 +159,14 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
         var taskCount = 0;
         var completedTaskCount = 0;
+
         for (final project in projects) {
           try {
             final tasks = await widget.tasksApi.getProjectTasks(
               project: TaskProjectSummary.fromProject(project),
             );
             taskCount += tasks.length;
-            completedTaskCount += tasks
-                .where((item) => item.task.isCompleted)
-                .length;
+            completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
           } catch (error, stackTrace) {
             debugPrint('Team task load failed: $error');
             debugPrintStack(stackTrace: stackTrace);
@@ -159,6 +174,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
         }
 
         if (!mounted) return;
+
         setState(() {
           membersByTeamId[team.teamId] = members;
           projectsByTeamId[team.teamId] = projects;
@@ -172,7 +188,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
       } catch (error, stackTrace) {
         debugPrint('Team details load failed: $error');
         debugPrintStack(stackTrace: stackTrace);
+
         if (!mounted) return;
+
         setState(() {
           membersByTeamId[team.teamId] = const [];
           projectsByTeamId[team.teamId] = const [];
@@ -191,51 +209,65 @@ class _TeamsScreenState extends State<TeamsScreen> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: EdgeInsets.fromLTRB(0, 0, 0, widget.showBackButton ? 28 : 112),
+        padding: EdgeInsets.fromLTRB(20, 18, 20, widget.showBackButton ? 28 : 112),
         children: [
-          _Entrance(
-            index: 0,
-            child: _TeamsHero(
-              showBackButton: widget.showBackButton,
-              onBackPressed: () => Navigator.of(context).maybePop(),
-              onCreatePressed: openCreateTeamSheet,
-              teamCount: teams.length,
-              memberCount: totalMembers,
-              projectCount: totalProjects,
-              taskCount: totalTasks,
-              invitationCount: pendingInvitations.length,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Entrance(
-            index: 1,
-            child: _SearchField(
-              controller: searchController,
-              onChanged: (value) => setState(() => searchQuery = value),
-              onClear: clearSearch,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _Entrance(
-            index: 2,
-            child: _TeamTabs(
-              selectedIndex: selectedTab,
-              invitationCount: pendingInvitations.length,
-              onChanged: (index) => setState(() => selectedTab = index),
-            ),
-          ),
-          const SizedBox(height: 14),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 260),
-            child: selectedTab == 0
-                ? Column(
-                    key: const ValueKey('teams'),
-                    children: buildTeamContent(),
-                  )
-                : Column(
-                    key: const ValueKey('invitations'),
-                    children: buildInvitationContent(),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AnimatedIn(
+                    index: 0,
+                    child: _TeamsCommandHeader(
+                      showBackButton: widget.showBackButton,
+                      onBackPressed: () => Navigator.of(context).maybePop(),
+                      onCreatePressed: openCreateTeamSheet,
+                      teamCount: teams.length,
+                      memberCount: totalMembers,
+                      planCount: totalPlans,
+                      taskCount: totalTasks,
+                      completedTaskCount: completedTasks,
+                      invitationCount: pendingInvitations.length,
+                    ),
                   ),
+                  const SizedBox(height: 16),
+                  _AnimatedIn(
+                    index: 1,
+                    child: _SearchField(
+                      controller: searchController,
+                      onChanged: (value) => setState(() => searchQuery = value),
+                      onClear: clearSearch,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _AnimatedIn(
+                    index: 2,
+                    child: _SegmentedTabs(
+                      selectedIndex: selectedTab,
+                      invitationCount: pendingInvitations.length,
+                      onChanged: (index) => setState(() => selectedTab = index),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    child: selectedTab == 0
+                        ? Column(
+                            key: const ValueKey('teams'),
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: buildTeamContent(),
+                          )
+                        : Column(
+                            key: const ValueKey('invitations'),
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: buildInvitationContent(),
+                          ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -246,45 +278,28 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return Scaffold(
+      backgroundColor: _pageBackground(context),
       body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.onboardingBackgroundFor(context),
-        ),
-        child: SafeArea(
-          bottom: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                child: content,
-              ),
-            ),
-          ),
-        ),
+        decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
+        child: SafeArea(bottom: false, child: content),
       ),
     );
-  }
-
-  void clearSearch() {
-    searchController.clear();
-    setState(() => searchQuery = '');
   }
 
   List<Widget> buildTeamContent() {
     if (isLoading && teams.isEmpty) {
       return const [
-        _TeamLoadingCard(),
+        _LoadingTeamTile(),
         SizedBox(height: 12),
-        _TeamLoadingCard(),
+        _LoadingTeamTile(),
         SizedBox(height: 12),
-        _TeamLoadingCard(),
+        _LoadingTeamTile(),
       ];
     }
 
     if (errorMessage != null && teams.isEmpty) {
       return [
-        _StateCard(
+        _EmptyStateCard(
           icon: Icons.cloud_off_rounded,
           title: 'Teams could not load',
           message: errorMessage!,
@@ -296,12 +311,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
     if (visibleTeams.isEmpty) {
       return [
-        _StateCard(
+        _EmptyStateCard(
           icon: Icons.groups_2_outlined,
           title: searchQuery.trim().isEmpty ? 'No teams yet' : 'No teams found',
           message: searchQuery.trim().isEmpty
-              ? 'Create your first workspace and keep team plans in one place.'
-              : 'Try another team, member, or plan name.',
+              ? 'Create a focused team hub and attach people, plans, and tasks.'
+              : 'Try another team, member, role, or plan name.',
           actionText: searchQuery.trim().isEmpty ? 'Create Team' : null,
           onAction: searchQuery.trim().isEmpty ? openCreateTeamSheet : null,
         ),
@@ -309,23 +324,27 @@ class _TeamsScreenState extends State<TeamsScreen> {
     }
 
     return [
-      _SectionHeader(count: visibleTeams.length),
+      _SectionTitle(
+        title: 'Team hubs',
+        count: visibleTeams.length,
+        subtitle: 'Tap a card to inspect members and attached plans.',
+      ),
       const SizedBox(height: 10),
       for (int index = 0; index < visibleTeams.length; index++) ...[
-        _Entrance(
+        _AnimatedIn(
           index: index + 3,
-          child: _TeamCard(
+          child: _PlanoraTeamCard(
             team: visibleTeams[index],
             members: membersByTeamId[visibleTeams[index].teamId] ?? const [],
             projects: projectsByTeamId[visibleTeams[index].teamId] ?? const [],
-            stats: statsByTeamId[visibleTeams[index].teamId],
+            stats: statsByTeamId[visibleTeams[index].teamId] ?? const _TeamStats(),
             currentMember: currentMemberForTeam(visibleTeams[index]),
             canManage: canManageTeam(visibleTeams[index]),
             onTap: () => openTeamDetailsSheet(visibleTeams[index]),
+            onMenuPressed: () => openTeamActionsSheet(visibleTeams[index]),
             onInvitePressed: canManageTeam(visibleTeams[index])
                 ? () => openInviteMemberSheet(visibleTeams[index])
                 : null,
-            onMenuPressed: () => openTeamActionsSheet(visibleTeams[index]),
           ),
         ),
         const SizedBox(height: 12),
@@ -335,30 +354,33 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   List<Widget> buildInvitationContent() {
     if (isLoading && invitations.isEmpty) {
-      return const [_TeamLoadingCard()];
+      return const [_LoadingTeamTile()];
     }
 
     if (pendingInvitations.isEmpty) {
       return const [
-        _StateCard(
+        _EmptyStateCard(
           icon: Icons.mail_outline_rounded,
           title: 'No invitations',
-          message:
-              'Team invitations will appear here when someone invites you.',
+          message: 'Team invitations will appear here when someone invites you.',
         ),
       ];
     }
 
     return [
+      _SectionTitle(
+        title: 'Invitations',
+        count: pendingInvitations.length,
+        subtitle: 'Accept team access requests from here.',
+      ),
+      const SizedBox(height: 10),
       for (int index = 0; index < pendingInvitations.length; index++) ...[
-        _Entrance(
-          index: index,
+        _AnimatedIn(
+          index: index + 3,
           child: _InvitationCard(
             invitation: pendingInvitations[index],
-            onAccept: () =>
-                respondToInvitation(pendingInvitations[index], accept: true),
-            onReject: () =>
-                respondToInvitation(pendingInvitations[index], accept: false),
+            onAccept: () => respondToInvitation(pendingInvitations[index], accept: true),
+            onReject: () => respondToInvitation(pendingInvitations[index], accept: false),
           ),
         ),
         const SizedBox(height: 12),
@@ -366,12 +388,16 @@ class _TeamsScreenState extends State<TeamsScreen> {
     ];
   }
 
+  void clearSearch() {
+    searchController.clear();
+    setState(() => searchQuery = '');
+  }
+
   TeamMemberModel? currentMemberForTeam(TeamModel team) {
     final currentUserId = widget.currentUserId;
     if (currentUserId == null) return null;
 
-    for (final member
-        in membersByTeamId[team.teamId] ?? const <TeamMemberModel>[]) {
+    for (final member in membersByTeamId[team.teamId] ?? const <TeamMemberModel>[]) {
       if (member.userId == currentUserId) return member;
     }
 
@@ -393,9 +419,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       );
   }
@@ -409,14 +433,28 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   Future<void> openCreateTeamSheet() async {
     await openTeamNameSheet(
-      title: 'Create team',
-      subtitle: 'Start a clean workspace for people, plans, and delivery.',
+      title: 'Create team hub',
+      subtitle: 'Name the workspace your people and plans will live inside.',
       initialName: '',
       buttonLabel: 'Create Team',
       loadingLabel: 'Creating...',
       onSubmit: (name) async {
         await widget.teamsApi.createTeam(name);
         await reloadAfterMutation('Team created.');
+      },
+    );
+  }
+
+  Future<void> openRenameTeamSheet(TeamModel team) async {
+    await openTeamNameSheet(
+      title: 'Rename team',
+      subtitle: 'Update the display name for this team hub.',
+      initialName: team.name,
+      buttonLabel: 'Save Name',
+      loadingLabel: 'Saving...',
+      onSubmit: (name) async {
+        await widget.teamsApi.updateTeam(teamId: team.teamId, name: name);
+        await reloadAfterMutation('Team renamed.');
       },
     );
   }
@@ -439,7 +477,29 @@ class _TeamsScreenState extends State<TeamsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
-            return _BottomSheetShell(
+            Future<void> submit() async {
+              if (isSubmitting) return;
+              final name = controller.text.trim();
+              if (name.length < 2) {
+                showMessage('Team name must be at least 2 characters.');
+                return;
+              }
+
+              setSheetState(() => isSubmitting = true);
+              try {
+                await onSubmit(name);
+                if (!sheetContext.mounted) return;
+                Navigator.of(sheetContext).pop();
+              } catch (error, stackTrace) {
+                debugPrint('Team name submit failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+                if (!sheetContext.mounted) return;
+                showMessage(_apiMessage(error, fallback: 'Could not save team.'));
+                setSheetState(() => isSubmitting = false);
+              }
+            }
+
+            return _ModalShell(
               child: Padding(
                 padding: EdgeInsets.only(
                   left: 20,
@@ -463,28 +523,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                         labelText: 'Team name',
                         prefixIcon: Icon(Icons.groups_2_outlined),
                       ),
-                      onSubmitted: (_) => submitTeamName(
-                        sheetContext,
-                        setSheetState,
-                        controller,
-                        isSubmitting,
-                        (value) => isSubmitting = value,
-                        onSubmit,
-                      ),
+                      onSubmitted: (_) => submit(),
                     ),
                     const SizedBox(height: 18),
-                    _PrimaryButton(
+                    _GradientButton(
                       label: isSubmitting ? loadingLabel : buttonLabel,
-                      onPressed: isSubmitting
-                          ? null
-                          : () => submitTeamName(
-                              sheetContext,
-                              setSheetState,
-                              controller,
-                              isSubmitting,
-                              (value) => isSubmitting = value,
-                              onSubmit,
-                            ),
+                      onPressed: isSubmitting ? null : submit,
                     ),
                   ],
                 ),
@@ -496,36 +540,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
     );
 
     controller.dispose();
-  }
-
-  Future<void> submitTeamName(
-    BuildContext sheetContext,
-    StateSetter setSheetState,
-    TextEditingController controller,
-    bool isSubmitting,
-    ValueChanged<bool> setSubmitting,
-    Future<void> Function(String name) onSubmit,
-  ) async {
-    if (isSubmitting) return;
-    final name = controller.text.trim();
-    if (name.length < 2) {
-      showMessage('Team name must be at least 2 characters.');
-      return;
-    }
-
-    setSheetState(() => setSubmitting(true));
-
-    try {
-      await onSubmit(name);
-      if (!sheetContext.mounted) return;
-      Navigator.of(sheetContext).pop();
-    } catch (error, stackTrace) {
-      debugPrint('Team name submit failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!sheetContext.mounted) return;
-      showMessage(_apiMessage(error, fallback: 'Could not save team.'));
-      setSheetState(() => setSubmitting(false));
-    }
   }
 
   Future<void> openInviteMemberSheet(TeamModel team) async {
@@ -540,7 +554,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
-            return _BottomSheetShell(
+            return _ModalShell(
               child: Padding(
                 padding: EdgeInsets.only(
                   left: 20,
@@ -556,7 +570,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     const SizedBox(height: 16),
                     _SheetTitle(
                       title: 'Invite member',
-                      subtitle: 'Send an invite to ${team.name} by username.',
+                      subtitle: 'Send a username invite to ${team.name}.',
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -575,10 +589,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                         prefixIcon: Icon(Icons.admin_panel_settings_outlined),
                       ),
                       items: const [
-                        DropdownMenuItem(
-                          value: 'member',
-                          child: Text('Member'),
-                        ),
+                        DropdownMenuItem(value: 'member', child: Text('Member')),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
@@ -586,7 +597,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                       },
                     ),
                     const SizedBox(height: 18),
-                    _PrimaryButton(
+                    _GradientButton(
                       label: isSubmitting ? 'Sending...' : 'Send Invite',
                       onPressed: isSubmitting
                           ? null
@@ -640,32 +651,41 @@ class _TeamsScreenState extends State<TeamsScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return _BottomSheetShell(
+        return _ModalShell(
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const _SheetHandle(),
-                  const SizedBox(height: 10),
-                  ListTile(
-                    leading: const Icon(Icons.open_in_new_rounded),
-                    title: const Text('Open team'),
+                  const SizedBox(height: 12),
+                  _ActionTile(
+                    icon: Icons.open_in_new_rounded,
+                    title: 'Open team hub',
                     onTap: () {
                       Navigator.pop(sheetContext);
                       openTeamDetailsSheet(team);
                     },
                   ),
-                  if (canManage)
-                    ListTile(
-                      leading: const Icon(Icons.person_add_alt_1_rounded),
-                      title: const Text('Invite member'),
+                  if (canManage) ...[
+                    _ActionTile(
+                      icon: Icons.person_add_alt_1_rounded,
+                      title: 'Invite member',
                       onTap: () {
                         Navigator.pop(sheetContext);
                         openInviteMemberSheet(team);
                       },
                     ),
+                    _ActionTile(
+                      icon: Icons.drive_file_rename_outline_rounded,
+                      title: 'Rename team',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        openRenameTeamSheet(team);
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -679,15 +699,15 @@ class _TeamsScreenState extends State<TeamsScreen> {
     final members = membersByTeamId[team.teamId] ?? const <TeamMemberModel>[];
     final projects = projectsByTeamId[team.teamId] ?? const <ProjectModel>[];
     final stats = statsByTeamId[team.teamId] ?? const _TeamStats();
-    final canManage = canManageTeam(team);
     final currentMember = currentMemberForTeam(team);
+    final canManage = canManageTeam(team);
 
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return _BottomSheetShell(
+        return _ModalShell(
           child: DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.82,
@@ -700,7 +720,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 children: [
                   const _SheetHandle(),
                   const SizedBox(height: 16),
-                  _TeamDetailHero(
+                  _TeamDetailHeader(
                     team: team,
                     stats: stats,
                     currentMember: currentMember,
@@ -711,26 +731,19 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     },
                   ),
                   const SizedBox(height: 18),
-                  _SheetSectionTitle(
-                    title: 'Members',
-                    trailing: '${members.length}',
-                  ),
-                  const SizedBox(height: 8),
+                  _SheetSectionTitle(title: 'Members', count: members.length),
+                  const SizedBox(height: 10),
                   if (members.isEmpty)
-                    const _EmptyInlinePanel(message: 'No members loaded yet.')
+                    const _InlineEmpty(message: 'No members loaded yet.')
                   else
                     for (final member in members) _MemberRow(member: member),
                   const SizedBox(height: 18),
-                  _SheetSectionTitle(
-                    title: 'Plans',
-                    trailing: '${projects.length}',
-                  ),
-                  const SizedBox(height: 8),
+                  _SheetSectionTitle(title: 'Plans', count: projects.length),
+                  const SizedBox(height: 10),
                   if (projects.isEmpty)
-                    const _EmptyInlinePanel(message: 'No team plans yet.')
+                    const _InlineEmpty(message: 'No team plans attached yet.')
                   else
-                    for (final project in projects.take(8))
-                      _ProjectRow(project: project),
+                    for (final project in projects.take(8)) _ProjectRow(project: project),
                 ],
               );
             },
@@ -750,13 +763,16 @@ class _TeamsScreenState extends State<TeamsScreen> {
       } else {
         await widget.teamsApi.rejectInvitation(invitation.invitationId);
       }
+
       await reloadAfterMutation(
         accept ? 'Invitation accepted.' : 'Invitation declined.',
       );
     } catch (error, stackTrace) {
       debugPrint('Invitation response failed: $error');
       debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
+
       showMessage(_apiMessage(error, fallback: 'Could not update invitation.'));
     }
   }
@@ -781,177 +797,139 @@ class _TeamStats {
   }
 }
 
-class _TeamsHero extends StatelessWidget {
+class _TeamsCommandHeader extends StatelessWidget {
   final bool showBackButton;
   final VoidCallback onBackPressed;
   final VoidCallback onCreatePressed;
   final int teamCount;
   final int memberCount;
-  final int projectCount;
+  final int planCount;
   final int taskCount;
+  final int completedTaskCount;
   final int invitationCount;
 
-  const _TeamsHero({
+  const _TeamsCommandHeader({
     required this.showBackButton,
     required this.onBackPressed,
     required this.onCreatePressed,
     required this.teamCount,
     required this.memberCount,
-    required this.projectCount,
+    required this.planCount,
     required this.taskCount,
+    required this.completedTaskCount,
     required this.invitationCount,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final primary = Theme.of(context).colorScheme.primary;
+    final progress = taskCount == 0 ? 0 : (completedTaskCount / taskCount * 100).round();
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? const [Color(0xFF1A1238), Color(0xFF0F172A)]
-              : const [Color(0xFFFFFFFF), Color(0xFFF7F2FF)],
-        ),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: _borderColor(context)),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withValues(alpha: isDark ? 0.20 : 0.11),
-            blurRadius: 28,
-            offset: const Offset(0, 16),
-          ),
-        ],
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: PlanoraTheme.floatingShadowFor(context),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (showBackButton) ...[
-                _CircleIconButton(
-                  icon: Icons.arrow_back_rounded,
-                  onPressed: onBackPressed,
-                ),
+                _GlassIconButton(icon: Icons.arrow_back_rounded, onTap: onBackPressed),
                 const SizedBox(width: 10),
               ],
-              _BrandTile(icon: Icons.groups_2_rounded, size: 52),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Teams',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: _textColor(context),
-                            height: 1.05,
-                          ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Clean workspaces for people, plans, and shared delivery.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _mutedColor(context),
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(17),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
                 ),
+                child: const Icon(Icons.groups_2_rounded, color: Colors.white),
               ),
-              const SizedBox(width: 12),
-              _AddButton(onPressed: onCreatePressed),
+              const Spacer(),
+              _HeaderBadge(
+                icon: Icons.mail_outline_rounded,
+                label: invitationCount == 0 ? 'No invites' : '$invitationCount invites',
+              ),
+              const SizedBox(width: 10),
+              _GlassIconButton(icon: Icons.add_rounded, onTap: onCreatePressed),
             ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Team command center',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            'Manage people, shared plans, and delivery progress without the clutter.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  fontWeight: FontWeight.w700,
+                  height: 1.45,
+                ),
           ),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.045)
-                  : Colors.white.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: _borderColor(context)),
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
             ),
             child: Row(
               children: [
                 Expanded(
-                  child: _HeroMetric(
+                  child: _HeaderMetric(
                     label: 'Teams',
                     value: '$teamCount',
-                    icon: Icons.groups_2_outlined,
+                    icon: Icons.dashboard_customize_outlined,
                   ),
                 ),
-                _MetricDivider(isDark: isDark),
                 Expanded(
-                  child: _HeroMetric(
+                  child: _HeaderMetric(
                     label: 'People',
                     value: '$memberCount',
                     icon: Icons.people_alt_outlined,
                   ),
                 ),
-                _MetricDivider(isDark: isDark),
                 Expanded(
-                  child: _HeroMetric(
+                  child: _HeaderMetric(
                     label: 'Plans',
-                    value: '$projectCount',
+                    value: '$planCount',
                     icon: Icons.folder_copy_outlined,
                   ),
                 ),
-                _MetricDivider(isDark: isDark),
                 Expanded(
-                  child: _HeroMetric(
-                    label: 'Tasks',
-                    value: '$taskCount',
-                    icon: Icons.checklist_rounded,
+                  child: _HeaderMetric(
+                    label: 'Done',
+                    value: '$progress%',
+                    icon: Icons.check_circle_outline_rounded,
                   ),
                 ),
               ],
             ),
           ),
-          if (invitationCount > 0) ...[
-            const SizedBox(height: 12),
-            _InviteBanner(count: invitationCount),
-          ],
         ],
       ),
     );
   }
 }
 
-class _MetricDivider extends StatelessWidget {
-  final bool isDark;
-  const _MetricDivider({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 36,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: isDark
-          ? Colors.white.withValues(alpha: 0.08)
-          : const Color(0xFFEAE7F7),
-    );
-  }
-}
-
-class _HeroMetric extends StatelessWidget {
+class _HeaderMetric extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
 
-  const _HeroMetric({
+  const _HeaderMetric({
     required this.label,
     required this.value,
     required this.icon,
@@ -962,12 +940,12 @@ class _HeroMetric extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 5),
+        Icon(icon, color: Colors.white.withValues(alpha: 0.92), size: 18),
+        const SizedBox(height: 6),
         Text(
           value,
-          style: TextStyle(
-            color: _textColor(context),
+          style: const TextStyle(
+            color: Colors.white,
             fontSize: 17,
             fontWeight: FontWeight.w900,
           ),
@@ -978,7 +956,7 @@ class _HeroMetric extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: _mutedColor(context),
+            color: Colors.white.withValues(alpha: 0.76),
             fontSize: 10,
             fontWeight: FontWeight.w800,
           ),
@@ -988,36 +966,64 @@ class _HeroMetric extends StatelessWidget {
   }
 }
 
-class _InviteBanner extends StatelessWidget {
-  final int count;
-  const _InviteBanner({required this.count});
+class _HeaderBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _HeaderBadge({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.mail_outline_rounded,
-            size: 18,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '$count pending invitation${count == 1 ? '' : 's'}',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w900,
-              ),
+          Icon(icon, size: 15, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GlassIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _GlassIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+          ),
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
       ),
     );
   }
@@ -1036,9 +1042,8 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _SurfaceCard(
-      radius: 22,
-      padding: EdgeInsets.zero,
+    return Container(
+      decoration: _cardDecoration(context, radius: 22),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
@@ -1057,22 +1062,21 @@ class _SearchField extends StatelessWidget {
             },
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 17,
-          ),
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
         ),
       ),
     );
   }
 }
 
-class _TeamTabs extends StatelessWidget {
+class _SegmentedTabs extends StatelessWidget {
   final int selectedIndex;
   final int invitationCount;
   final ValueChanged<int> onChanged;
 
-  const _TeamTabs({
+  const _SegmentedTabs({
     required this.selectedIndex,
     required this.invitationCount,
     required this.onChanged,
@@ -1080,21 +1084,20 @@ class _TeamTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _SurfaceCard(
-      radius: 22,
+    return Container(
       padding: const EdgeInsets.all(5),
-      shadow: false,
+      decoration: _cardDecoration(context, radius: 22, shadow: false),
       child: Row(
         children: [
-          _TabButton(
+          _TabPill(
             label: 'My Teams',
+            icon: Icons.grid_view_rounded,
             selected: selectedIndex == 0,
             onTap: () => onChanged(0),
           ),
-          _TabButton(
-            label: invitationCount > 0
-                ? 'Invitations ($invitationCount)'
-                : 'Invitations',
+          _TabPill(
+            label: invitationCount > 0 ? 'Invites ($invitationCount)' : 'Invites',
+            icon: Icons.mail_outline_rounded,
             selected: selectedIndex == 1,
             onTap: () => onChanged(1),
           ),
@@ -1104,13 +1107,15 @@ class _TeamTabs extends StatelessWidget {
   }
 }
 
-class _TabButton extends StatelessWidget {
+class _TabPill extends StatelessWidget {
   final String label;
+  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
-  const _TabButton({
+  const _TabPill({
     required this.label,
+    required this.icon,
     required this.selected,
     required this.onTap,
   });
@@ -1118,28 +1123,42 @@ class _TabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+
     return Expanded(
-      child: InkWell(
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(17),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected
-                ? primary.withValues(alpha: 0.14)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(17),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: selected ? primary : _mutedColor(context),
-              fontWeight: FontWeight.w900,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(17),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              gradient: selected ? PlanoraTheme.primaryGradientFor(context) : null,
+              color: selected ? null : Colors.transparent,
+              borderRadius: BorderRadius.circular(17),
+              boxShadow: selected ? PlanoraTheme.floatingShadowFor(context) : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: selected ? Colors.white : primary),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : _mutedColor(context),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1148,33 +1167,49 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _SectionTitle extends StatelessWidget {
+  final String title;
   final int count;
-  const _SectionHeader({required this.count});
+  final String subtitle;
+
+  const _SectionTitle({
+    required this.title,
+    required this.count,
+    required this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          'Workspaces',
-          style: TextStyle(
-            color: _textColor(context),
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(width: 8),
-        _SmallBadge(label: '$count'),
-        const Spacer(),
-        Icon(Icons.touch_app_outlined, size: 16, color: _mutedColor(context)),
-        const SizedBox(width: 5),
-        Text(
-          'Tap to manage',
-          style: TextStyle(
-            color: _mutedColor(context),
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: _textColor(context),
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  _CountBadge(label: '$count'),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: _mutedColor(context),
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1182,18 +1217,18 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _TeamCard extends StatelessWidget {
+class _PlanoraTeamCard extends StatelessWidget {
   final TeamModel team;
   final List<TeamMemberModel> members;
   final List<ProjectModel> projects;
-  final _TeamStats? stats;
+  final _TeamStats stats;
   final TeamMemberModel? currentMember;
   final bool canManage;
   final VoidCallback onTap;
   final VoidCallback onMenuPressed;
   final VoidCallback? onInvitePressed;
 
-  const _TeamCard({
+  const _PlanoraTeamCard({
     required this.team,
     required this.members,
     required this.projects,
@@ -1207,81 +1242,65 @@ class _TeamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final safeStats = stats ?? const _TeamStats();
-    final activeProjects = projects.where((item) => item.isActive).length;
-    final progressPercent = (safeStats.progress * 100).round();
+    final activePlans = projects.where((item) => item.isActive).length;
+    final progressPercent = (stats.progress * 100).round();
 
-    return _SurfaceCard(
-      radius: 28,
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: Colors.transparent,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(28),
+      child: InkWell(
         borderRadius: BorderRadius.circular(28),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(28),
-          onTap: onTap,
+        onTap: onTap,
+        child: Ink(
+          decoration: _teamCardDecoration(context),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _BrandTile(icon: _teamIcon(team.name), size: 52),
+                    _TeamIcon(name: team.name),
                     const SizedBox(width: 13),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  team.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: _textColor(context),
-                                    fontSize: 17,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                              if (currentMember != null) ...[
-                                const SizedBox(width: 8),
-                                _RolePill(label: currentMember!.roleLabel),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 7),
                           Text(
-                            '$activeProjects active plans • $progressPercent% task completion',
+                            team.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: _mutedColor(context),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: _textColor(context),
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.1,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 6,
+                            children: [
+                              _SoftLabel(text: '$activePlans active plans'),
+                              _SoftLabel(text: '$progressPercent% done'),
+                              if (currentMember != null)
+                                _SoftLabel(text: currentMember!.roleLabel),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 4),
                     IconButton(
                       tooltip: 'Team actions',
                       onPressed: onMenuPressed,
-                      icon: Icon(
-                        Icons.more_horiz_rounded,
-                        color: _mutedColor(context),
-                      ),
+                      icon: Icon(Icons.more_horiz_rounded, color: _mutedColor(context)),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                _ProgressLine(value: safeStats.progress),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
+                _ProgressTrack(value: stats.progress),
+                const SizedBox(height: 15),
                 Row(
                   children: [
                     _AvatarStack(members: members),
@@ -1290,45 +1309,33 @@ class _TeamCard extends StatelessWidget {
                       child: Text(
                         members.isEmpty
                             ? 'No members loaded'
-                            : members
-                                  .take(2)
-                                  .map((item) => item.displayName)
-                                  .join(', '),
+                            : members.take(2).map((item) => item.displayName).join(', '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: _mutedColor(context),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: _mutedColor(context),
+                              fontWeight: FontWeight.w800,
+                            ),
                       ),
                     ),
+                    if (canManage && onInvitePressed != null) ...[
+                      const SizedBox(width: 8),
+                      _MiniActionButton(
+                        label: 'Invite',
+                        icon: Icons.person_add_alt_1_rounded,
+                        onTap: onInvitePressed!,
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _MetricChip(
-                      icon: Icons.people_outline_rounded,
-                      value: '${safeStats.memberCount}',
-                    ),
+                    _CardStat(icon: Icons.people_outline_rounded, value: '${stats.memberCount}', label: 'People'),
                     const SizedBox(width: 8),
-                    _MetricChip(
-                      icon: Icons.folder_copy_outlined,
-                      value: '${safeStats.projectCount}',
-                    ),
+                    _CardStat(icon: Icons.folder_copy_outlined, value: '${stats.projectCount}', label: 'Plans'),
                     const SizedBox(width: 8),
-                    _MetricChip(
-                      icon: Icons.check_box_outlined,
-                      value: '${safeStats.taskCount}',
-                    ),
-                    const Spacer(),
-                    if (canManage && onInvitePressed != null)
-                      _GhostButton(
-                        label: 'Invite',
-                        icon: Icons.person_add_alt_1_rounded,
-                        onTap: onInvitePressed!,
-                      ),
+                    _CardStat(icon: Icons.check_box_outlined, value: '${stats.taskCount}', label: 'Tasks'),
                   ],
                 ),
               ],
@@ -1340,435 +1347,55 @@ class _TeamCard extends StatelessWidget {
   }
 }
 
-class _InvitationCard extends StatelessWidget {
-  final TeamInvitationModel invitation;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
+class _TeamIcon extends StatelessWidget {
+  final String name;
 
-  const _InvitationCard({
-    required this.invitation,
-    required this.onAccept,
-    required this.onReject,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
-      radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              _BrandTile(icon: Icons.mail_outline_rounded, size: 50),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Team invitation',
-                      style: TextStyle(
-                        color: _textColor(context),
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Role: ${_roleLabel(invitation.role)}',
-                      style: TextStyle(
-                        color: _mutedColor(context),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onReject,
-                  child: const Text('Decline'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _PrimaryButton(label: 'Accept', onPressed: onAccept),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TeamDetailHero extends StatelessWidget {
-  final TeamModel team;
-  final _TeamStats stats;
-  final TeamMemberModel? currentMember;
-  final bool canManage;
-  final VoidCallback onInvitePressed;
-
-  const _TeamDetailHero({
-    required this.team,
-    required this.stats,
-    required this.currentMember,
-    required this.canManage,
-    required this.onInvitePressed,
-  });
+  const _TeamIcon({required this.name});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: 52,
+      height: 52,
       decoration: BoxDecoration(
-        gradient: PlanoraTheme.softPurpleGradientFor(context),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: _borderColor(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              _BrandTile(icon: _teamIcon(team.name), size: 54),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      team.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _textColor(context),
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currentMember == null
-                          ? 'Shared workspace'
-                          : 'Your role: ${currentMember!.roleLabel}',
-                      style: TextStyle(
-                        color: _mutedColor(context),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (canManage)
-                IconButton.filledTonal(
-                  tooltip: 'Invite member',
-                  onPressed: onInvitePressed,
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _ProgressLine(value: stats.progress),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _DetailMetric(
-                  label: 'Members',
-                  value: '${stats.memberCount}',
-                  icon: Icons.people_outline_rounded,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _DetailMetric(
-                  label: 'Plans',
-                  value: '${stats.projectCount}',
-                  icon: Icons.folder_copy_outlined,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _DetailMetric(
-                  label: 'Tasks',
-                  value: '${stats.taskCount}',
-                  icon: Icons.check_box_outlined,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _DetailMetric({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+        gradient: PlanoraTheme.primaryGradientFor(context),
         borderRadius: BorderRadius.circular(18),
+        boxShadow: PlanoraTheme.floatingShadowFor(context),
       ),
-      child: Column(
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 18),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: TextStyle(
-              color: _textColor(context),
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: _mutedColor(context),
-              fontWeight: FontWeight.w800,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
+      child: Icon(_teamIcon(name), color: Colors.white, size: 27),
     );
   }
 }
 
-class _StateCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionText;
-  final VoidCallback? onAction;
+class _SoftLabel extends StatelessWidget {
+  final String text;
 
-  const _StateCard({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionText,
-    this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
-      radius: 30,
-      child: Column(
-        children: [
-          _BrandTile(icon: icon, size: 58),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _textColor(context),
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: _mutedColor(context),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (actionText != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            _PrimaryButton(label: actionText!, onPressed: onAction),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TeamLoadingCard extends StatelessWidget {
-  const _TeamLoadingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SurfaceCard(
-      radius: 28,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Row(
-            children: [
-              _SkeletonBox(width: 52, height: 52, radius: 18),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SkeletonBox(width: 190, height: 16, radius: 8),
-                    SizedBox(height: 8),
-                    _SkeletonBox(width: 140, height: 12, radius: 8),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          _SkeletonBox(width: double.infinity, height: 8, radius: 8),
-        ],
-      ),
-    );
-  }
-}
-
-class _SkeletonBox extends StatelessWidget {
-  final double width;
-  final double height;
-  final double radius;
-
-  const _SkeletonBox({
-    required this.width,
-    required this.height,
-    required this.radius,
-  });
+  const _SoftLabel({required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? const Color(0xFF334155)
-            : const Color(0xFFEDE9FE),
-        borderRadius: BorderRadius.circular(radius),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
       ),
-    );
-  }
-}
-
-class _SurfaceCard extends StatelessWidget {
-  final Widget child;
-  final double radius;
-  final EdgeInsetsGeometry padding;
-  final bool shadow;
-
-  const _SurfaceCard({
-    required this.child,
-    this.radius = 24,
-    this.padding = const EdgeInsets.all(16),
-    this.shadow = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _surfaceColor(context),
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _borderColor(context)),
-        boxShadow: shadow ? PlanoraTheme.cardShadowFor(context) : null,
-      ),
-      child: child,
-    );
-  }
-}
-
-class _BrandTile extends StatelessWidget {
-  final IconData icon;
-  final double size;
-
-  const _BrandTile({required this.icon, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF7C3AED), Color(0xFF06B6D4)],
-        ),
-        borderRadius: BorderRadius.circular(size * 0.34),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x337C3AED),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Icon(icon, color: Colors.white, size: size * 0.50),
-    );
-  }
-}
-
-class _AddButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  const _AddButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onPressed,
-        child: Ink(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
-          ),
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
   }
 }
 
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-  const _CircleIconButton({required this.icon, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton.filledTonal(onPressed: onPressed, icon: Icon(icon));
-  }
-}
-
-class _ProgressLine extends StatelessWidget {
+class _ProgressTrack extends StatelessWidget {
   final double value;
-  const _ProgressLine({required this.value});
+
+  const _ProgressTrack({required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -1776,11 +1403,9 @@ class _ProgressLine extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: LinearProgressIndicator(
         value: value.clamp(0.0, 1.0),
-        minHeight: 8,
-        backgroundColor: PlanoraTheme.isDark(context)
-            ? const Color(0xFF334155)
-            : const Color(0xFFEDE9FE),
-        color: Theme.of(context).colorScheme.primary,
+        minHeight: 7,
+        backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
       ),
     );
   }
@@ -1788,6 +1413,7 @@ class _ProgressLine extends StatelessWidget {
 
 class _AvatarStack extends StatelessWidget {
   final List<TeamMemberModel> members;
+
   const _AvatarStack({required this.members});
 
   @override
@@ -1795,6 +1421,7 @@ class _AvatarStack extends StatelessWidget {
     if (members.isEmpty) {
       return const SizedBox(width: 34, height: 34, child: _EmptyAvatar());
     }
+
     final visible = members.take(3).toList();
     return SizedBox(
       width: 34.0 + ((visible.length - 1) * 22),
@@ -1814,6 +1441,7 @@ class _AvatarStack extends StatelessWidget {
 
 class _InitialAvatar extends StatelessWidget {
   final String label;
+
   const _InitialAvatar({required this.label});
 
   @override
@@ -1823,9 +1451,7 @@ class _InitialAvatar extends StatelessWidget {
       height: 34,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF7C3AED), Color(0xFF06B6D4)],
-        ),
+        gradient: PlanoraTheme.primaryGradientFor(context),
         shape: BoxShape.circle,
         border: Border.all(color: _surfaceColor(context), width: 2),
       ),
@@ -1861,97 +1487,41 @@ class _EmptyAvatar extends StatelessWidget {
   }
 }
 
-class _RolePill extends StatelessWidget {
-  final String label;
-  const _RolePill({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
-class _MetricChip extends StatelessWidget {
+class _CardStat extends StatelessWidget {
   final IconData icon;
   final String value;
-  const _MetricChip({required this.icon, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? const Color(0xFF273449)
-            : const Color(0xFFF8F5FF),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: _mutedColor(context)),
-          const SizedBox(width: 5),
-          Text(
-            value,
-            style: TextStyle(
-              color: _textColor(context),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GhostButton extends StatelessWidget {
   final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _GhostButton({
-    required this.label,
+
+  const _CardStat({
     required this.icon,
-    required this.onTap,
+    required this.value,
+    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
+    return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
-          color: primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(999),
+          color: _subtleFill(context),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _borderColor(context)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 15, color: primary),
+            Icon(icon, size: 15, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: TextStyle(
-                color: primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
+            Flexible(
+              child: Text(
+                '$value $label',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: _textColor(context),
+                      fontWeight: FontWeight.w900,
+                    ),
               ),
             ),
           ],
@@ -1961,84 +1531,266 @@ class _GhostButton extends StatelessWidget {
   }
 }
 
-class _SmallBadge extends StatelessWidget {
+class _MiniActionButton extends StatelessWidget {
   final String label;
-  const _SmallBadge({required this.label});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _MiniActionButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: PlanoraTheme.primaryGradientFor(context),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: Colors.white),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InvitationCard extends StatelessWidget {
+  final TeamInvitationModel invitation;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+
+  const _InvitationCard({
+    required this.invitation,
+    required this.onAccept,
+    required this.onReject,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.all(16),
+      decoration: _teamCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _TeamIcon(name: 'invitation'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Team invitation',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: _textColor(context),
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Role: ${_roleLabel(invitation.role)}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: _mutedColor(context),
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(onPressed: onReject, child: const Text('Decline')),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _GradientButton(label: 'Accept', onPressed: onAccept),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamDetailHeader extends StatelessWidget {
+  final TeamModel team;
+  final _TeamStats stats;
+  final TeamMemberModel? currentMember;
+  final bool canManage;
+  final VoidCallback onInvitePressed;
+
+  const _TeamDetailHeader({
+    required this.team,
+    required this.stats,
+    required this.currentMember,
+    required this.canManage,
+    required this.onInvitePressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: PlanoraTheme.floatingShadowFor(context),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                ),
+                child: Icon(_teamIcon(team.name), color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      team.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentMember == null ? 'Shared team hub' : 'Your role: ${currentMember!.roleLabel}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage)
+                _GlassIconButton(icon: Icons.person_add_alt_1_rounded, onTap: onInvitePressed),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _WhiteProgressTrack(value: stats.progress),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: _WhiteMetric(label: 'People', value: '${stats.memberCount}')),
+              const SizedBox(width: 10),
+              Expanded(child: _WhiteMetric(label: 'Plans', value: '${stats.projectCount}')),
+              const SizedBox(width: 10),
+              Expanded(child: _WhiteMetric(label: 'Tasks', value: '${stats.taskCount}')),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _MemberRow extends StatelessWidget {
-  final TeamMemberModel member;
-  const _MemberRow({required this.member});
+class _WhiteProgressTrack extends StatelessWidget {
+  final double value;
+
+  const _WhiteProgressTrack({required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: _InitialAvatar(label: member.initials),
-      title: Text(
-        member.displayName,
-        style: const TextStyle(fontWeight: FontWeight.w900),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: LinearProgressIndicator(
+        value: value.clamp(0.0, 1.0),
+        minHeight: 7,
+        backgroundColor: Colors.white.withValues(alpha: 0.16),
+        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
       ),
-      subtitle: Text(member.roleLabel),
     );
   }
 }
 
-class _ProjectRow extends StatelessWidget {
-  final ProjectModel project;
-  const _ProjectRow({required this.project});
+class _WhiteMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _WhiteMetric({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(
-          Icons.folder_copy_outlined,
-          color: Theme.of(context).colorScheme.primary,
-          size: 19,
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       ),
-      title: Text(
-        project.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w900),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.76),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
-      subtitle: Text('${project.statusLabel} • ${project.deadlineLabel}'),
     );
   }
 }
 
 class _SheetSectionTitle extends StatelessWidget {
   final String title;
-  final String trailing;
-  const _SheetSectionTitle({required this.title, required this.trailing});
+  final int count;
+
+  const _SheetSectionTitle({required this.title, required this.count});
 
   @override
   Widget build(BuildContext context) {
@@ -2047,46 +1799,199 @@ class _SheetSectionTitle extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: _textColor(context),
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
-        _SmallBadge(label: trailing),
+        _CountBadge(label: '$count'),
       ],
     );
   }
 }
 
-class _EmptyInlinePanel extends StatelessWidget {
+class _MemberRow extends StatelessWidget {
+  final TeamMemberModel member;
+
+  const _MemberRow({required this.member});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: _cardDecoration(context, radius: 18, shadow: false),
+      child: ListTile(
+        leading: _InitialAvatar(label: member.initials),
+        title: Text(member.displayName, style: const TextStyle(fontWeight: FontWeight.w900)),
+        subtitle: Text(member.roleLabel),
+      ),
+    );
+  }
+}
+
+class _ProjectRow extends StatelessWidget {
+  final ProjectModel project;
+
+  const _ProjectRow({required this.project});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: _cardDecoration(context, radius: 18, shadow: false),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            Icons.folder_copy_outlined,
+            color: Theme.of(context).colorScheme.primary,
+            size: 19,
+          ),
+        ),
+        title: Text(
+          project.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        subtitle: Text('${project.statusLabel} - ${project.deadlineLabel}'),
+      ),
+    );
+  }
+}
+
+class _InlineEmpty extends StatelessWidget {
   final String message;
-  const _EmptyInlinePanel({required this.message});
+
+  const _InlineEmpty({required this.message});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.isDark(context)
-            ? const Color(0xFF273449)
-            : const Color(0xFFF8F5FF),
-        borderRadius: BorderRadius.circular(18),
-      ),
+      decoration: _cardDecoration(context, radius: 18, shadow: false),
       child: Text(
         message,
-        style: TextStyle(
-          color: _mutedColor(context),
-          fontWeight: FontWeight.w700,
-        ),
+        style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w700),
       ),
     );
   }
 }
 
-class _BottomSheetShell extends StatelessWidget {
+class _EmptyStateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionText;
+  final VoidCallback? onAction;
+
+  const _EmptyStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionText,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _teamCardDecoration(context),
+      child: Column(
+        children: [
+          _TeamIcon(name: title),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: _textColor(context),
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w600),
+          ),
+          if (actionText != null && onAction != null) ...[
+            const SizedBox(height: 16),
+            _GradientButton(label: actionText!, onPressed: onAction),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LoadingTeamTile extends StatelessWidget {
+  const _LoadingTeamTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _teamCardDecoration(context),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _Skeleton(width: 52, height: 52, radius: 18),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Skeleton(width: 190, height: 16, radius: 8),
+                    SizedBox(height: 8),
+                    _Skeleton(width: 140, height: 12, radius: 8),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          _Skeleton(width: double.infinity, height: 8, radius: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _Skeleton extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _Skeleton({required this.width, required this.height, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+class _ModalShell extends StatelessWidget {
   final Widget child;
-  const _BottomSheetShell({required this.child});
+
+  const _ModalShell({required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -2122,6 +2027,7 @@ class _SheetHandle extends StatelessWidget {
 class _SheetTitle extends StatelessWidget {
   final String title;
   final String subtitle;
+
   const _SheetTitle({required this.title, required this.subtitle});
 
   @override
@@ -2131,40 +2037,53 @@ class _SheetTitle extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: _textColor(context),
+                fontWeight: FontWeight.w900,
+              ),
         ),
         const SizedBox(height: 5),
         Text(
           subtitle,
-          style: TextStyle(
-            color: _mutedColor(context),
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w600),
         ),
       ],
     );
   }
 }
 
-class _PrimaryButton extends StatelessWidget {
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _ActionTile({required this.icon, required this.title, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+      onTap: onTap,
+    );
+  }
+}
+
+class _GradientButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
-  const _PrimaryButton({required this.label, required this.onPressed});
+
+  const _GradientButton({required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: onPressed == null
-            ? null
-            : PlanoraTheme.primaryGradientFor(context),
+        gradient: onPressed == null ? null : PlanoraTheme.primaryGradientFor(context),
         color: onPressed == null ? _borderColor(context) : null,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: onPressed == null
-            ? null
-            : PlanoraTheme.floatingShadowFor(context),
+        boxShadow: onPressed == null ? null : PlanoraTheme.floatingShadowFor(context),
       ),
       child: ElevatedButton(
         onPressed: onPressed,
@@ -2175,9 +2094,7 @@ class _PrimaryButton extends StatelessWidget {
           foregroundColor: Colors.white,
           disabledBackgroundColor: Colors.transparent,
           minimumSize: const Size.fromHeight(48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: Text(label),
       ),
@@ -2185,23 +2102,52 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
-class _Entrance extends StatelessWidget {
+class _CountBadge extends StatelessWidget {
+  final String label;
+
+  const _CountBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedIn extends StatelessWidget {
   final int index;
   final Widget child;
-  const _Entrance({required this.index, required this.child});
+
+  const _AnimatedIn({required this.index, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 260 + (index * 38).clamp(0, 220)),
+      duration: Duration(milliseconds: 300 + (index * 45).clamp(0, 240)),
       curve: Curves.easeOutCubic,
       builder: (context, value, animatedChild) {
         return Opacity(
           opacity: value,
           child: Transform.translate(
-            offset: Offset(0, (1 - value) * 14),
-            child: animatedChild,
+            offset: Offset(0, (1 - value) * 16),
+            child: Transform.scale(
+              scale: 0.97 + (value * 0.03),
+              child: animatedChild,
+            ),
           ),
         );
       },
@@ -2210,10 +2156,54 @@ class _Entrance extends StatelessWidget {
   }
 }
 
+BoxDecoration _cardDecoration(
+  BuildContext context, {
+  double radius = 24,
+  bool shadow = true,
+}) {
+  return BoxDecoration(
+    color: _surfaceColor(context),
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: _borderColor(context)),
+    boxShadow: shadow ? PlanoraTheme.cardShadowFor(context) : null,
+  );
+}
+
+BoxDecoration _teamCardDecoration(BuildContext context) {
+  final isDark = PlanoraTheme.isDark(context);
+
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: isDark
+          ? const [Color(0xFF1E293B), Color(0xFF151E31)]
+          : const [Color(0xFFFFFFFF), Color(0xFFF7F4FF)],
+    ),
+    borderRadius: BorderRadius.circular(28),
+    border: Border.all(
+      color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.lavenderBorder,
+    ),
+    boxShadow: PlanoraTheme.cardShadowFor(context),
+  );
+}
+
+Color _pageBackground(BuildContext context) {
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkBackground
+      : PlanoraTheme.background;
+}
+
 Color _surfaceColor(BuildContext context) {
   return PlanoraTheme.isDark(context)
       ? PlanoraTheme.darkSurface
       : PlanoraTheme.surface;
+}
+
+Color _subtleFill(BuildContext context) {
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkSurfaceVariant
+      : PlanoraTheme.lavenderCard;
 }
 
 Color _textColor(BuildContext context) {
@@ -2246,6 +2236,7 @@ IconData _teamIcon(String name) {
   if (normalized.contains('dev') || normalized.contains('planora')) {
     return Icons.code_rounded;
   }
+  if (normalized.contains('invitation')) return Icons.mail_outline_rounded;
   return Icons.groups_2_rounded;
 }
 
