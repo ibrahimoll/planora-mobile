@@ -1,4 +1,5 @@
 import '../../../core/network/api_client.dart';
+import '../../../core/notifications/push_notification_payload.dart';
 
 enum NotificationRouteKind { task, project, team, detail, missingIds }
 
@@ -58,6 +59,42 @@ class NotificationModel {
     );
   }
 
+  factory NotificationModel.fromPushPayload(PushNotificationPayload payload) {
+    final data = payload.data;
+    final title = _firstNonEmpty([
+      payload.title,
+      data['title'],
+      data['notification_title'],
+    ]);
+    final message = _firstNonEmpty([
+      payload.body,
+      data['message'],
+      data['body'],
+      data['notification_body'],
+    ]);
+    final type = _firstNonEmpty([
+      data['type'],
+      data['notification_type'],
+      data['event_type'],
+      data['category'],
+    ]);
+
+    return NotificationModel(
+      notificationId: _asInt(
+        data['notification_id'] ?? data['notificationId'] ?? data['id'] ?? 0,
+      ),
+      userId: _nullableInt(data['user_id'] ?? data['userId']),
+      title: title ?? 'Planora update',
+      message: message ?? 'Tap to view your latest update.',
+      isRead: false,
+      type: type ?? 'system',
+      createdAt: DateTime.now(),
+      projectId: _nullableInt(data['project_id'] ?? data['projectId']),
+      taskId: _nullableInt(data['task_id'] ?? data['taskId']),
+      teamId: _nullableInt(data['team_id'] ?? data['teamId']),
+    );
+  }
+
   NotificationNavigationTarget get navigationTarget {
     switch (type) {
       case 'task':
@@ -73,10 +110,31 @@ class NotificationModel {
           taskId: taskId,
         );
 
+      case 'comment':
+      case 'mention':
+      case 'deadline':
+        if (projectId != null && taskId != null) {
+          return NotificationNavigationTarget(
+            kind: NotificationRouteKind.task,
+            projectId: projectId,
+            taskId: taskId,
+          );
+        }
+
+        if (projectId != null) {
+          return NotificationNavigationTarget(
+            kind: NotificationRouteKind.project,
+            projectId: projectId,
+          );
+        }
+
+        return const NotificationNavigationTarget(
+          kind: NotificationRouteKind.detail,
+        );
+
       case 'project':
       case 'ai':
       case 'risk':
-      case 'deadline':
         if (projectId == null) {
           return const NotificationNavigationTarget(
             kind: NotificationRouteKind.missingIds,
@@ -224,6 +282,17 @@ class NotificationModel {
   static DateTime? _asDateTime(dynamic value) {
     if (value == null) return null;
     return DateTime.tryParse(value.toString());
+  }
+
+  static String? _firstNonEmpty(Iterable<dynamic> values) {
+    for (final value in values) {
+      final cleaned = value?.toString().trim();
+      if (cleaned != null && cleaned.isNotEmpty) {
+        return cleaned;
+      }
+    }
+
+    return null;
   }
 }
 

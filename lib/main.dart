@@ -111,6 +111,7 @@ class _PlanoraAppState extends State<PlanoraApp> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: _systemOverlayStyle(),
       child: MaterialApp(
+        navigatorKey: PushNotificationService.instance.navigatorKey,
         title: 'Planora',
         debugShowCheckedModeBanner: false,
         theme: PlanoraTheme.lightTheme,
