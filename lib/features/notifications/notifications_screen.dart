@@ -622,9 +622,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationModel notification,
     int index,
   ) {
+    final delay = (index * 45).clamp(0, 240).toInt();
+
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
-      duration: Duration(milliseconds: 280 + (index * 45).clamp(0, 240)),
+      duration: Duration(milliseconds: 280 + delay),
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         return Opacity(
