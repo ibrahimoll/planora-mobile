@@ -15,6 +15,7 @@ class NotificationsScreen extends StatefulWidget {
   final ProjectsApi projectsApi;
   final TasksApi tasksApi;
   final int? currentUserId;
+  final NotificationModel? initialNotification;
   final ValueChanged<NotificationNavigationTarget>? onNavigateForTest;
 
   const NotificationsScreen({
@@ -23,6 +24,7 @@ class NotificationsScreen extends StatefulWidget {
     this.projectsApi = const ProjectsApi(),
     this.tasksApi = const TasksApi(),
     this.currentUserId,
+    this.initialNotification,
     this.onNavigateForTest,
   });
 
@@ -37,6 +39,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   bool isLoading = true;
   bool isMarkingAllRead = false;
+  bool _handledInitialNotification = false;
   String? errorMessage;
   List<NotificationModel> notifications = [];
 
@@ -64,6 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         notifications = loadedNotifications;
         isLoading = false;
       });
+
+      await openInitialNotificationIfNeeded(loadedNotifications);
     } catch (error, stackTrace) {
       debugPrint('Notifications load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -74,7 +79,58 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         errorMessage = 'Could not load notifications.';
         isLoading = false;
       });
+
+      await openInitialNotificationIfNeeded(const []);
     }
+  }
+
+  Future<void> openInitialNotificationIfNeeded(
+    List<NotificationModel> loadedNotifications,
+  ) async {
+    final initialNotification = widget.initialNotification;
+    if (_handledInitialNotification || initialNotification == null) {
+      return;
+    }
+
+    _handledInitialNotification = true;
+    final targetNotification = resolveInitialNotification(
+      initialNotification,
+      loadedNotifications,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 260));
+    if (!mounted) return;
+
+    await handleNotificationTap(targetNotification);
+  }
+
+  NotificationModel resolveInitialNotification(
+    NotificationModel initialNotification,
+    List<NotificationModel> loadedNotifications,
+  ) {
+    if (initialNotification.notificationId > 0) {
+      for (final notification in loadedNotifications) {
+        if (notification.notificationId == initialNotification.notificationId) {
+          return notification;
+        }
+      }
+    }
+
+    for (final notification in loadedNotifications) {
+      final sameTask = initialNotification.taskId != null &&
+          notification.taskId == initialNotification.taskId;
+      final sameProject = initialNotification.projectId != null &&
+          notification.projectId == initialNotification.projectId;
+      final sameTeam = initialNotification.teamId != null &&
+          notification.teamId == initialNotification.teamId;
+      final sameType = notification.type == initialNotification.type;
+
+      if (sameType && (sameTask || sameProject || sameTeam)) {
+        return notification;
+      }
+    }
+
+    return initialNotification;
   }
 
   Future<void> markAllAsRead() async {
@@ -108,7 +164,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> markNotificationAsRead(NotificationModel notification) async {
-    if (notification.isRead) {
+    if (notification.isRead || notification.notificationId <= 0) {
       return;
     }
 
@@ -292,36 +348,80 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final isDark = PlanoraTheme.isDark(sheetContext);
+        final accent = notificationAccentColor(sheetContext, notification.type);
 
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           decoration: BoxDecoration(
             color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(28),
+              bottom: Radius.circular(28),
+            ),
+            border: Border.all(
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
             boxShadow: PlanoraTheme.floatingShadowFor(sheetContext),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                notification.title,
-                style: Theme.of(
-                  sheetContext,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: mutedColor(sheetContext).withValues(alpha: 0.26),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: isDark ? 0.18 : 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      notificationIcon(notification.type),
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          notification.title,
+                          style: Theme.of(sheetContext)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 5),
+                        buildMetaPill(sheetContext, notification.typeLabel),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               Text(
                 notification.message,
                 style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
                   color: mutedColor(sheetContext),
-                  height: 1.45,
+                  height: 1.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 14),
-              buildMetaPill(sheetContext, notification.typeLabel),
             ],
           ),
         );
@@ -333,6 +433,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return PlanoraTheme.isDark(context)
         ? PlanoraTheme.darkTextMuted
         : PlanoraTheme.textSecondary;
+  }
+
+  Color notificationAccentColor(BuildContext context, String type) {
+    switch (type) {
+      case 'deadline':
+        return PlanoraTheme.warning;
+      case 'risk':
+        return PlanoraTheme.error;
+      case 'comment':
+      case 'mention':
+        return PlanoraTheme.info;
+      case 'team':
+      case 'invite':
+      case 'invitation':
+        return PlanoraTheme.success;
+      case 'ai':
+        return PlanoraTheme.secondaryPurple;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
   }
 
   BoxDecoration cardDecoration(BuildContext context) {
@@ -350,6 +470,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget buildHeader(BuildContext context) {
     final unreadCount = notifications.where((item) => !item.isRead).length;
+    final canMarkRead = unreadCount > 0 && !isMarkingAllRead;
 
     return Row(
       children: [
@@ -375,19 +496,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 3),
-              Text(
-                unreadCount == 0 ? 'All caught up' : '$unreadCount unread',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor(context),
-                  fontWeight: FontWeight.w700,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: Text(
+                  unreadCount == 0 ? 'All caught up' : '$unreadCount unread',
+                  key: ValueKey<int>(unreadCount),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        TextButton(
-          onPressed: isMarkingAllRead ? null : markAllAsRead,
-          child: Text(isMarkingAllRead ? 'Updating...' : 'Read All'),
+        TextButton.icon(
+          onPressed: canMarkRead ? markAllAsRead : null,
+          icon: isMarkingAllRead
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.done_all_rounded, size: 18),
+          label: Text(isMarkingAllRead ? 'Updating' : 'Read All'),
         ),
       ],
     );
@@ -425,9 +557,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Column(
       children: [
-        for (final notification in notifications) ...[
-          buildNotificationCard(context, notification),
-          if (notification != notifications.last) const SizedBox(height: 12),
+        for (var index = 0; index < notifications.length; index++) ...[
+          buildAnimatedNotificationCard(context, notifications[index], index),
+          if (index != notifications.length - 1) const SizedBox(height: 12),
         ],
       ],
     );
@@ -485,83 +617,176 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Widget buildAnimatedNotificationCard(
+    BuildContext context,
+    NotificationModel notification,
+    int index,
+  ) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 280 + (index * 45).clamp(0, 240)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 16),
+            child: Transform.scale(
+              scale: 0.98 + (value * 0.02),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: buildNotificationCard(context, notification),
+    );
+  }
+
   Widget buildNotificationCard(
     BuildContext context,
     NotificationModel notification,
   ) {
     final primary = Theme.of(context).colorScheme.primary;
+    final isDark = PlanoraTheme.isDark(context);
+    final isUnread = !notification.isRead;
+    final accent = notificationAccentColor(context, notification.type);
 
-    return InkWell(
-      onTap: () => handleNotificationTap(notification),
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: cardDecoration(context),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: primary.withValues(
-                  alpha: notification.isRead ? 0.08 : 0.14,
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(notificationIcon(notification.type), color: primary),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: () => handleNotificationTap(notification),
+        borderRadius: BorderRadius.circular(24),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isUnread
+                ? null
+                : (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface),
+            gradient: isUnread ? PlanoraTheme.softPurpleGradientFor(context) : null,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isUnread
+                  ? primary.withValues(alpha: isDark ? 0.32 : 0.22)
+                  : (isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          notification.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                      ),
-                      if (!notification.isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: primary,
-                            shape: BoxShape.circle,
+            boxShadow: isUnread
+                ? PlanoraTheme.floatingShadowFor(context)
+                : PlanoraTheme.cardShadowFor(context),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                width: 4,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [accent, accent.withValues(alpha: 0.45)],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: isUnread ? 0.16 : 0.09),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(
+                    color: accent.withValues(alpha: isUnread ? 0.18 : 0.08),
+                  ),
+                ),
+                child: Icon(notificationIcon(notification.type), color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  color: isDark
+                                      ? PlanoraTheme.darkTextPrimary
+                                      : PlanoraTheme.textPrimary,
+                                ),
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    notification.message,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: mutedColor(context),
-                      height: 1.4,
-                      fontWeight: FontWeight.w600,
+                        const SizedBox(width: 8),
+                        if (isUnread)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'New',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
+                                    color: primary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      buildMetaPill(context, notification.typeLabel),
-                      buildMetaPill(context, notification.createdLabel),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      notification.message,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: mutedColor(context),
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 11),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              buildMetaPill(context, notification.typeLabel),
+                              buildMetaPill(context, notification.createdLabel),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: mutedColor(context).withValues(alpha: 0.72),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -591,6 +816,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'project':
         return Icons.folder_rounded;
       case 'team':
+      case 'invite':
+      case 'invitation':
         return Icons.groups_2_rounded;
       case 'comment':
       case 'mention':
