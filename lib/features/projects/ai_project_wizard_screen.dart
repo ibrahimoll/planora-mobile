@@ -70,10 +70,35 @@ class AiPlanPreviewContent extends StatelessWidget {
     return '$day/$month/${date.year}';
   }
 
+  String _safePreviewSummary(
+    AiPlanGenerateResponse plan,
+    ProjectModel project,
+  ) {
+    final rawSummary = plan.summary.trim();
+    final normalizedSummary = rawSummary.toLowerCase();
+    final normalizedMessage = plan.message.toLowerCase();
+    final status = plan.aiGenerationStatus.toLowerCase();
+
+    final isTechnicalFallback =
+        status == 'fallback' ||
+        normalizedSummary.contains('using fallback because') ||
+        normalizedSummary.contains('gemini returned http') ||
+        normalizedMessage.contains('gemini returned http');
+
+    if (isTechnicalFallback) {
+      return "Planora created a practical fallback plan for '${project.title}' with ${plan.tasksCreated} tasks. AI detail was temporarily unavailable, so review the tasks before accepting.";
+    }
+
+    if (rawSummary.isEmpty) {
+      return 'Review the generated tasks before moving into the project.';
+    }
+
+    return rawSummary;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final summary = plan.summary.trim();
-
+    final summary = _safePreviewSummary(plan, project);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -109,9 +134,7 @@ class AiPlanPreviewContent extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                summary.isEmpty
-                    ? 'Review the generated tasks before moving into the project.'
-                    : summary,
+                summary,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: _mutedColor(context),
                   height: 1.5,
