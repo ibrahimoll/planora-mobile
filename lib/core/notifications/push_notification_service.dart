@@ -1,132 +1,18 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mobile/features/notifications/data/notifications_api.dart';
+import 'package:mobile/features/notifications/notifications_screen.dart';
 
 import '../storage/token_storage.dart';
 import 'push_notification_api.dart';
-
-class PushNotificationPayload {
-  final String? messageId;
-  final String title;
-  final String body;
-  final Map<String, String> data;
-
-  const PushNotificationPayload({
-    this.messageId,
-    required this.title,
-    required this.body,
-    required this.data,
-  });
-
-  factory PushNotificationPayload.fromRemoteMessage(RemoteMessage message) {
-    final data = message.data.map(
-      (key, value) => MapEntry(key, value.toString()),
-    );
-
-    final title = _firstNonEmpty([
-      message.notification?.title,
-      data['title'],
-      data['notification_title'],
-    ]);
-
-    final body = _firstNonEmpty([
-      message.notification?.body,
-      data['body'],
-      data['message'],
-      data['notification_body'],
-    ]);
-
-    return PushNotificationPayload(
-      messageId: message.messageId,
-      title: title ?? 'Planora update',
-      body: body ?? 'Tap to view your latest update.',
-      data: data,
-    );
-  }
-
-  factory PushNotificationPayload.fromLocalPayload(String? payload) {
-    if (payload == null || payload.trim().isEmpty) {
-      return const PushNotificationPayload(
-        title: 'Planora update',
-        body: 'Tap to view your latest update.',
-        data: {},
-      );
-    }
-
-    try {
-      final decoded = jsonDecode(payload);
-      if (decoded is! Map) {
-        return const PushNotificationPayload(
-          title: 'Planora update',
-          body: 'Tap to view your latest update.',
-          data: {},
-        );
-      }
-
-      final rawData = decoded['data'];
-      final data = <String, String>{};
-      if (rawData is Map) {
-        for (final entry in rawData.entries) {
-          data[entry.key.toString()] = entry.value.toString();
-        }
-      }
-
-      return PushNotificationPayload(
-        messageId: decoded['message_id']?.toString(),
-        title: (decoded['title'] ?? data['title'] ?? 'Planora update')
-            .toString(),
-        body: (decoded['body'] ?? data['message'] ?? data['body'] ?? '')
-            .toString(),
-        data: data,
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Planora local notification payload decode failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      return const PushNotificationPayload(
-        title: 'Planora update',
-        body: 'Tap to view your latest update.',
-        data: {},
-      );
-    }
-  }
-
-  String toLocalPayload() {
-    return jsonEncode({
-      'message_id': messageId,
-      'title': title,
-      'body': body,
-      'data': data,
-    });
-  }
-
-  String get type => _firstNonEmpty([
-        data['type'],
-        data['notification_type'],
-        data['event_type'],
-        data['category'],
-      ]) ?? 'system';
-
-  int? intValue(String key) {
-    return int.tryParse(data[key]?.toString() ?? '');
-  }
-
-  static String? _firstNonEmpty(Iterable<String?> values) {
-    for (final value in values) {
-      final cleaned = value?.trim();
-      if (cleaned != null && cleaned.isNotEmpty) {
-        return cleaned;
-      }
-    }
-
-    return null;
-  }
-}
+import 'push_notification_payload.dart';
 
 class PushNotificationService {
   PushNotificationService._();
@@ -150,6 +36,7 @@ class PushNotificationService {
     importance: Importance.high,
   );
 
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final PushNotificationApi _api = const PushNotificationApi();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
@@ -162,9 +49,10 @@ class PushNotificationService {
       StreamController<PushNotificationPayload>.broadcast();
 
   StreamSubscription<String>? _tokenRefreshSubscription;
-  PushNotificationPayload? _pendingInitialTap;
+  PushNotificationPayload? _pendingRoutePayload;
   bool _initialized = false;
   bool _localNotificationsReady = false;
+  bool _isOpeningPendingRoute = false;
 
   Stream<PushNotificationPayload> get foregroundMessages =>
       _foregroundMessageController.stream;
@@ -188,8 +76,8 @@ class PushNotificationService {
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      _pendingInitialTap = PushNotificationPayload.fromRemoteMessage(
-        initialMessage,
+      _queueNotificationRoute(
+        PushNotificationPayload.fromRemoteMessage(initialMessage),
       );
     }
 
@@ -228,12 +116,6 @@ class PushNotificationService {
         ?.createNotificationChannel(_androidChannel);
 
     _localNotificationsReady = true;
-  }
-
-  PushNotificationPayload? takePendingInitialNotificationTap() {
-    final payload = _pendingInitialTap;
-    _pendingInitialTap = null;
-    return payload;
   }
 
   Future<void> registerCurrentDevice() async {
@@ -409,6 +291,7 @@ class PushNotificationService {
     debugPrint('Push data: ${payload.data}');
 
     _notificationTapController.add(payload);
+    _queueNotificationRoute(payload);
   }
 
   void _handleLocalNotificationTap(NotificationResponse response) {
@@ -418,6 +301,43 @@ class PushNotificationService {
     debugPrint('Local push data: ${payload.data}');
 
     _notificationTapController.add(payload);
+    _queueNotificationRoute(payload);
+  }
+
+  void _queueNotificationRoute(PushNotificationPayload payload) {
+    _pendingRoutePayload = payload;
+    unawaited(_openPendingNotificationRoute());
+  }
+
+  Future<void> _openPendingNotificationRoute() async {
+    if (_isOpeningPendingRoute) return;
+    _isOpeningPendingRoute = true;
+
+    try {
+      for (var attempt = 0; attempt < 24; attempt++) {
+        final payload = _pendingRoutePayload;
+        final navigator = navigatorKey.currentState;
+
+        if (payload != null && navigator != null && navigator.mounted) {
+          _pendingRoutePayload = null;
+          await navigator.push(
+            MaterialPageRoute<void>(
+              builder: (_) => NotificationsScreen(
+                initialNotification: NotificationModel.fromPushPayload(payload),
+              ),
+            ),
+          );
+          return;
+        }
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+    } finally {
+      _isOpeningPendingRoute = false;
+      if (_pendingRoutePayload != null) {
+        unawaited(_openPendingNotificationRoute());
+      }
+    }
   }
 
   int _notificationIdFor(PushNotificationPayload payload) {
