@@ -42,6 +42,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   List<TaskAttachmentModel> attachments = [];
   List<TaskCommentModel> comments = [];
+  List<TaskSubtaskPreview> subtasks = [];
   TaskMemberPreview? currentUserPreview = const TaskMemberPreview(
     userId: null,
     name: 'P',
@@ -56,14 +57,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool isDeleting = false;
   bool isSendingComment = false;
   bool isUploadingAttachment = false;
+  bool isAddingSubtask = false;
   int? deletingAttachmentId;
   int? deletingCommentId;
+  int? updatingSubtaskId;
+  int? deletingSubtaskId;
   Timer? _commentPollingTimer;
   bool _isRefreshingComments = false;
 
   String? errorMessage;
   String? attachmentMessage;
   String? activityMessage;
+  String? subtaskMessage;
   DateTime? editDueDate;
 
   @override
@@ -130,14 +135,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       errorMessage = null;
       attachmentMessage = null;
       activityMessage = null;
+      subtaskMessage = null;
     });
 
     TaskListItem? loadedTask;
     List<TaskAttachmentModel>? loadedAttachments;
     List<TaskCommentModel>? loadedComments;
+    List<TaskSubtaskPreview>? loadedSubtasks;
     String? taskError;
     String? attachmentsError;
     String? commentsError;
+    String? subtasksError;
 
     try {
       loadedTask = await _tasksApi.getTask(
@@ -151,6 +159,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
 
     final taskForRelatedData = loadedTask ?? taskItem;
+
+    try {
+      loadedSubtasks = await _tasksApi.getSubtasks(
+        project: taskForRelatedData.project,
+        taskId: taskForRelatedData.task.taskId,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Task subtasks load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      loadedSubtasks = taskForRelatedData.task.subtasks;
+      subtasksError = 'Could not refresh the checklist.';
+    }
 
     try {
       loadedAttachments = await _tasksApi.getTaskAttachments(
@@ -191,9 +211,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         comments = loadedComments;
       }
 
+      if (loadedSubtasks != null) {
+        subtasks = loadedSubtasks;
+      }
+
       errorMessage = taskError;
       attachmentMessage = attachmentsError;
       activityMessage = commentsError;
+      subtaskMessage = subtasksError;
       isRefreshing = false;
     });
 
@@ -201,7 +226,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Future<void> _pollCommentsIfNeeded() async {
-    if (!mounted || selectedTabIndex != 1) {
+    if (!mounted || selectedTabIndex != 2) {
       return;
     }
 
@@ -514,7 +539,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Widget buildTabRow(BuildContext context) {
-    final labels = ['Overview', 'Activity', 'Attachments'];
+    final labels = ['Overview', 'Subtasks', 'Activity', 'Files'];
 
     return Row(
       children: [
@@ -534,8 +559,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   int tabCountFor(int index) {
     switch (index) {
       case 1:
-        return comments.length;
+        return subtasks.length;
       case 2:
+        return comments.length;
+      case 3:
         return attachments.length;
       default:
         return 0;
@@ -559,7 +586,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           selectedTabIndex = index;
         });
 
-        if (index == 1) {
+        if (index == 2) {
           unawaited(_refreshCommentsSilently());
         }
       },
@@ -1246,32 +1273,82 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   }
 
   Widget buildSubtasksTab(BuildContext context) {
-    final subtasks = taskItem.task.subtasks;
-
-    if (subtasks.isEmpty) {
-      return buildEmptyStateCard(
-        context,
-        icon: Icons.checklist_rounded,
-        message:
-            'Subtasks are hidden until the backend exposes a subtasks API.',
-      );
-    }
+    final completedCount = subtasks.where((item) => item.isCompleted).length;
+    final progress = subtasks.isEmpty ? 0.0 : completedCount / subtasks.length;
+    final accent = PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkPrimary
+        : PlanoraTheme.primaryPurple;
 
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: cardDecoration(context, radius: 20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var index = 0; index < subtasks.length; index++) ...[
-            buildSubtaskRow(context, subtasks[index]),
-            if (index != subtasks.length - 1)
-              Divider(
-                height: 1,
-                color: PlanoraTheme.isDark(context)
-                    ? PlanoraTheme.darkBorder
-                    : PlanoraTheme.border,
+          Row(
+            children: [
+              Expanded(child: buildSectionTitle(context, 'Checklist')),
+              Text(
+                '$completedCount/${subtasks.length} done',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 7,
+              color: accent,
+              backgroundColor: accent.withValues(alpha: 0.12),
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: isAddingSubtask ? null : addSubtask,
+            icon: isAddingSubtask
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_rounded),
+            label: const Text('Add subtask'),
+          ),
+          if (subtaskMessage != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              subtaskMessage!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: PlanoraTheme.error,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ],
+          const SizedBox(height: 12),
+          if (subtasks.isEmpty)
+            buildEmptyStateContent(
+              context,
+              icon: Icons.checklist_rounded,
+              message: 'No subtasks yet. Add the first checklist item.',
+            )
+          else
+            for (var index = 0; index < subtasks.length; index++) ...[
+              buildSubtaskRow(context, subtasks[index]),
+              if (index != subtasks.length - 1)
+                Divider(
+                  height: 1,
+                  color: PlanoraTheme.isDark(context)
+                      ? PlanoraTheme.darkBorder
+                      : PlanoraTheme.border,
+                ),
+            ],
         ],
       ),
     );
@@ -1279,31 +1356,53 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Widget buildSubtaskRow(BuildContext context, TaskSubtaskPreview subtask) {
     final isDark = PlanoraTheme.isDark(context);
+    final subtaskId = subtask.subtaskId;
+    final isUpdating = subtaskId != null && updatingSubtaskId == subtaskId;
+    final isDeleting = subtaskId != null && deletingSubtaskId == subtaskId;
 
     return Padding(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: subtask.isCompleted
-                  ? PlanoraTheme.success
-                  : Colors.transparent,
-              border: Border.all(
-                color: subtask.isCompleted
-                    ? PlanoraTheme.success
-                    : PlanoraTheme.secondaryPurple,
-                width: 1.6,
+          InkWell(
+            onTap: subtaskId == null || isUpdating || isDeleting
+                ? null
+                : () => toggleSubtask(subtask),
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: subtask.isCompleted
+                      ? PlanoraTheme.success
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: subtask.isCompleted
+                        ? PlanoraTheme.success
+                        : PlanoraTheme.secondaryPurple,
+                    width: 1.7,
+                  ),
+                ),
+                child: isUpdating
+                    ? const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : subtask.isCompleted
+                    ? const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      )
+                    : null,
               ),
             ),
-            child: subtask.isCompleted
-                ? const Icon(Icons.check_rounded, color: Colors.white, size: 15)
-                : null,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               subtask.title,
@@ -1314,18 +1413,245 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     ? PlanoraTheme.darkTextPrimary
                     : PlanoraTheme.textPrimary,
                 fontWeight: FontWeight.w800,
+                decoration: subtask.isCompleted
+                    ? TextDecoration.lineThrough
+                    : null,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          buildBadge(
-            context,
-            label: subtask.status.label,
-            color: statusColor(subtask.status),
+          PopupMenuButton<String>(
+            enabled: subtaskId != null && !isUpdating && !isDeleting,
+            tooltip: 'Subtask actions',
+            onSelected: (value) {
+              if (value == 'edit') {
+                editSubtask(subtask);
+              } else if (value == 'delete') {
+                confirmDeleteSubtask(subtask);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Edit')),
+              PopupMenuItem(value: 'delete', child: Text('Delete')),
+            ],
+            icon: isDeleting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(Icons.more_horiz_rounded, color: mutedColor(context)),
           ),
         ],
       ),
     );
+  }
+
+  Future<String?> showSubtaskEditor({String? initialTitle}) async {
+    final controller = TextEditingController(text: initialTitle);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(initialTitle == null ? 'Add subtask' : 'Edit subtask'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 300,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'What needs to be done?'),
+          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: Text(initialTitle == null ? 'Add' : 'Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result?.trim();
+  }
+
+  void syncTaskSubtasks() {
+    final completedCount = subtasks.where((item) => item.isCompleted).length;
+    final progress = subtasks.isEmpty
+        ? 0.0
+        : (completedCount / subtasks.length) * 100;
+    taskItem = taskItem.copyWith(
+      task: taskItem.task.copyWith(
+        subtasks: List.unmodifiable(subtasks),
+        subtaskCount: subtasks.length,
+        completedSubtaskCount: completedCount,
+        progressPercentage: progress,
+      ),
+    );
+  }
+
+  Future<void> addSubtask() async {
+    final title = await showSubtaskEditor();
+    if (title == null) return;
+    if (title.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a subtask title.')));
+      return;
+    }
+
+    setState(() => isAddingSubtask = true);
+    try {
+      final created = await _tasksApi.createSubtask(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        title: title,
+      );
+      if (!mounted) return;
+      setState(() {
+        subtasks = [...subtasks, created];
+        subtaskMessage = null;
+        isAddingSubtask = false;
+        syncTaskSubtasks();
+      });
+      widget.onTaskChanged?.call();
+    } catch (error, stackTrace) {
+      debugPrint('Subtask create failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => isAddingSubtask = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not add subtask.')));
+    }
+  }
+
+  Future<void> toggleSubtask(TaskSubtaskPreview subtask) async {
+    final subtaskId = subtask.subtaskId;
+    if (subtaskId == null) return;
+
+    setState(() => updatingSubtaskId = subtaskId);
+    try {
+      final updated = await _tasksApi.setSubtaskCompleted(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        subtaskId: subtaskId,
+        isCompleted: !subtask.isCompleted,
+      );
+      if (!mounted) return;
+      setState(() {
+        subtasks = [
+          for (final item in subtasks)
+            if (item.subtaskId == subtaskId) updated else item,
+        ];
+        updatingSubtaskId = null;
+        subtaskMessage = null;
+        syncTaskSubtasks();
+      });
+      widget.onTaskChanged?.call();
+    } catch (error, stackTrace) {
+      debugPrint('Subtask completion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => updatingSubtaskId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update subtask.')),
+      );
+    }
+  }
+
+  Future<void> editSubtask(TaskSubtaskPreview subtask) async {
+    final subtaskId = subtask.subtaskId;
+    if (subtaskId == null) return;
+    final title = await showSubtaskEditor(initialTitle: subtask.title);
+    if (title == null || title.isEmpty || title == subtask.title) return;
+
+    setState(() => updatingSubtaskId = subtaskId);
+    try {
+      final updated = await _tasksApi.updateSubtask(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        subtaskId: subtaskId,
+        title: title,
+      );
+      if (!mounted) return;
+      setState(() {
+        subtasks = [
+          for (final item in subtasks)
+            if (item.subtaskId == subtaskId) updated else item,
+        ];
+        updatingSubtaskId = null;
+        syncTaskSubtasks();
+      });
+      widget.onTaskChanged?.call();
+    } catch (error, stackTrace) {
+      debugPrint('Subtask update failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => updatingSubtaskId = null);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not edit subtask.')));
+    }
+  }
+
+  Future<void> confirmDeleteSubtask(TaskSubtaskPreview subtask) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete subtask?'),
+        content: Text('"${subtask.title}" will be removed from the checklist.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await deleteSubtask(subtask);
+    }
+  }
+
+  Future<void> deleteSubtask(TaskSubtaskPreview subtask) async {
+    final subtaskId = subtask.subtaskId;
+    if (subtaskId == null) return;
+
+    setState(() => deletingSubtaskId = subtaskId);
+    try {
+      await _tasksApi.deleteSubtask(
+        project: taskItem.project,
+        taskId: taskItem.task.taskId,
+        subtaskId: subtaskId,
+      );
+      if (!mounted) return;
+      setState(() {
+        subtasks = subtasks
+            .where((item) => item.subtaskId != subtaskId)
+            .toList();
+        deletingSubtaskId = null;
+        syncTaskSubtasks();
+      });
+      widget.onTaskChanged?.call();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Subtask deleted.')));
+    } catch (error, stackTrace) {
+      debugPrint('Subtask delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => deletingSubtaskId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete subtask.')),
+      );
+    }
   }
 
   Widget buildAttachmentsTab(BuildContext context) {
@@ -2881,8 +3207,10 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget buildSelectedTabContent(BuildContext context) {
     switch (selectedTabIndex) {
       case 1:
-        return buildActivityTab(context);
+        return buildSubtasksTab(context);
       case 2:
+        return buildActivityTab(context);
+      case 3:
         return buildAttachmentsTab(context);
       default:
         return buildOverviewTab(context);

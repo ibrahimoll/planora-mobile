@@ -64,6 +64,9 @@ class TaskModel {
   final DateTime? dueDate;
   final DateTime? completedAt;
   final DateTime createdAt;
+  final int subtaskCount;
+  final int completedSubtaskCount;
+  final double progressPercentage;
 
   const TaskModel({
     required this.taskId,
@@ -88,6 +91,9 @@ class TaskModel {
     required this.dueDate,
     required this.completedAt,
     required this.createdAt,
+    this.subtaskCount = 0,
+    this.completedSubtaskCount = 0,
+    this.progressPercentage = 0,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -116,6 +122,14 @@ class TaskModel {
       dueDate: _parseOptionalDateTime(json['due_date']),
       completedAt: _parseOptionalDateTime(json['completed_at']),
       createdAt: _parseDateTime(json['created_at']),
+      subtaskCount: _parseInt(
+        json['subtask_count'] ?? (json['subtasks'] as List?)?.length ?? 0,
+      ),
+      completedSubtaskCount: _parseInt(
+        json['completed_subtask_count'] ??
+            _parseSubtasks(json).where((subtask) => subtask.isCompleted).length,
+      ),
+      progressPercentage: _parseProgressPercentage(json),
     );
   }
 
@@ -143,6 +157,9 @@ class TaskModel {
       'due_date': dueDate?.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
       'created_at': createdAt.toIso8601String(),
+      'subtask_count': subtaskCount,
+      'completed_subtask_count': completedSubtaskCount,
+      'progress_percentage': progressPercentage,
     };
   }
 
@@ -169,6 +186,9 @@ class TaskModel {
     DateTime? dueDate,
     DateTime? completedAt,
     DateTime? createdAt,
+    int? subtaskCount,
+    int? completedSubtaskCount,
+    double? progressPercentage,
   }) {
     return TaskModel(
       taskId: taskId ?? this.taskId,
@@ -193,6 +213,10 @@ class TaskModel {
       dueDate: dueDate ?? this.dueDate,
       completedAt: completedAt ?? this.completedAt,
       createdAt: createdAt ?? this.createdAt,
+      subtaskCount: subtaskCount ?? this.subtaskCount,
+      completedSubtaskCount:
+          completedSubtaskCount ?? this.completedSubtaskCount,
+      progressPercentage: progressPercentage ?? this.progressPercentage,
     );
   }
 
@@ -346,6 +370,21 @@ class TaskModel {
     }
 
     return double.tryParse(value.toString());
+  }
+
+  static double _parseProgressPercentage(Map<String, dynamic> json) {
+    final direct = _parseOptionalDouble(json['progress_percentage']);
+    if (direct != null) {
+      return direct;
+    }
+
+    final subtasks = _parseSubtasks(json);
+    if (subtasks.isEmpty) {
+      return 0;
+    }
+
+    final completed = subtasks.where((subtask) => subtask.isCompleted).length;
+    return (completed / subtasks.length) * 100;
   }
 
   static DateTime _parseDateTime(dynamic value) {
@@ -681,7 +720,9 @@ class TaskSubtaskPreview {
         value['subtask_id'] ?? value['task_id'] ?? value['id'],
       ),
       title: title,
-      status: TaskStatus.fromJson(value['status']),
+      status: value['is_completed'] == true
+          ? TaskStatus.completed
+          : TaskStatus.fromJson(value['status']),
     );
   }
 
@@ -690,7 +731,24 @@ class TaskSubtaskPreview {
   }
 
   Map<String, dynamic> toJson() {
-    return {'subtask_id': subtaskId, 'title': title, 'status': status.value};
+    return {
+      'subtask_id': subtaskId,
+      'title': title,
+      'status': status.value,
+      'is_completed': isCompleted,
+    };
+  }
+
+  TaskSubtaskPreview copyWith({
+    int? subtaskId,
+    String? title,
+    TaskStatus? status,
+  }) {
+    return TaskSubtaskPreview(
+      subtaskId: subtaskId ?? this.subtaskId,
+      title: title ?? this.title,
+      status: status ?? this.status,
+    );
   }
 
   static int? _parseOptionalInt(dynamic value) {
