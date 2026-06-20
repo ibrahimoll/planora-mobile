@@ -198,6 +198,75 @@ class TasksApi {
     await ApiClient.delete('${_tasksPath(project)}/$taskId');
   }
 
+  String _subtasksPath(TaskProjectSummary project, int taskId) {
+    return '${_tasksPath(project)}/$taskId/subtasks';
+  }
+
+  Future<List<TaskSubtaskPreview>> getSubtasks({
+    required TaskProjectSummary project,
+    required int taskId,
+  }) async {
+    final response = await ApiClient.get(_subtasksPath(project, taskId));
+
+    if (response is! List) {
+      return [];
+    }
+
+    return response
+        .map(TaskSubtaskPreview.fromJson)
+        .whereType<TaskSubtaskPreview>()
+        .toList();
+  }
+
+  Future<TaskSubtaskPreview> createSubtask({
+    required TaskProjectSummary project,
+    required int taskId,
+    required String title,
+  }) async {
+    final response = await ApiClient.postJson(
+      _subtasksPath(project, taskId),
+      data: {'title': title},
+    );
+    return TaskSubtaskPreview.fromJson(response) ??
+        (throw const FormatException('Invalid subtask response.'));
+  }
+
+  Future<TaskSubtaskPreview> updateSubtask({
+    required TaskProjectSummary project,
+    required int taskId,
+    required int subtaskId,
+    required String title,
+  }) async {
+    final response = await ApiClient.patchJson(
+      '${_subtasksPath(project, taskId)}/$subtaskId',
+      data: {'title': title},
+    );
+    return TaskSubtaskPreview.fromJson(response) ??
+        (throw const FormatException('Invalid subtask response.'));
+  }
+
+  Future<TaskSubtaskPreview> setSubtaskCompleted({
+    required TaskProjectSummary project,
+    required int taskId,
+    required int subtaskId,
+    required bool isCompleted,
+  }) async {
+    final response = await ApiClient.patchJson(
+      '${_subtasksPath(project, taskId)}/$subtaskId/complete',
+      data: {'is_completed': isCompleted},
+    );
+    return TaskSubtaskPreview.fromJson(response) ??
+        (throw const FormatException('Invalid subtask response.'));
+  }
+
+  Future<void> deleteSubtask({
+    required TaskProjectSummary project,
+    required int taskId,
+    required int subtaskId,
+  }) async {
+    await ApiClient.delete('${_subtasksPath(project, taskId)}/$subtaskId');
+  }
+
   Future<List<TaskAttachmentModel>> getTaskAttachments({
     required TaskProjectSummary project,
     required int taskId,
