@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../../core/theme/planora_theme.dart';
+import '../../core/ui/planora_ui.dart';
 import '../auth/data/project_api.dart';
 import 'data/tasks_api.dart';
 import 'models/task_models.dart';
@@ -44,7 +44,7 @@ class _TasksScreenState extends State<TasksScreen> {
   final TextEditingController descriptionController = TextEditingController();
   final TextEditingController searchController = TextEditingController();
 
-  static const List<TaskStatus?> _filters = [
+  static const List<TaskStatus?> filters = [
     null,
     TaskStatus.todo,
     TaskStatus.inProgress,
@@ -55,103 +55,31 @@ class _TasksScreenState extends State<TasksScreen> {
   int? selectedProjectId;
   int? selectedCreateProjectId;
   int? completingTaskId;
-  int? deletingTaskId;
-  int? completionFeedbackTaskId;
-  TaskSortOrder selectedSortOrder = TaskSortOrder.overdueFirst;
-
   bool isLoading = true;
   bool isCreatingTask = false;
-  bool _openCreateAfterLoad = false;
-  bool _isCreateSheetOpen = false;
-  bool _hasInitializedProjectFilter = false;
+  bool isSearchVisible = false;
+  bool openCreateAfterLoad = false;
+  bool isCreateSheetOpen = false;
   bool isShowingCachedData = false;
-  bool addAnotherTask = false;
-
   String? errorMessage;
-  DateTime? lastSyncedAt;
   String searchQuery = '';
   DateTime? selectedDueDate;
   TaskPriority selectedPriority = TaskPriority.medium;
-
   List<TaskProjectSummary> projects = [];
   List<TaskListItem> tasks = [];
-
-  TaskProjectSummary? get selectedCreateProject {
-    final projectId = selectedCreateProjectId;
-    if (projectId == null || projects.isEmpty) return null;
-    return projects.firstWhere(
-      (project) => project.projectId == projectId,
-      orElse: () => projects.first,
-    );
-  }
-
-  TaskStatus? get selectedStatus => _filters[selectedFilterIndex];
-
-  List<TaskListItem> get projectScopedTasks {
-    final projectId = selectedProjectId;
-    if (projectId == null) return tasks;
-    return tasks.where((item) => item.project.projectId == projectId).toList();
-  }
-
-  List<TaskListItem> get searchedTaskItems {
-    final query = searchQuery.trim().toLowerCase();
-    final scopedTasks = projectScopedTasks;
-    if (query.isEmpty) return scopedTasks;
-
-    return scopedTasks.where((item) {
-      final task = item.task;
-      final text = [
-        task.title,
-        task.description ?? '',
-        task.status.label,
-        task.priority.label,
-        item.project.title,
-      ].join(' ').toLowerCase();
-      return text.contains(query);
-    }).toList();
-  }
-
-  List<TaskListItem> get filteredTasks {
-    final status = selectedStatus;
-    final scopedTasks = searchedTaskItems;
-    if (status == null) return sortedTaskItems(scopedTasks);
-    return sortedTaskItems(
-      scopedTasks.where((item) => item.task.status == status).toList(),
-    );
-  }
-
-  int get todoCount => countByStatus(TaskStatus.todo);
-  int get inProgressCount => countByStatus(TaskStatus.inProgress);
-  int get completedCount => countByStatus(TaskStatus.completed);
-  int get overdueCount => projectScopedTasks.where((item) => item.task.isOverdue).length;
-
-  int countByStatus(TaskStatus status) {
-    return projectScopedTasks.where((item) => item.task.status == status).length;
-  }
-
-  List<TaskListItem> sortedTaskItems(List<TaskListItem> items) {
-    final sorted = [...items];
-    sorted.sort((first, second) {
-      final comparison = compareTaskItemsByDueDate(first, second);
-      if (selectedSortOrder == TaskSortOrder.upcomingFirst) return -comparison;
-      return comparison;
-    });
-    return sorted;
-  }
 
   @override
   void initState() {
     super.initState();
     _tasksApi = widget.tasksApi;
-    if (widget.openCreateOnStart) _openCreateAfterLoad = true;
+    openCreateAfterLoad = widget.openCreateOnStart;
     loadTasks();
   }
 
   @override
   void didUpdateWidget(covariant TasksScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.createRequestId != oldWidget.createRequestId &&
-        widget.createRequestId > 0) {
+    if (widget.createRequestId != oldWidget.createRequestId && widget.createRequestId > 0) {
       requestCreateTaskSheet();
     }
   }
@@ -164,6 +92,42 @@ class _TasksScreenState extends State<TasksScreen> {
     super.dispose();
   }
 
+  TaskStatus? get selectedStatus => filters[selectedFilterIndex];
+
+  List<TaskListItem> get projectScopedTasks {
+    final id = selectedProjectId;
+    if (id == null) return tasks;
+    return tasks.where((item) => item.project.projectId == id).toList();
+  }
+
+  List<TaskListItem> get filteredTasks {
+    final query = searchQuery.trim().toLowerCase();
+    var result = projectScopedTasks;
+
+    if (query.isNotEmpty) {
+      result = result.where((item) {
+        final task = item.task;
+        final text = [
+          task.title,
+          task.description ?? '',
+          task.status.label,
+          task.priority.label,
+          item.project.title,
+        ].join(' ').toLowerCase();
+        return text.contains(query);
+      }).toList();
+    }
+
+    final status = selectedStatus;
+    if (status != null) {
+      result = result.where((item) => item.task.status == status).toList();
+    }
+
+    return [...result]..sort(compareTaskItemsByDueDate);
+  }
+
+  int get overdueCount => projectScopedTasks.where((item) => item.task.isOverdue).length;
+
   Future<void> loadTasks() async {
     setState(() {
       isLoading = true;
@@ -173,82 +137,48 @@ class _TasksScreenState extends State<TasksScreen> {
     try {
       final data = await _tasksApi.getTasks();
       if (!mounted) return;
-
       setState(() {
         projects = data.projects;
         tasks = data.tasks;
         isShowingCachedData = data.isFromCache;
-        lastSyncedAt = data.lastSyncedAt;
-        selectedProjectId = resolveSelectedProjectId(data.projects);
-        selectedCreateProjectId = resolveSelectedCreateProjectId(data.projects);
-        _hasInitializedProjectFilter = true;
+        if (selectedProjectId != null &&
+            !data.projects.any((project) => project.projectId == selectedProjectId)) {
+          selectedProjectId = null;
+        }
+        selectedCreateProjectId = selectedProjectId ??
+            (data.projects.isEmpty ? null : data.projects.first.projectId);
         isLoading = false;
       });
     } catch (error, stackTrace) {
       debugPrint('Task board load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-
       final cached = await _tasksApi.getCachedTasks();
       if (cached != null) {
         setState(() {
           projects = cached.projects;
           tasks = cached.tasks;
           isShowingCachedData = true;
-          lastSyncedAt = cached.lastSyncedAt;
-          selectedProjectId = resolveSelectedProjectId(cached.projects);
-          selectedCreateProjectId = resolveSelectedCreateProjectId(cached.projects);
-          _hasInitializedProjectFilter = true;
-          errorMessage = null;
           isLoading = false;
         });
-        return;
+      } else {
+        setState(() {
+          errorMessage = 'Could not load tasks. Try again.';
+          isLoading = false;
+        });
       }
-
-      setState(() {
-        errorMessage = 'Could not load tasks. Try again.';
-        isShowingCachedData = false;
-        isLoading = false;
-      });
     }
 
     if (!mounted) return;
-    if (_openCreateAfterLoad && errorMessage == null) {
-      _openCreateAfterLoad = false;
+    if (openCreateAfterLoad && errorMessage == null) {
+      openCreateAfterLoad = false;
       scheduleCreateTaskSheet(consumeRequest: true);
     }
   }
 
-  int? resolveSelectedProjectId(List<TaskProjectSummary> loadedProjects) {
-    if (loadedProjects.isEmpty) return null;
-    if (!_hasInitializedProjectFilter) return loadedProjects.first.projectId;
-
-    final currentProjectId = selectedProjectId;
-    if (currentProjectId == null) return null;
-    if (loadedProjects.any((project) => project.projectId == currentProjectId)) {
-      return currentProjectId;
-    }
-    return loadedProjects.first.projectId;
-  }
-
-  int? resolveSelectedCreateProjectId(List<TaskProjectSummary> loadedProjects) {
-    if (loadedProjects.isEmpty) return null;
-    final currentCreateProjectId = selectedCreateProjectId;
-    if (currentCreateProjectId != null &&
-        loadedProjects.any((project) => project.projectId == currentCreateProjectId)) {
-      return currentCreateProjectId;
-    }
-    final currentFilterProjectId = selectedProjectId;
-    if (currentFilterProjectId != null &&
-        loadedProjects.any((project) => project.projectId == currentFilterProjectId)) {
-      return currentFilterProjectId;
-    }
-    return loadedProjects.first.projectId;
-  }
-
   void requestCreateTaskSheet() {
     if (isLoading) {
-      _openCreateAfterLoad = true;
+      openCreateAfterLoad = true;
       return;
     }
     scheduleCreateTaskSheet(consumeRequest: true);
@@ -263,52 +193,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Color mutedColor(BuildContext context) {
-    return PlanoraTheme.isDark(context)
-        ? PlanoraTheme.darkTextMuted
-        : PlanoraTheme.textSecondary;
-  }
-
-  Color borderColor(BuildContext context) {
-    return PlanoraTheme.isDark(context)
-        ? PlanoraTheme.darkBorder
-        : PlanoraTheme.border;
-  }
-
-  BoxDecoration cardDecoration(BuildContext context, {double radius = 20}) {
-    final isDark = PlanoraTheme.isDark(context);
-    return BoxDecoration(
-      color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: borderColor(context)),
-      boxShadow: PlanoraTheme.cardShadowFor(context),
-    );
-  }
-
-  BoxDecoration taskCardDecoration(
-    BuildContext context, {
-    bool isCompletionFeedback = false,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return BoxDecoration(
-      color: isDark ? const Color(0xFF121A2A) : PlanoraTheme.surface,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: isCompletionFeedback
-            ? PlanoraTheme.success.withValues(alpha: 0.62)
-            : isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : PlanoraTheme.border.withValues(alpha: 0.72),
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: isCompletionFeedback
-              ? PlanoraTheme.success.withValues(alpha: isDark ? 0.24 : 0.16)
-              : Colors.black.withValues(alpha: isDark ? 0.30 : 0.055),
-          blurRadius: isCompletionFeedback ? 24 : 18,
-          offset: const Offset(0, 9),
-        ),
-      ],
-    );
+    return PlanoraTheme.isDark(context) ? PlanoraTheme.darkTextMuted : PlanoraTheme.textSecondary;
   }
 
   Color statusColor(TaskStatus status) {
@@ -337,148 +222,87 @@ class _TasksScreenState extends State<TasksScreen> {
 
   String filterLabel(TaskStatus? status) {
     if (status == null) return 'All';
-    if (status == TaskStatus.completed) return 'Done';
-    return status.label;
+    if (status == TaskStatus.todo) return 'To Do';
+    if (status == TaskStatus.inProgress) return 'Doing';
+    return 'Done';
   }
 
-  String formatLastSynced(DateTime date) {
-    final difference = DateTime.now().difference(date);
-    if (difference.inMinutes < 1) return 'Last synced just now';
-    if (difference.inHours < 1) return 'Last synced ${difference.inMinutes}m ago';
-    if (difference.inDays < 1) return 'Last synced ${difference.inHours}h ago';
-    return 'Last synced ${formatShortDate(date)}';
-  }
-
-  void clearTaskSearch() {
-    searchController.clear();
-    setState(() => searchQuery = '');
-  }
-
-  int taskCountForProject(int projectId) {
-    return tasks.where((item) => item.project.projectId == projectId).length;
+  String selectedProjectTitle() {
+    final id = selectedProjectId;
+    if (id == null) return 'All plans';
+    return projects
+        .firstWhere(
+          (project) => project.projectId == id,
+          orElse: () => projects.first,
+        )
+        .title;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        RefreshIndicator(
-          onRefresh: loadTasks,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 112),
-            child: Column(
-              children: [
-                buildTasksHeader(context),
-                const SizedBox(height: 24),
-                buildProjectSelector(context),
-                const SizedBox(height: 14),
-                buildTaskSearchField(context),
-                const SizedBox(height: 18),
-                buildTaskStatsFilterRow(context),
-                const SizedBox(height: 20),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    final slide = Tween<Offset>(
-                      begin: const Offset(0, 0.025),
-                      end: Offset.zero,
-                    ).animate(animation);
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(position: slide, child: child),
-                    );
-                  },
-                  child: KeyedSubtree(
-                    key: ValueKey(
-                      'task-content-${isLoading ? 'loading' : 'ready'}-${selectedProjectId ?? 'all'}-$selectedFilterIndex-$selectedSortOrder-${tasks.length}',
-                    ),
-                    child: buildTaskContent(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    return PlanoraPage(
+      title: 'Tasks',
+      subtitle: selectedProjectTitle(),
+      onBack: widget.onBack,
+      onRefresh: loadTasks,
+      actions: [
+        PlanoraIconButton(
+          icon: isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+          tooltip: isSearchVisible ? 'Close search' : 'Search tasks',
+          onTap: () {
+            setState(() {
+              isSearchVisible = !isSearchVisible;
+              if (!isSearchVisible) {
+                searchController.clear();
+                searchQuery = '';
+              }
+            });
+          },
         ),
-        Positioned(
-          right: 2,
-          bottom: 26,
-          child: FloatingActionButton(
-            onPressed: showCreateTaskSheet,
-            elevation: 0,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            child: const Icon(Icons.add_rounded, color: Colors.white),
-          ),
+        const SizedBox(width: 10),
+        PlanoraIconButton(
+          icon: Icons.add_rounded,
+          tooltip: 'New task',
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          iconColor: Colors.white,
+          onTap: requestCreateTaskSheet,
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isSearchVisible) ...[
+            PlanoraAnimatedIn(index: 0, child: buildTaskSearchField(context)),
+            const SizedBox(height: PlanoraSpacing.md),
+          ],
+          PlanoraAnimatedIn(index: 1, child: buildProjectSelector(context)),
+          const SizedBox(height: PlanoraSpacing.md),
+          PlanoraAnimatedIn(index: 2, child: buildTaskFilterTabs(context)),
+          const SizedBox(height: PlanoraSpacing.lg),
+          PlanoraAnimatedIn(index: 3, child: buildTaskContent(context)),
+        ],
+      ),
     );
   }
 
-  Widget buildTasksHeader(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Row(
-      children: [
-        InkWell(
-          onTap: widget.onBack,
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-              border: Border.all(color: borderColor(context)),
-              boxShadow: PlanoraTheme.cardShadowFor(context),
-            ),
-            child: Icon(
-              Icons.arrow_back_rounded,
-              size: 24,
-              color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Tasks',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-                ),
-          ),
-        ),
-        buildCircleIconButton(
-          context,
-          icon: Icons.tune_rounded,
-          onTap: showTaskFilterSheet,
-        ),
-      ],
-    );
-  }
-
-  Widget buildCircleIconButton(
-    BuildContext context, {
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-          border: Border.all(color: borderColor(context)),
-          boxShadow: PlanoraTheme.cardShadowFor(context),
-        ),
-        child: Icon(icon, size: 20, color: mutedColor(context)),
+  Widget buildTaskSearchField(BuildContext context) {
+    return TextField(
+      controller: searchController,
+      autofocus: true,
+      onChanged: (value) => setState(() => searchQuery = value),
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Search tasks...',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: searchQuery.trim().isEmpty
+            ? null
+            : IconButton(
+                onPressed: () {
+                  searchController.clear();
+                  setState(() => searchQuery = '');
+                },
+                icon: const Icon(Icons.close_rounded),
+              ),
       ),
     );
   }
@@ -502,9 +326,7 @@ class _TasksScreenState extends State<TasksScreen> {
               ),
             ),
             Text(
-              selectedProjectId == null
-                  ? '${tasks.length} total • $overdueCount overdue'
-                  : '${projectScopedTasks.length} in plan • $overdueCount overdue',
+              '${projectScopedTasks.length} tasks • $overdueCount overdue',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w900,
@@ -512,7 +334,7 @@ class _TasksScreenState extends State<TasksScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: PlanoraSpacing.sm),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -524,32 +346,24 @@ class _TasksScreenState extends State<TasksScreen> {
                 count: tasks.length,
                 icon: Icons.dashboard_customize_outlined,
                 isSelected: selectedProjectId == null,
-                onTap: () {
-                  setState(() {
-                    selectedProjectId = null;
-                    _hasInitializedProjectFilter = true;
-                  });
-                },
+                onTap: () => setState(() => selectedProjectId = null),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: PlanoraSpacing.sm),
               for (final project in projects) ...[
                 buildProjectChip(
                   context,
                   label: project.title,
-                  count: taskCountForProject(project.projectId),
-                  icon: project.isTeamProject
-                      ? Icons.groups_2_outlined
-                      : Icons.folder_outlined,
+                  count: tasks.where((item) => item.project.projectId == project.projectId).length,
+                  icon: project.isTeamProject ? Icons.groups_2_outlined : Icons.folder_outlined,
                   isSelected: selectedProjectId == project.projectId,
                   onTap: () {
                     setState(() {
                       selectedProjectId = project.projectId;
                       selectedCreateProjectId = project.projectId;
-                      _hasInitializedProjectFilter = true;
                     });
                   },
                 ),
-                if (project != projects.last) const SizedBox(width: 10),
+                if (project != projects.last) const SizedBox(width: PlanoraSpacing.sm),
               ],
             ],
           ),
@@ -573,34 +387,26 @@ class _TasksScreenState extends State<TasksScreen> {
         : isDark
             ? PlanoraTheme.darkTextPrimary
             : PlanoraTheme.textPrimary;
-    final muted = isSelected ? Colors.white70 : mutedColor(context);
 
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(18),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minWidth: 138, maxWidth: 220),
+        constraints: const BoxConstraints(minWidth: 136, maxWidth: 220),
         padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
         decoration: BoxDecoration(
           gradient: isSelected ? PlanoraTheme.primaryGradientFor(context) : null,
-          color: isSelected
-              ? null
-              : isDark
-                  ? const Color(0xFF121A2A)
-                  : PlanoraTheme.surface,
+          color: isSelected ? null : (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
                 : isDark
-                    ? PlanoraTheme.darkBorder.withValues(alpha: 0.72)
-                    : PlanoraTheme.border.withValues(alpha: 0.86),
+                    ? PlanoraTheme.darkBorder
+                    : PlanoraTheme.border,
           ),
-          boxShadow: isSelected
-              ? PlanoraTheme.floatingShadowFor(context)
-              : PlanoraTheme.cardShadowFor(context),
+          boxShadow: isSelected ? PlanoraTheme.floatingShadowFor(context) : PlanoraTheme.cardShadowFor(context),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -610,9 +416,7 @@ class _TasksScreenState extends State<TasksScreen> {
               height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected
-                    ? Colors.white.withValues(alpha: 0.18)
-                    : primary.withValues(alpha: isDark ? 0.18 : 0.09),
+                color: isSelected ? Colors.white.withValues(alpha: .18) : primary.withValues(alpha: .10),
               ),
               child: Icon(icon, color: isSelected ? Colors.white : primary, size: 16),
             ),
@@ -633,10 +437,8 @@ class _TasksScreenState extends State<TasksScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '$count ${count == 1 ? 'task' : 'tasks'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: muted,
+                          color: isSelected ? Colors.white70 : mutedColor(context),
                           fontWeight: FontWeight.w800,
                         ),
                   ),
@@ -649,434 +451,74 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Widget buildTaskSearchField(BuildContext context) {
-    if (isLoading || projects.isEmpty) return const SizedBox.shrink();
-    final isDark = PlanoraTheme.isDark(context);
-
-    return TextField(
-      controller: searchController,
-      onChanged: (value) => setState(() => searchQuery = value),
-      textInputAction: TextInputAction.search,
-      style: TextStyle(
-        color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-        fontWeight: FontWeight.w700,
-      ),
-      decoration: InputDecoration(
-        hintText: selectedProjectId == null
-            ? 'Search tasks across all plans'
-            : 'Search tasks in this plan',
-        prefixIcon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.primary),
-        suffixIcon: searchQuery.trim().isEmpty
-            ? null
-            : IconButton(
-                onPressed: clearTaskSearch,
-                icon: const Icon(Icons.close_rounded),
-              ),
-        filled: true,
-        fillColor: isDark ? const Color(0xFF121A2A) : PlanoraTheme.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
-
   Widget buildProjectSelectorSkeleton(BuildContext context) {
-    return _PlanoraShimmer(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const NeverScrollableScrollPhysics(),
-        child: Row(
-          children: [
-            for (var index = 0; index < 4; index++) ...[
-              buildSkeletonBox(context, width: 142, height: 58, radius: 18),
-              if (index != 3) const SizedBox(width: 10),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildSkeletonBox(
-    BuildContext context, {
-    double? width,
-    required double height,
-    required double radius,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.08)
-            : PlanoraTheme.border.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(radius),
-      ),
-    );
-  }
-
-  Widget buildTaskStatsFilterRow(BuildContext context) {
-    if (isLoading) {
-      return _PlanoraShimmer(
-        child: Row(
-          children: [
-            for (var index = 0; index < 4; index++) ...[
-              Expanded(child: buildSkeletonBox(context, height: 76, radius: 16)),
-              if (index != 3) const SizedBox(width: 9),
-            ],
-          ],
-        ),
-      );
-    }
-
-    if (projects.isEmpty) return const SizedBox.shrink();
-
-    final stats = [
-      _TaskStatData(
-        value: projectScopedTasks.length.toString(),
-        label: 'All Tasks',
-        color: Theme.of(context).colorScheme.primary,
-      ),
-      _TaskStatData(value: todoCount.toString(), label: 'To Do', color: PlanoraTheme.primaryPurple),
-      _TaskStatData(value: inProgressCount.toString(), label: 'In Progress', color: PlanoraTheme.info),
-      _TaskStatData(value: completedCount.toString(), label: 'Done', color: PlanoraTheme.success),
-    ];
-
-    return Row(
-      children: [
-        for (var index = 0; index < stats.length; index++) ...[
-          Expanded(
-            child: buildTaskStatFilterCard(
-              context,
-              stat: stats[index],
-              isSelected: selectedFilterIndex == index,
-              onTap: () => setState(() => selectedFilterIndex = index),
-            ),
-          ),
-          if (index != stats.length - 1) const SizedBox(width: 9),
-        ],
-      ],
-    );
-  }
-
-  Widget buildTaskStatFilterCard(
-    BuildContext context, {
-    required _TaskStatData stat,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final labelColor = isSelected
-        ? Colors.white
-        : isDark
-            ? PlanoraTheme.darkTextPrimary
-            : PlanoraTheme.textPrimary;
-    final countColor = isSelected ? Colors.white : stat.color;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        height: 76,
-        padding: const EdgeInsets.fromLTRB(6, 12, 6, 9),
-        decoration: BoxDecoration(
-          gradient: isSelected ? PlanoraTheme.primaryGradientFor(context) : null,
-          color: isSelected
-              ? null
-              : isDark
-                  ? PlanoraTheme.darkSurface
-                  : PlanoraTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : borderColor(context),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
-              blurRadius: isDark ? 18 : 16,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    stat.value,
-                    maxLines: 1,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 23,
-                          fontWeight: FontWeight.w900,
-                          color: countColor,
-                          height: 1,
-                        ),
-                  ),
-                ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      child: Row(
+        children: List.generate(3, (index) {
+          return Padding(
+            padding: EdgeInsets.only(right: index == 2 ? 0 : PlanoraSpacing.sm),
+            child: Container(
+              width: 142,
+              height: 58,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: .08),
+                borderRadius: BorderRadius.circular(18),
               ),
             ),
-            const SizedBox(height: 5),
-            SizedBox(
-              width: double.infinity,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  stat.label,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontSize: 9.5,
-                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                        color: labelColor,
-                        height: 1.12,
-                      ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        }),
       ),
+    );
+  }
+
+  Widget buildTaskFilterTabs(BuildContext context) {
+    return PlanoraSegmentedTabs(
+      tabs: filters.map(filterLabel).toList(),
+      selectedIndex: selectedFilterIndex,
+      onChanged: (index) => setState(() => selectedFilterIndex = index),
     );
   }
 
   Widget buildTaskContent(BuildContext context) {
-    if (isLoading) return buildLoadingState(context);
+    if (isLoading) {
+      return const PlanoraLoadingState(message: 'Loading tasks...', topPadding: 22);
+    }
 
     if (errorMessage != null) {
-      return buildMessageState(
-        context,
+      return PlanoraMessageState(
         icon: Icons.wifi_off_rounded,
         title: 'Could not load tasks',
         message: errorMessage!,
-        buttonText: 'Try Again',
-        onPressed: loadTasks,
+        actionText: 'Try Again',
+        onAction: loadTasks,
+        topMargin: 10,
       );
     }
 
     if (projects.isEmpty) {
-      final createAiPlan = widget.onCreateAiPlan;
-      return buildMessageState(
-        context,
-        icon: Icons.auto_awesome_rounded,
-        title: 'No projects yet',
-        message: 'Create your first AI plan so Planora can turn an idea into practical tasks.',
-        buttonText: createAiPlan == null ? 'Try Again' : 'Create your first AI plan',
-        onPressed: createAiPlan ?? loadTasks,
+      return PlanoraMessageState(
+        icon: Icons.folder_off_rounded,
+        title: 'No plans yet',
+        message: 'Create a plan first, then add tasks to it.',
+        actionText: widget.onCreateAiPlan == null ? null : 'Plan with AI',
+        onAction: widget.onCreateAiPlan,
+        topMargin: 10,
       );
     }
 
-    final visibleTasks = filteredTasks;
-    final hasSelectedProject = selectedProjectId != null;
-    final hasSearchQuery = searchQuery.trim().isNotEmpty;
-    final cacheBanner = buildCacheBanner(context);
-
-    if (visibleTasks.isEmpty) {
-      return Column(
-        children: [
-          if (cacheBanner != null) ...[cacheBanner, const SizedBox(height: 12)],
-          buildMessageState(
-            context,
-            icon: hasSearchQuery ? Icons.manage_search_rounded : Icons.check_box_outlined,
-            title: hasSearchQuery
-                ? 'No tasks matching search'
-                : hasSelectedProject && selectedStatus == null
-                    ? 'No tasks for this project yet.'
-                    : selectedStatus == null
-                        ? 'No tasks yet'
-                        : 'No ${filterLabel(selectedStatus).toLowerCase()} tasks',
-            message: hasSearchQuery
-                ? 'Try a different title, detail, or plan name.'
-                : hasSelectedProject
-                    ? 'Create a task here or switch plans to see other work.'
-                    : selectedStatus == null
-                        ? 'Choose a plan or create your first task across all plans.'
-                        : 'Try another status or create a task in one of your plans.',
-            buttonText: hasSearchQuery ? 'Clear Search' : 'New Task',
-            onPressed: hasSearchQuery ? clearTaskSearch : showCreateTaskSheet,
-          ),
-        ],
+    if (filteredTasks.isEmpty) {
+      return PlanoraMessageState(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'No tasks here',
+        message: searchQuery.trim().isNotEmpty ? 'No task matches your search.' : 'Add a task or switch to another status.',
+        actionText: 'New Task',
+        onAction: showCreateTaskSheet,
+        topMargin: 10,
       );
     }
 
-    return Column(
-      children: [
-        if (cacheBanner != null) ...[cacheBanner, const SizedBox(height: 12)],
-        buildGroupedTasks(context, visibleTasks),
-      ],
-    );
-  }
-
-  Widget? buildCacheBanner(BuildContext context) {
-    if (!isShowingCachedData) return null;
-    final lastSynced = lastSyncedAt;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.warning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PlanoraTheme.warning.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.cloud_off_rounded, color: PlanoraTheme.warning),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              lastSynced == null
-                  ? 'Could not connect. Showing last saved data.'
-                  : 'Could not connect. Showing last saved data. ${formatLastSynced(lastSynced)}.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ),
-          TextButton(onPressed: loadTasks, child: const Text('Retry')),
-        ],
-      ),
-    );
-  }
-
-  Widget buildLoadingState(BuildContext context) {
-    return _PlanoraShimmer(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Column(
-          children: [
-            for (var index = 0; index < 5; index++) ...[
-              buildTaskSkeletonCard(context),
-              if (index != 4) const SizedBox(height: 12),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildTaskSkeletonCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-      decoration: taskCardDecoration(context),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildSkeletonBox(context, width: 24, height: 24, radius: 999),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                buildSkeletonBox(context, height: 16, radius: 8),
-                const SizedBox(height: 10),
-                buildSkeletonBox(context, width: 180, height: 10, radius: 6),
-                const SizedBox(height: 10),
-                buildSkeletonBox(context, width: 132, height: 10, radius: 6),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          buildSkeletonBox(context, width: 72, height: 26, radius: 10),
-        ],
-      ),
-    );
-  }
-
-  Widget buildMessageState(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String message,
-    required String buttonText,
-    required VoidCallback onPressed,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 34),
-      padding: const EdgeInsets.all(22),
-      decoration: cardDecoration(context, radius: 24),
-      child: Column(
-        children: [
-          Icon(icon, size: 42, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor(context),
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 18),
-          ElevatedButton(onPressed: onPressed, child: Text(buttonText)),
-        ],
-      ),
-    );
-  }
-
-  Widget buildGroupedTasks(BuildContext context, List<TaskListItem> visibleTasks) {
-    final sectionOrder = selectedSortOrder == TaskSortOrder.overdueFirst
-        ? const ['Overdue', 'Today', 'Tomorrow', 'Next Week', 'Upcoming', 'Later', 'Completed']
-        : const ['Today', 'Tomorrow', 'Next Week', 'Upcoming', 'Later', 'Overdue', 'Completed'];
-    final grouped = <String, List<TaskListItem>>{};
-
-    for (final item in visibleTasks) {
-      final key = sectionKeyForTask(item.task);
-      grouped.putIfAbsent(key, () => []).add(item);
-    }
-
-    return Column(
-      children: [
-        for (final section in sectionOrder)
-          if (grouped[section] != null) ...[
-            buildTaskSection(context, section, grouped[section]!),
-            const SizedBox(height: 18),
-          ],
-      ],
-    );
-  }
-
-  String sectionKeyForTask(TaskModel task) {
-    if (task.isCompleted) return 'Completed';
-    if (task.isOverdue) return 'Overdue';
-
-    final dueDate = task.dueDate;
-    if (dueDate == null) return 'Later';
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dueDay = DateTime(dueDate.year, dueDate.month, dueDate.day);
-    final difference = dueDay.difference(today).inDays;
-
-    if (difference == 0) return 'Today';
-    if (difference == 1) return 'Tomorrow';
-    if (difference > 1 && difference <= 7) return 'Next Week';
-    return 'Upcoming';
-  }
-
-  Widget buildTaskSection(
-    BuildContext context,
-    String title,
-    List<TaskListItem> sectionTasks,
-  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1084,994 +526,183 @@ class _TasksScreenState extends State<TasksScreen> {
           children: [
             Expanded(
               child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                selectedFilterIndex == 0 ? 'Current Tasks' : filterLabel(selectedStatus),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
-            Text(
-              '${sectionTasks.length} ${sectionTasks.length == 1 ? 'task' : 'tasks'}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
+            if (isShowingCachedData)
+              buildPill(context, label: 'Offline', icon: Icons.cloud_off_rounded, color: PlanoraTheme.warning),
           ],
         ),
-        const SizedBox(height: 10),
-        for (var index = 0; index < sectionTasks.length; index++) ...[
-          buildAnimatedTaskCard(context, sectionTasks[index], index),
-          const SizedBox(height: 12),
+        const SizedBox(height: PlanoraSpacing.md),
+        for (var index = 0; index < filteredTasks.length; index++) ...[
+          PlanoraAnimatedIn(
+            index: index + 4,
+            baseDurationMs: 260,
+            delayMs: 22,
+            child: buildTaskCard(context, filteredTasks[index]),
+          ),
+          if (index != filteredTasks.length - 1) const SizedBox(height: PlanoraSpacing.md),
         ],
       ],
     );
   }
 
-  Widget buildAnimatedTaskCard(BuildContext context, TaskListItem item, int index) {
-    final cappedIndex = index.clamp(0, 5).toInt();
-    final delay = Duration(milliseconds: 45 * cappedIndex);
-
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('task-card-${selectedProjectId ?? 'all'}-$selectedFilterIndex-${item.task.taskId}'),
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 260 + delay.inMilliseconds),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 12 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: buildSlidableTaskCard(context, item),
-    );
-  }
-
-  Widget buildSlidableTaskCard(BuildContext context, TaskListItem item) {
-    final task = item.task;
-    final isCompleted = task.isCompleted;
-    final isCompleting = completingTaskId == task.taskId;
-    final isDeleting = deletingTaskId == task.taskId;
-
-    return Slidable(
-      key: ValueKey('task-slidable-${task.taskId}-${task.status.value}'),
-      closeOnScroll: true,
-      startActionPane: ActionPane(
-        motion: const StretchMotion(),
-        extentRatio: 0.34,
-        children: [
-          SlidableAction(
-            onPressed: isCompleted || isCompleting || isDeleting
-                ? null
-                : (_) => markTaskCompleted(item),
-            backgroundColor: PlanoraTheme.success,
-            foregroundColor: Colors.white,
-            icon: isCompleted ? Icons.check_circle_rounded : Icons.check_rounded,
-            label: isCompleted ? 'Completed' : 'Complete',
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ],
-      ),
-      endActionPane: ActionPane(
-        motion: const StretchMotion(),
-        extentRatio: 0.34,
-        children: [
-          SlidableAction(
-            onPressed: isDeleting ? null : (_) => confirmDeleteTaskFromList(item),
-            backgroundColor: PlanoraTheme.error,
-            foregroundColor: Colors.white,
-            icon: Icons.delete_outline_rounded,
-            label: isDeleting ? 'Deleting' : 'Delete',
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ],
-      ),
-      child: buildTaskCard(context, item),
-    );
-  }
-
   Widget buildTaskCard(BuildContext context, TaskListItem item) {
-    final isDark = PlanoraTheme.isDark(context);
     final task = item.task;
-    final taskStatusColor = statusColor(task.status);
-    final taskPriorityColor = priorityColor(task.priority);
-    final isCompleting = completingTaskId == task.taskId;
-    final showCompletionFeedback = completionFeedbackTaskId == task.taskId;
+    final color = statusColor(task.status);
+    final progress = task.isCompleted ? 1.0 : task.progressPercentage.clamp(0, 100) / 100;
+    final isBusy = completingTaskId == task.taskId;
 
-    return InkWell(
+    return PlanoraCard(
       onTap: () => openTaskDetail(item),
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-        decoration: taskCardDecoration(context, isCompletionFeedback: showCompletionFeedback),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            InkWell(
-              onTap: task.isCompleted || isCompleting ? null : () => markTaskCompleted(item),
-              borderRadius: BorderRadius.circular(999),
-              child: SizedBox(
-                width: 30,
-                height: 30,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (showCompletionFeedback)
-                      TweenAnimationBuilder<double>(
-                        key: ValueKey('completion-pulse-${task.taskId}'),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 720),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, value, child) {
-                          return Transform.scale(
-                            scale: 1 + (value * 0.75),
-                            child: Opacity(opacity: 1 - value, child: child),
-                          );
-                        },
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: PlanoraTheme.success.withValues(alpha: 0.22),
-                          ),
-                        ),
-                      ),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: task.isCompleted ? PlanoraTheme.success : Colors.transparent,
-                        border: Border.all(
-                          color: task.isCompleted
-                              ? PlanoraTheme.success
-                              : mutedColor(context).withValues(alpha: 0.46),
-                          width: 1.4,
-                        ),
-                      ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        child: isCompleting
-                            ? const Padding(
-                                key: ValueKey('completing'),
-                                padding: EdgeInsets.all(5),
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : task.isCompleted
-                                ? const Icon(
-                                    Icons.check_rounded,
-                                    key: ValueKey('completed'),
-                                    size: 17,
-                                    color: Colors.white,
-                                  )
-                                : const SizedBox.shrink(key: ValueKey('todo')),
-                      ),
-                    ),
-                  ],
+      radius: 22,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(17),
                 ),
+                child: isBusy
+                    ? Padding(
+                        padding: const EdgeInsets.all(13),
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: color),
+                      )
+                    : Icon(taskIcon(task.status), color: color, size: 24),
               ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          height: 1.25,
-                          decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
-                          color: task.isCompleted
-                              ? mutedColor(context)
-                              : isDark
-                                  ? PlanoraTheme.darkTextPrimary
-                                  : PlanoraTheme.textPrimary,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      buildBadge(
-                        context,
-                        label: filterLabel(task.status),
-                        color: taskStatusColor,
-                        isSubtle: true,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          item.project.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: mutedColor(context),
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today_outlined,
-                        size: 14,
-                        color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          task.dueDateLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    buildBadge(context, label: task.priority.label, color: taskPriorityColor),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.more_horiz_rounded,
-                      color: isDark ? Colors.white54 : PlanoraTheme.textMuted,
-                      size: 21,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildBadge(
-    BuildContext context, {
-    required String label,
-    required Color color,
-    bool isSubtle = false,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 96),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark || isSubtle ? 0.18 : 0.12),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w900,
-            ),
-      ),
-    );
-  }
-
-  Future<void> openTaskDetail(TaskListItem item) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => TaskDetailScreen(
-          initialTask: item,
-          onTaskChanged: () {
-            loadTasks();
-            widget.onTasksChanged?.call();
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> markTaskCompleted(TaskListItem item) async {
-    if (item.task.isCompleted || completingTaskId == item.task.taskId) return;
-
-    setState(() => completingTaskId = item.task.taskId);
-    try {
-      final updatedTask = await _tasksApi.markTaskCompleted(
-        project: item.project,
-        taskId: item.task.taskId,
-      );
-      if (!mounted) return;
-      replaceTask(updatedTask);
-      setState(() => completionFeedbackTaskId = updatedTask.task.taskId);
-      widget.onTasksChanged?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task marked completed.')),
-      );
-      Future<void>.delayed(const Duration(milliseconds: 900), () {
-        if (!mounted || completionFeedbackTaskId != updatedTask.task.taskId) return;
-        setState(() => completionFeedbackTaskId = null);
-      });
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not complete task. Try again.')),
-      );
-    } finally {
-      if (mounted) setState(() => completingTaskId = null);
-    }
-  }
-
-  Future<void> confirmDeleteTaskFromList(TaskListItem item) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete task?'),
-          content: Text('Remove "${item.task.title}" from this project?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: PlanoraTheme.error),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed == true) await deleteTaskFromList(item);
-  }
-
-  Future<void> deleteTaskFromList(TaskListItem item) async {
-    final previousTasks = List<TaskListItem>.from(tasks);
-    setState(() {
-      deletingTaskId = item.task.taskId;
-      tasks = tasks.where((taskItem) => taskItem.task.taskId != item.task.taskId).toList();
-    });
-
-    try {
-      await _tasksApi.deleteTask(project: item.project, taskId: item.task.taskId);
-      if (!mounted) return;
-      widget.onTasksChanged?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task deleted.')),
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Task delete failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) return;
-      setState(() => tasks = previousTasks);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete task. Try again.')),
-      );
-    } finally {
-      if (mounted) setState(() => deletingTaskId = null);
-    }
-  }
-
-  void replaceTask(TaskListItem updatedTask) {
-    setState(() {
-      tasks = tasks
-          .map((item) => item.task.taskId == updatedTask.task.taskId ? updatedTask : item)
-          .toList()
-        ..sort(compareTaskItemsByDueDate);
-    });
-  }
-
-  Future<void> showTaskFilterSheet() async {
-    final result = await showModalBottomSheet<_TaskFilterSheetResult>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: false,
-      builder: (sheetContext) {
-        final isDark = PlanoraTheme.isDark(sheetContext);
-        return SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(sheetContext).size.height * 0.78),
-            child: Container(
-              margin: const EdgeInsets.all(14),
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF111827) : PlanoraTheme.surface,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: borderColor(sheetContext)),
-                boxShadow: PlanoraTheme.softCardShadowFor(sheetContext),
-              ),
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
+              const SizedBox(width: 13),
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: borderColor(sheetContext),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Filter Tasks',
-                            style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                                  color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(sheetContext).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    buildFilterSheetSectionLabel(sheetContext, 'Status'),
-                    const SizedBox(height: 8),
-                    for (var index = 0; index < _filters.length; index++) ...[
-                      buildTaskFilterOption(
-                        sheetContext,
-                        label: filterLabel(_filters[index]),
-                        isSelected: selectedFilterIndex == index,
-                        onTap: () => Navigator.of(sheetContext).pop(
-                          _TaskFilterSheetResult(filterIndex: index),
-                        ),
-                      ),
-                      if (index != _filters.length - 1) const SizedBox(height: 8),
-                    ],
-                    const SizedBox(height: 18),
-                    buildFilterSheetSectionLabel(sheetContext, 'Sort'),
-                    const SizedBox(height: 8),
-                    buildTaskFilterOption(
-                      sheetContext,
-                      label: 'Overdue first',
-                      subtitle: 'Oldest due dates at the top',
-                      isSelected: selectedSortOrder == TaskSortOrder.overdueFirst,
-                      onTap: () => Navigator.of(sheetContext).pop(
-                        const _TaskFilterSheetResult(sortOrder: TaskSortOrder.overdueFirst),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    buildTaskFilterOption(
-                      sheetContext,
-                      label: 'Upcoming first',
-                      subtitle: 'Newest upcoming dates at the top',
-                      isSelected: selectedSortOrder == TaskSortOrder.upcomingFirst,
-                      onTap: () => Navigator.of(sheetContext).pop(
-                        const _TaskFilterSheetResult(sortOrder: TaskSortOrder.upcomingFirst),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    if (result == null || !mounted) return;
-    setState(() {
-      final filterIndex = result.filterIndex;
-      final sortOrder = result.sortOrder;
-      if (filterIndex != null) selectedFilterIndex = filterIndex;
-      if (sortOrder != null) selectedSortOrder = sortOrder;
-    });
-  }
-
-  Widget buildFilterSheetSectionLabel(BuildContext context, String label) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: mutedColor(context),
-              fontWeight: FontWeight.w900,
-            ),
-      ),
-    );
-  }
-
-  Widget buildTaskFilterOption(
-    BuildContext context, {
-    required String label,
-    String? subtitle,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final selectedColor = Theme.of(context).colorScheme.primary;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 52),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? selectedColor.withValues(alpha: isDark ? 0.18 : 0.10)
-              : isDark
-                  ? PlanoraTheme.darkBackground
-                  : PlanoraTheme.background,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? selectedColor : borderColor(context)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: isSelected
-                              ? selectedColor
-                              : isDark
-                                  ? PlanoraTheme.darkTextPrimary
-                                  : PlanoraTheme.textPrimary,
-                          fontWeight: FontWeight.w900,
-                        ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
                     Text(
-                      subtitle,
+                      task.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            height: 1.12,
+                          ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      task.description?.trim().isNotEmpty == true ? task.description!.trim() : item.project.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: mutedColor(context),
                             fontWeight: FontWeight.w700,
                           ),
                     ),
                   ],
-                ],
-              ),
-            ),
-            if (isSelected) Icon(Icons.check_rounded, color: selectedColor, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> showCreateTaskSheet() async {
-    if (_isCreateSheetOpen) return;
-    if (projects.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Create a project before adding tasks.')),
-      );
-      return;
-    }
-
-    selectedCreateProjectId = selectedProjectId ?? projects.first.projectId;
-    titleController.clear();
-    descriptionController.clear();
-    selectedDueDate = null;
-    selectedPriority = TaskPriority.medium;
-    addAnotherTask = false;
-    _isCreateSheetOpen = true;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            return FractionallySizedBox(
-              heightFactor: 0.88,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: PlanoraTheme.isDark(sheetContext)
-                      ? const Color(0xFF0B1120)
-                      : const Color(0xFFFBFAFF),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  border: Border.all(color: borderColor(sheetContext)),
-                  boxShadow: PlanoraTheme.softCardShadowFor(sheetContext),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      20,
-                      18,
-                      20,
-                      MediaQuery.of(sheetContext).viewInsets.bottom + 24,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        buildCreateSheetHeader(sheetContext),
-                        const SizedBox(height: 24),
-                        buildCreateFieldLabel(sheetContext, 'Task Name'),
-                        const SizedBox(height: 8),
-                        buildTaskTextField(
-                          sheetContext,
-                          controller: titleController,
-                          hintText: 'e.g. Design homepage wireframe',
-                          icon: Icons.short_text_rounded,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 18),
-                        buildCreateFieldLabel(sheetContext, 'Project'),
-                        const SizedBox(height: 8),
-                        buildProjectPicker(sheetContext, setSheetState: setSheetState),
-                        const SizedBox(height: 18),
-                        buildCreateFieldLabel(sheetContext, 'Description'),
-                        const SizedBox(height: 8),
-                        buildTaskTextField(
-                          sheetContext,
-                          controller: descriptionController,
-                          hintText: 'Add more details about this task...',
-                          icon: Icons.format_align_left_rounded,
-                          maxLines: 4,
-                          maxLength: 500,
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  buildCreateFieldLabel(sheetContext, 'Priority'),
-                                  const SizedBox(height: 8),
-                                  buildPrioritySelector(sheetContext, setSheetState: setSheetState),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  buildCreateFieldLabel(sheetContext, 'Due Date'),
-                                  const SizedBox(height: 8),
-                                  buildDueDatePicker(
-                                    sheetContext,
-                                    onTap: () async {
-                                      final date = await pickTaskDate();
-                                      if (date == null) return;
-                                      setSheetState(() => selectedDueDate = date);
-                                      setState(() => selectedDueDate = date);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            buildAddAnotherTaskToggle(sheetContext, setSheetState: setSheetState),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: buildCreateTaskButton(
-                                sheetContext,
-                                onPressed: isCreatingTask
-                                    ? null
-                                    : () => createTaskFromSheet(
-                                          sheetContext: sheetContext,
-                                          setSheetState: setSheetState,
-                                        ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-
-    _isCreateSheetOpen = false;
-  }
-
-  Widget buildCreateSheetHeader(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradientFor(context),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
-          ),
-          child: const Icon(Icons.check_rounded, color: Colors.white),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'New Task',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                'Create a new task and add it to your project.',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: mutedColor(context),
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
+              const SizedBox(width: 8),
+              buildPill(context, label: task.status == TaskStatus.completed ? 'Done' : task.status.label, color: color),
             ],
           ),
-        ),
-        InkWell(
-          onTap: () => Navigator.of(context).pop(),
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : PlanoraTheme.surfaceVariant,
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress.toDouble(),
+              minHeight: 6,
+              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
-            child: Icon(Icons.close_rounded, color: mutedColor(context)),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildCreateFieldLabel(BuildContext context, String label) {
-    final isDark = PlanoraTheme.isDark(context);
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-          ),
-    );
-  }
-
-  InputDecoration createInputDecoration(
-    BuildContext context, {
-    required String hintText,
-    required IconData icon,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return InputDecoration(
-      hintText: hintText,
-      prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
-      filled: true,
-      fillColor: isDark ? const Color(0xFF111827) : PlanoraTheme.surface,
-      hintStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: mutedColor(context),
-            fontWeight: FontWeight.w600,
-          ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-    );
-  }
-
-  Widget buildProjectPicker(BuildContext context, {required StateSetter setSheetState}) {
-    return DropdownButtonFormField<int>(
-      value: selectedCreateProjectId,
-      isExpanded: true,
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
-      decoration: createInputDecoration(
-        context,
-        hintText: 'Select a project',
-        icon: Icons.folder_outlined,
-      ),
-      items: [
-        for (final project in projects)
-          DropdownMenuItem<int>(
-            value: project.projectId,
-            child: Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
-      ],
-      onChanged: (value) {
-        setSheetState(() => selectedCreateProjectId = value);
-        setState(() => selectedCreateProjectId = value);
-      },
-    );
-  }
-
-  Widget buildTaskTextField(
-    BuildContext context, {
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    required int maxLines,
-    int? maxLength,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      maxLength: maxLength,
-      textInputAction: maxLines == 1 ? TextInputAction.next : TextInputAction.newline,
-      style: TextStyle(
-        color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-        fontWeight: FontWeight.w700,
-      ),
-      decoration: createInputDecoration(context, hintText: hintText, icon: icon),
-    );
-  }
-
-  Widget buildPrioritySelector(BuildContext context, {required StateSetter setSheetState}) {
-    return PopupMenuButton<TaskPriority>(
-      onSelected: (priority) {
-        setSheetState(() => selectedPriority = priority);
-        setState(() => selectedPriority = priority);
-      },
-      color: PlanoraTheme.isDark(context) ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-      itemBuilder: (context) {
-        return [
-          for (final priority in TaskPriority.values)
-            PopupMenuItem<TaskPriority>(
-              value: priority,
-              child: Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(color: priorityColor(priority), shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 9),
-                  Text(priority.label),
-                ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              buildMetaChip(
+                context,
+                icon: Icons.calendar_today_outlined,
+                label: task.dueDateLabel,
+                color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
               ),
-            ),
-        ];
-      },
-      child: buildCreateSelectButton(
-        context,
-        icon: Icons.circle,
-        label: selectedPriority.label,
-        dotColor: priorityColor(selectedPriority),
-      ),
-    );
-  }
-
-  Widget buildDueDatePicker(BuildContext context, {required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: buildCreateSelectButton(
-        context,
-        icon: Icons.calendar_today_outlined,
-        label: selectedDueDate == null ? 'Select date' : formatInputDate(selectedDueDate!),
-        isPlaceholder: selectedDueDate == null,
-      ),
-    );
-  }
-
-  Widget buildCreateSelectButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    Color? dotColor,
-    bool isPlaceholder = false,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final textColor = isPlaceholder
-        ? mutedColor(context)
-        : isDark
-            ? PlanoraTheme.darkTextPrimary
-            : PlanoraTheme.textPrimary;
-
-    return Container(
-      width: double.infinity,
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 13),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111827) : PlanoraTheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor(context)),
-      ),
-      child: Row(
-        children: [
-          if (dotColor != null)
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-            )
-          else
-            Icon(icon, color: Theme.of(context).colorScheme.primary, size: 19),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: textColor,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
+              buildMetaChip(context, icon: Icons.flag_rounded, label: task.priority.label, color: priorityColor(task.priority)),
+              buildMetaChip(
+                context,
+                icon: item.project.isTeamProject ? Icons.groups_2_outlined : Icons.person_outline_rounded,
+                label: item.project.isTeamProject ? 'Team' : 'Personal',
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              if (!task.isCompleted)
+                ActionChip(
+                  avatar: const Icon(Icons.check_rounded, size: 16),
+                  label: const Text('Done'),
+                  onPressed: isBusy ? null : () => markTaskCompleted(item),
+                ),
+            ],
           ),
-          Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor(context)),
         ],
       ),
     );
   }
 
-  Widget buildAddAnotherTaskToggle(BuildContext context, {required StateSetter setSheetState}) {
-    final isDark = PlanoraTheme.isDark(context);
-    return InkWell(
-      onTap: () {
-        final nextValue = !addAnotherTask;
-        setSheetState(() => addAnotherTask = nextValue);
-        setState(() => addAnotherTask = nextValue);
-      },
-      borderRadius: BorderRadius.circular(10),
+  IconData taskIcon(TaskStatus status) {
+    switch (status) {
+      case TaskStatus.todo:
+        return Icons.radio_button_unchecked_rounded;
+      case TaskStatus.inProgress:
+        return Icons.pending_actions_rounded;
+      case TaskStatus.completed:
+        return Icons.check_circle_rounded;
+      case TaskStatus.blocked:
+        return Icons.block_rounded;
+    }
+  }
+
+  Widget buildPill(BuildContext context, {required String label, IconData? icon, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: addAnotherTask ? Theme.of(context).colorScheme.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: addAnotherTask
-                    ? Theme.of(context).colorScheme.primary
-                    : mutedColor(context).withValues(alpha: 0.45),
-              ),
-            ),
-            child: addAnotherTask
-                ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
-                : null,
-          ),
-          const SizedBox(width: 8),
+          if (icon != null) ...[Icon(icon, size: 13, color: color), const SizedBox(width: 4)],
           Text(
-            'Add another task',
+            label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildMetaChip(BuildContext context, {required IconData icon, required String label, required Color color}) {
+    final isDark = PlanoraTheme.isDark(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: .04) : const Color(0xFFF8F5FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
                   fontWeight: FontWeight.w800,
                 ),
           ),
@@ -2080,84 +711,148 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
-  Widget buildCreateTaskButton(BuildContext context, {required VoidCallback? onPressed}) {
-    return SizedBox(
-      height: 50,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          padding: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          minimumSize: const Size(0, 50),
-        ),
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradientFor(context),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: isCreatingTask
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.3, color: Colors.white),
-                  )
-                : const Text(
-                    'Create Task',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
-                  ),
-          ),
-        ),
-      ),
+  Future<void> showCreateTaskSheet() async {
+    if (isCreateSheetOpen) return;
+    if (projects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create a plan first.')));
+      return;
+    }
+
+    isCreateSheetOpen = true;
+    titleController.clear();
+    descriptionController.clear();
+    selectedPriority = TaskPriority.medium;
+    selectedDueDate = null;
+    selectedCreateProjectId = selectedProjectId ?? projects.first.projectId;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: SingleChildScrollView(
+                padding: PlanoraSpacing.sheetPadding,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Create Task',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: PlanoraSpacing.md),
+                    DropdownButtonFormField<int>(
+                      value: selectedCreateProjectId,
+                      decoration: const InputDecoration(labelText: 'Plan', prefixIcon: Icon(Icons.folder_outlined)),
+                      items: projects
+                          .map(
+                            (project) => DropdownMenuItem<int>(
+                              value: project.projectId,
+                              child: Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: isCreatingTask
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setSheetState(() => selectedCreateProjectId = value);
+                            },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Title', prefixIcon: Icon(Icons.task_alt_rounded)),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: const InputDecoration(labelText: 'Description optional', prefixIcon: Icon(Icons.notes_rounded)),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      children: TaskPriority.values.map((priority) {
+                        return ChoiceChip(
+                          selected: selectedPriority == priority,
+                          label: Text(priority.label),
+                          onSelected: isCreatingTask
+                              ? null
+                              : (_) => setSheetState(() => selectedPriority = priority),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    PlanoraSecondaryButton(
+                      icon: Icons.calendar_month_rounded,
+                      label: selectedDueDate == null ? 'Choose due date' : formatInputDate(selectedDueDate!),
+                      onPressed: isCreatingTask
+                          ? null
+                          : () async {
+                              final picked = await pickDueDate();
+                              if (picked == null) return;
+                              setSheetState(() => selectedDueDate = picked);
+                            },
+                    ),
+                    const SizedBox(height: 18),
+                    PlanoraGradientButton(
+                      label: 'Create Task',
+                      icon: Icons.add_rounded,
+                      isLoading: isCreatingTask,
+                      onTap: () => createTaskFromSheet(sheetContext, setSheetState),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
+
+    isCreateSheetOpen = false;
+    if (mounted) setState(() => isCreatingTask = false);
   }
 
-  Future<DateTime?> pickTaskDate() async {
+  Future<DateTime?> pickDueDate() async {
     final now = DateTime.now();
-    return showDatePicker(
+    final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDueDate ?? now,
-      firstDate: DateTime(now.year - 5),
+      initialDate: selectedDueDate ?? now.add(const Duration(days: 1)),
+      firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 5),
     );
+    if (picked == null) return null;
+    return DateTime(picked.year, picked.month, picked.day, 12);
   }
 
-  Future<void> createTaskFromSheet({
-    required BuildContext sheetContext,
-    required StateSetter setSheetState,
-  }) async {
-    final title = titleController.text.trim();
-    final description = descriptionController.text.trim();
-    final projectId = selectedCreateProjectId;
-    final scopeProjectIdBeforeCreate = selectedProjectId;
-
-    if (title.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task name must be at least 2 letters.')),
-      );
-      return;
-    }
-
-    if (projectId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choose a project for this task.')),
-      );
-      return;
-    }
-
+  Future<void> createTaskFromSheet(BuildContext sheetContext, void Function(VoidCallback fn) setSheetState) async {
     final project = projects.firstWhere(
-      (item) => item.projectId == projectId,
+      (item) => item.projectId == selectedCreateProjectId,
       orElse: () => projects.first,
     );
+    final title = titleController.text.trim();
+    final description = descriptionController.text.trim();
 
-    setSheetState(() => isCreatingTask = true);
+    if (title.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task title must be at least 2 letters.')));
+      return;
+    }
+
     setState(() => isCreatingTask = true);
+    setSheetState(() {});
 
     try {
       await _tasksApi.createTask(
+        project: project,
         request: TaskCreateRequest(
           projectId: project.projectId,
           title: title,
@@ -2165,129 +860,61 @@ class _TasksScreenState extends State<TasksScreen> {
           priority: selectedPriority,
           dueDate: selectedDueDate,
         ),
-        project: project,
       );
-
-      if (!mounted || !sheetContext.mounted) return;
-      setState(() {
-        selectedProjectId = scopeProjectIdBeforeCreate;
-        selectedCreateProjectId = project.projectId;
-        _hasInitializedProjectFilter = true;
-      });
-
+      if (!mounted) return;
+      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+      setState(() => isCreatingTask = false);
       await loadTasks();
       widget.onTasksChanged?.call();
-      if (!mounted || !sheetContext.mounted) return;
-
-      setSheetState(() => isCreatingTask = false);
-      setState(() => isCreatingTask = false);
-
-      if (addAnotherTask) {
-        titleController.clear();
-        descriptionController.clear();
-        selectedDueDate = null;
-        selectedPriority = TaskPriority.medium;
-        setSheetState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task created. Add another task.')),
-        );
-        return;
-      }
-
-      Navigator.of(sheetContext).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task created successfully.')),
-      );
-    } catch (error) {
       if (!mounted) return;
-      setSheetState(() => isCreatingTask = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task created.')));
+    } catch (error, stackTrace) {
+      debugPrint('Task creation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
       setState(() => isCreatingTask = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not create task. Try again.')),
-      );
+      setSheetState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create task.')));
     }
   }
-}
 
-class _TaskStatData {
-  final String value;
-  final String label;
-  final Color color;
-
-  const _TaskStatData({
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-}
-
-enum TaskSortOrder { overdueFirst, upcomingFirst }
-
-class _TaskFilterSheetResult {
-  final int? filterIndex;
-  final TaskSortOrder? sortOrder;
-
-  const _TaskFilterSheetResult({this.filterIndex, this.sortOrder});
-}
-
-class _PlanoraShimmer extends StatefulWidget {
-  final Widget child;
-
-  const _PlanoraShimmer({required this.child});
-
-  @override
-  State<_PlanoraShimmer> createState() => _PlanoraShimmerState();
-}
-
-class _PlanoraShimmerState extends State<_PlanoraShimmer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1250),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-    final base = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : PlanoraTheme.border.withValues(alpha: 0.72);
-    final highlight = isDark
-        ? Colors.white.withValues(alpha: 0.18)
-        : Colors.white.withValues(alpha: 0.86);
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return ShaderMask(
-          blendMode: BlendMode.srcATop,
-          shaderCallback: (bounds) {
-            final width = bounds.width;
-            final shimmerWidth = width * 1.8;
-            final dx = -shimmerWidth + (shimmerWidth * 2 * _controller.value);
-            return LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [base, highlight, base],
-              stops: const [0.32, 0.5, 0.68],
-            ).createShader(Rect.fromLTWH(dx, 0, shimmerWidth, bounds.height));
+  Future<void> openTaskDetail(TaskListItem item) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TaskDetailScreen(
+          initialTask: item,
+          onTaskChanged: () {
+            loadTasks();
+            widget.onTasksChanged?.call();
           },
-          child: child,
-        );
-      },
-      child: widget.child,
+        ),
+      ),
     );
+    if (!mounted) return;
+    loadTasks();
+  }
+
+  Future<void> markTaskCompleted(TaskListItem item) async {
+    if (item.task.isCompleted || completingTaskId != null) return;
+    setState(() => completingTaskId = item.task.taskId);
+
+    try {
+      final updated = await _tasksApi.markTaskCompleted(
+        project: item.project,
+        taskId: item.task.taskId,
+      );
+      if (!mounted) return;
+      setState(() {
+        tasks = tasks.map((taskItem) => taskItem.task.taskId == updated.task.taskId ? updated : taskItem).toList();
+      });
+      widget.onTasksChanged?.call();
+    } catch (error, stackTrace) {
+      debugPrint('Task completion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not complete task.')));
+    } finally {
+      if (mounted) setState(() => completingTaskId = null);
+    }
   }
 }
