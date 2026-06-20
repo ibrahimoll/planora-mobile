@@ -415,7 +415,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       icon: Icons.calendar_month_rounded,
                       label: selectedDeadline == null
                           ? 'Choose deadline'
-                          : formatInputDate(selectedDeadline!),
+                          : x(selectedDeadline!),
                       onPressed: () async {
                         final picked = await pickDeadlineDate();
                         if (picked == null) return;
