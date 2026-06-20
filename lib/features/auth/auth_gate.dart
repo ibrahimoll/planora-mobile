@@ -5,6 +5,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/network/api_client.dart';
 import '../../core/notifications/push_notification_service.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/ui/planora_ui.dart';
 import 'data/auth_api.dart';
 import 'models/auth_models.dart';
 
@@ -128,7 +129,9 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const PlanoraScaffold(
+        child: PlanoraLoadingState(message: 'Loading Planora...'),
+      );
     }
 
     final user = currentUser;
