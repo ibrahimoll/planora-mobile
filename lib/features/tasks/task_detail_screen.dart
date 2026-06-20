@@ -1446,6 +1446,22 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 
+  void syncTaskSubtasks() {
+    final completedCount = subtasks.where((item) => item.isCompleted).length;
+    final progress = subtasks.isEmpty
+        ? 0.0
+        : (completedCount / subtasks.length) * 100;
+
+    taskItem = taskItem.copyWith(
+      task: taskItem.task.copyWith(
+        subtasks: List.unmodifiable(subtasks),
+        subtaskCount: subtasks.length,
+        completedSubtaskCount: completedCount,
+        progressPercentage: progress,
+      ),
+    );
+  }
+
   Future<String?> showSubtaskEditor({String? initialTitle}) async {
     final controller = TextEditingController(text: initialTitle);
     final result = await showDialog<String>(
@@ -1472,23 +1488,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         ],
       ),
     );
-    controller.dispose();
-    return result?.trim();
-  }
 
-  void syncTaskSubtasks() {
-    final completedCount = subtasks.where((item) => item.isCompleted).length;
-    final progress = subtasks.isEmpty
-        ? 0.0
-        : (completedCount / subtasks.length) * 100;
-    taskItem = taskItem.copyWith(
-      task: taskItem.task.copyWith(
-        subtasks: List.unmodifiable(subtasks),
-        subtaskCount: subtasks.length,
-        completedSubtaskCount: completedCount,
-        progressPercentage: progress,
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.dispose();
+    });
+
+    return result?.trim();
   }
 
   Future<void> addSubtask() async {

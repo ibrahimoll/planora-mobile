@@ -5,6 +5,7 @@ import '../../core/theme/planora_theme.dart';
 import '../../core/ui/planora_ui.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../tasks/models/task_models.dart';
 import 'ai_project_wizard_screen.dart';
 import 'project_detail_screen.dart';
 
@@ -229,9 +230,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               children: [
                 Text(
                   'Filter plans',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 12),
                 for (var index = 0; index < tabs.length; index++) ...[
@@ -278,9 +279,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               children: [
                 Text(
                   'Start a Plan',
-                  style: Theme.of(sheetContext).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 14),
                 buildCreateModeTile(
@@ -347,7 +348,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
                 const SizedBox(height: 4),
                 Text(subtitle, style: TextStyle(color: mutedColor(context))),
               ],
@@ -385,8 +389,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     Text(
                       'Create Plan',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -454,7 +458,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     if (title.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project title must be at least 2 letters.')),
+        const SnackBar(
+          content: Text('Project title must be at least 2 letters.'),
+        ),
       );
       return;
     }
@@ -484,9 +490,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       await loadProjects();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Plan created.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Plan created.')));
     } catch (error, stackTrace) {
       debugPrint('Project creation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -494,7 +500,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       setState(() => isCreatingProject = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error is ApiException ? error.message : 'Could not create plan.'),
+          content: Text(
+            error is ApiException ? error.message : 'Could not create plan.',
+          ),
         ),
       );
     }
@@ -524,10 +532,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isSearchVisible) ...[
-            PlanoraAnimatedIn(index: 0, child: buildProjectSearchField(context)),
+            PlanoraAnimatedIn(
+              index: 0,
+              child: buildProjectSearchField(context),
+            ),
             const SizedBox(height: 14),
           ],
-          PlanoraAnimatedIn(index: 1, child: buildProjectTabsAndAction(context)),
+          PlanoraAnimatedIn(
+            index: 1,
+            child: buildProjectTabsAndAction(context),
+          ),
           const SizedBox(height: 20),
           PlanoraAnimatedIn(index: 2, child: buildProjectContent(context)),
         ],
@@ -597,7 +611,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final visibleProjects = filteredProjects;
 
     if (visibleProjects.isEmpty) {
-      if (projects.isNotEmpty && (hasActiveSearch || selectedFilterIndex != 0)) {
+      if (projects.isNotEmpty &&
+          (hasActiveSearch || selectedFilterIndex != 0)) {
         return PlanoraMessageState(
           icon: Icons.search_off_rounded,
           title: 'No matching plans',
@@ -610,7 +625,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return PlanoraMessageState(
         icon: Icons.folder_open_rounded,
         title: 'No plans yet',
-        message: 'Create a manual plan or generate one with AI to start organizing it.',
+        message:
+            'Create a manual plan or generate one with AI to start organizing it.',
         actionText: 'Start Plan',
         onAction: showCreateProjectSheet,
       );
@@ -621,9 +637,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       children: [
         Text(
           'Current Plans',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 12),
         for (var index = 0; index < visibleProjects.length; index++) ...[
@@ -670,7 +686,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(
-                  project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded,
+                  project.isTeamProject
+                      ? Icons.groups_2_rounded
+                      : Icons.folder_rounded,
                   color: iconColor,
                   size: 27,
                 ),
@@ -685,8 +703,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -696,9 +714,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -716,8 +734,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 6,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: .10),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       project.isCompleted
                           ? PlanoraTheme.primaryPurple
@@ -730,16 +749,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               Text(
                 '${(progress * 100).round()}%',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: mutedColor(context),
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: mutedColor(context),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              Icon(Icons.calendar_today_rounded, size: 14, color: mutedColor(context)),
+              Icon(
+                Icons.calendar_today_rounded,
+                size: 14,
+                color: mutedColor(context),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -747,9 +770,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: mutedColor(context),
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: mutedColor(context),
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -765,8 +788,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return buildChip(
       context,
       project.isTeamProject ? 'Team' : 'Personal',
-      project.isTeamProject ? PlanoraTheme.secondaryPurple : PlanoraTheme.textMuted,
-      icon: project.isTeamProject ? Icons.groups_2_rounded : Icons.person_rounded,
+      project.isTeamProject
+          ? PlanoraTheme.secondaryPurple
+          : PlanoraTheme.textMuted,
+      icon: project.isTeamProject
+          ? Icons.groups_2_rounded
+          : Icons.person_rounded,
     );
   }
 
@@ -794,10 +821,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 10,
-                ),
+              color: color,
+              fontWeight: FontWeight.w900,
+              fontSize: 10,
+            ),
           ),
         ],
       ),
