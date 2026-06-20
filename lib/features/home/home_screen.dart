@@ -21,16 +21,6 @@ import '../auth/models/auth_models.dart';
 import '../auth/models/project_models.dart';
 import 'widgets/home_bottom_nav.dart';
 
-enum DashboardRange {
-  week('This Week'),
-  month('This Month'),
-  all('All Time');
-
-  const DashboardRange(this.label);
-
-  final String label;
-}
-
 class HomeScreen extends StatefulWidget {
   final UserResponse user;
   final VoidCallback onThemeToggle;
@@ -60,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int taskCreateRequestId = 0;
   ProjectCreateStartMode projectCreateStartMode =
       ProjectCreateStartMode.modeChoice;
-  DashboardRange dashboardRange = DashboardRange.month;
 
   bool hasUnreadNotifications = false;
   int pendingTeamInvitationCount = 0;
@@ -94,11 +83,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String get greeting {
     final hour = DateTime.now().hour;
-
     if (hour >= 5 && hour < 12) return 'Good morning';
     if (hour >= 12 && hour < 17) return 'Good afternoon';
     if (hour >= 17 && hour < 21) return 'Good evening';
-
     return 'Welcome back';
   }
 
@@ -117,77 +104,6 @@ class _HomeScreenState extends State<HomeScreen> {
   String? get profilePicUrl {
     final value = widget.user.profilePic?.trim();
     return value == null || value.isEmpty ? null : value;
-  }
-
-  DateTime? get dashboardRangeStart {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    switch (dashboardRange) {
-      case DashboardRange.week:
-        return today.subtract(Duration(days: today.weekday - 1));
-      case DashboardRange.month:
-        return DateTime(today.year, today.month);
-      case DashboardRange.all:
-        return null;
-    }
-  }
-
-  List<ProjectModel> get filteredDashboardProjects {
-    return dashboardProjects.where(projectMatchesDashboardRange).toList();
-  }
-
-  List<TaskListItem> get filteredDashboardTasks {
-    return dashboardTasks.where(taskMatchesDashboardRange).toList();
-  }
-
-  int get activeProjectCount {
-    return filteredDashboardProjects
-        .where((project) => project.isActive)
-        .length;
-  }
-
-  int get completedProjectCount {
-    return filteredDashboardProjects
-        .where((project) => project.isCompleted)
-        .length;
-  }
-
-  int get overdueProjectCount {
-    return filteredDashboardProjects
-        .where((project) => !project.isCompleted && project.daysLeft < 0)
-        .length;
-  }
-
-  int get completedTaskCount {
-    return filteredDashboardTasks.where((item) => item.task.isCompleted).length;
-  }
-
-  int get overdueTaskCount {
-    return filteredDashboardTasks.where((item) => item.task.isOverdue).length;
-  }
-
-  int get blockedTaskCount {
-    return filteredDashboardTasks.where((item) => item.task.isBlocked).length;
-  }
-
-  int get atRiskCount {
-    return overdueProjectCount + overdueTaskCount + blockedTaskCount;
-  }
-
-  double get dashboardProgress {
-    final filteredTasks = filteredDashboardTasks;
-    final filteredProjects = filteredDashboardProjects;
-
-    if (filteredTasks.isNotEmpty) {
-      return completedTaskCount / filteredTasks.length;
-    }
-
-    if (filteredProjects.isNotEmpty) {
-      return completedProjectCount / filteredProjects.length;
-    }
-
-    return 0;
   }
 
   Future<void> loadDashboardData() async {
@@ -218,10 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);
-
-      final nextTasks =
-          loadedTasks.where((item) => !item.task.isCompleted).toList()
-            ..sort(compareUpcomingTaskItems);
+      final nextTasks = loadedTasks.where((item) => !item.task.isCompleted).toList()
+        ..sort(compareUpcomingTaskItems);
 
       if (!mounted) return;
 
@@ -283,36 +197,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
   }
 
-  bool isDateInDashboardRange(DateTime? date) {
-    if (dashboardRange == DashboardRange.all) return true;
-    if (date == null) return false;
-
-    final start = dashboardRangeStart;
-    if (start == null) return true;
-
-    final nextStart = switch (dashboardRange) {
-      DashboardRange.week => start.add(const Duration(days: 7)),
-      DashboardRange.month => DateTime(start.year, start.month + 1),
-      DashboardRange.all => null,
-    };
-
-    return !date.isBefore(start) &&
-        (nextStart == null || date.isBefore(nextStart));
-  }
-
-  bool projectMatchesDashboardRange(ProjectModel project) {
-    if (dashboardRange == DashboardRange.all) return true;
-    return isDateInDashboardRange(project.createdAt) ||
-        isDateInDashboardRange(project.deadline);
-  }
-
-  bool taskMatchesDashboardRange(TaskListItem item) {
-    if (dashboardRange == DashboardRange.all) return true;
-    return isDateInDashboardRange(item.task.createdAt) ||
-        isDateInDashboardRange(item.task.dueDate) ||
-        isDateInDashboardRange(item.task.completedAt);
-  }
-
   void openNewTaskFlow() {
     setState(() {
       selectedIndex = 3;
@@ -330,10 +214,6 @@ class _HomeScreenState extends State<HomeScreen> {
       shouldOpenProjectCreateOnStart = true;
       projectCreateStartMode = mode;
     });
-  }
-
-  void openManualProjectFlow() {
-    openNewProjectFlow(mode: ProjectCreateStartMode.manual);
   }
 
   Future<void> openAiPlanningFlow() async {
@@ -366,10 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
       shouldOpenProjectCreateOnStart = false;
       projectCreateStartMode = ProjectCreateStartMode.modeChoice;
     });
-  }
-
-  void openTeamsTab() {
-    setState(() => selectedIndex = 4);
   }
 
   Future<void> openUpcomingTaskDetail(TaskListItem item) async {
@@ -419,25 +295,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
     loadUnreadNotificationCount();
-    loadPendingTeamInvitationCount();
-  }
-
-  Future<void> openTeams() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => TeamsScreen(
-          showBackButton: true,
-          currentUserId: widget.user.userId,
-          onTeamsChanged: () {
-            loadDashboardData();
-            loadPendingTeamInvitationCount();
-          },
-        ),
-      ),
-    );
-
-    if (!mounted) return;
-    loadDashboardData();
     loadPendingTeamInvitationCount();
   }
 
@@ -520,14 +377,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.groups_2_outlined),
-                  title: const Text('Teams'),
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    openTeams();
-                  },
-                ),
-                ListTile(
                   leading: const Icon(Icons.logout_rounded),
                   title: const Text('Logout'),
                   onTap: () {
@@ -539,58 +388,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.of(context).pop();
                   },
                 ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void showDashboardRangeSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final isDark = PlanoraTheme.isDark(sheetContext);
-
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
-              ),
-              boxShadow: PlanoraTheme.cardShadowFor(sheetContext),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final range in DashboardRange.values)
-                  ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    leading: Icon(
-                      dashboardRange == range
-                          ? Icons.radio_button_checked_rounded
-                          : Icons.radio_button_off_rounded,
-                      color: dashboardRange == range
-                          ? Theme.of(sheetContext).colorScheme.primary
-                          : mutedColor(sheetContext),
-                    ),
-                    title: Text(
-                      range.label,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      setState(() => dashboardRange = range);
-                    },
-                  ),
               ],
             ),
           ),
@@ -704,8 +501,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   buildAnimatedEntrance(1, buildMainAiPlanningCard(context)),
                   const SizedBox(height: 18),
                   buildAnimatedEntrance(2, buildTodayFocus(context)),
-                  const SizedBox(height: 18),
-                  buildProjectOverview(context),
                   const SizedBox(height: 18),
                   buildProjects(context),
                 ],
@@ -964,26 +759,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Material(
-                    color: Colors.transparent,
+                  InkWell(
+                    onTap: openAiPlannerTab,
                     borderRadius: BorderRadius.circular(15),
-                    child: InkWell(
-                      onTap: openAiPlannerTab,
-                      borderRadius: BorderRadius.circular(15),
-                      child: Ink(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.22),
-                          ),
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
                         ),
-                        child: const Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          color: Colors.white,
-                        ),
+                      ),
+                      child: const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -1002,7 +793,7 @@ class _HomeScreenState extends State<HomeScreen> {
         context,
         icon: Icons.sync_rounded,
         title: 'Loading today focus...',
-        message: 'Checking tasks, deadlines, and project health.',
+        message: 'Checking tasks and deadlines.',
         showSpinner: true,
       );
     }
@@ -1036,9 +827,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'Start with an idea and let Planora build the first plan.'
             : 'No urgent tasks. Ask Planora to refine a plan or create the next task.',
         actionText: dashboardProjects.isEmpty ? 'Plan with AI' : 'Ask Planora',
-        onAction: dashboardProjects.isEmpty
-            ? openAiPlanningFlow
-            : openAiPlannerTab,
+        onAction: dashboardProjects.isEmpty ? openAiPlanningFlow : openAiPlannerTab,
       );
     }
 
@@ -1133,185 +922,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildProjectOverview(BuildContext context) {
-    if (isLoadingDashboard) {
-      return buildAnimatedEntrance(
-        3,
-        buildUpcomingStateCard(
-          context,
-          icon: Icons.sync_rounded,
-          title: 'Loading dashboard from backend...',
-          showSpinner: true,
-        ),
-      );
-    }
-
-    if (dashboardError != null) {
-      return buildAnimatedEntrance(
-        3,
-        buildUpcomingStateCard(
-          context,
-          icon: Icons.wifi_off_rounded,
-          title: dashboardError!,
-          actionText: 'Try Again',
-          onAction: loadDashboardData,
-        ),
-      );
-    }
-
-    final progress = dashboardProgress;
-    final isDark = PlanoraTheme.isDark(context);
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return buildAnimatedEntrance(
-      3,
-      Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [PlanoraTheme.darkSurface, PlanoraTheme.darkSurfaceVariant]
-                : [Colors.white, const Color(0xFFF7F0FF)],
-          ),
-          border: Border.all(
-            color: primary.withValues(alpha: isDark ? 0.20 : 0.12),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: primary.withValues(alpha: isDark ? 0.18 : 0.12),
-              blurRadius: 28,
-              offset: const Offset(0, 16),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: progress),
-                  duration: const Duration(milliseconds: 900),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, animatedProgress, _) {
-                    return SizedBox(
-                      width: 118,
-                      height: 118,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Container(
-                            width: 112,
-                            height: 112,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: primary.withValues(alpha: 0.06),
-                            ),
-                          ),
-                          SizedBox(
-                            width: 94,
-                            height: 94,
-                            child: CircularProgressIndicator(
-                              value: animatedProgress,
-                              strokeWidth: 10,
-                              strokeCap: StrokeCap.round,
-                              color: primary,
-                              backgroundColor: primary.withValues(alpha: 0.12),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${(animatedProgress * 100).round()}%',
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w900,
-                                      color: isDark
-                                          ? PlanoraTheme.darkTextPrimary
-                                          : PlanoraTheme.textPrimary,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget buildHealthMetricPill(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : Colors.white.withValues(alpha: 0.74),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: color.withValues(alpha: isDark ? 0.20 : 0.12),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 15, color: color),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: mutedColor(context),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: isDark
-                  ? PlanoraTheme.darkTextPrimary
-                  : PlanoraTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget buildSectionTitle(
     BuildContext context,
     String title, {
@@ -1396,7 +1006,7 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         else
           for (final project in visibleProjects) ...[
-            buildAnimatedEntrance(7, buildProjectTile(context, project)),
+            buildAnimatedEntrance(4, buildProjectTile(context, project)),
             if (project != visibleProjects.last) const SizedBox(height: 10),
           ],
       ],
@@ -1415,9 +1025,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final projectTasks = tasksForProject(project);
 
     if (projectTasks.isNotEmpty) {
-      final completed = projectTasks
-          .where((item) => item.task.isCompleted)
-          .length;
+      final completed = projectTasks.where((item) => item.task.isCompleted).length;
       return completed / projectTasks.length;
     }
 
@@ -1539,8 +1147,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
-                                  color:
-                                      project.daysLeft < 0 &&
+                                  color: project.daysLeft < 0 &&
                                           !project.isCompleted
                                       ? PlanoraTheme.error
                                       : mutedColor(context),
