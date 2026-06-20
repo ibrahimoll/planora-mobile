@@ -52,7 +52,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   List<ProjectModel> projects = [];
   List<TaskListItem> projectTasks = [];
-  final Set<String> deletingProjectKeys = <String>{};
 
   @override
   void initState() {
@@ -104,7 +103,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     });
 
     try {
-      var loadedProjects = await _projectsApi.getProjects();
+      final loadedProjects = await _projectsApi.getProjects();
       var hadTaskLoadError = false;
 
       final taskGroups = await Future.wait(
@@ -124,17 +123,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         }),
       );
 
-      final loadedTasks = taskGroups.expand((group) => group).toList();
-      loadedProjects = await synchronizeCompletedProjectStatuses(
-        loadedProjects: loadedProjects,
-        loadedTasks: loadedTasks,
-      );
-
       if (!mounted) return;
 
       setState(() {
         projects = loadedProjects;
-        projectTasks = loadedTasks;
+        projectTasks = taskGroups.expand((group) => group).toList();
         taskSummaryWarning = hadTaskLoadError
             ? 'Some plan task summaries could not be loaded.'
             : null;
@@ -154,38 +147,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         isLoading = false;
       });
     }
-  }
-
-  Future<List<ProjectModel>> synchronizeCompletedProjectStatuses({
-    required List<ProjectModel> loadedProjects,
-    required List<TaskListItem> loadedTasks,
-  }) async {
-    final updatedProjects = List<ProjectModel>.from(loadedProjects);
-
-    for (var index = 0; index < updatedProjects.length; index++) {
-      final project = updatedProjects[index];
-      final tasks = loadedTasks.where((item) {
-        return item.project.projectId == project.projectId &&
-            item.project.teamId == project.teamId;
-      }).toList();
-
-      if (tasks.isEmpty || project.isCompleted) continue;
-      if (!tasks.every((item) => item.task.isCompleted)) continue;
-
-      try {
-        updatedProjects[index] = await _projectsApi.updateProjectStatus(
-          project: project,
-          status: 'completed',
-        );
-      } catch (error, stackTrace) {
-        debugPrint(
-          'Auto-complete project failed for project ${project.projectId}: $error',
-        );
-        debugPrintStack(stackTrace: stackTrace);
-      }
-    }
-
-    return updatedProjects;
   }
 
   bool get hasActiveSearch => searchController.text.trim().isNotEmpty;
@@ -216,13 +177,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return searchable.contains(query);
     }).toList();
   }
-
-  int get totalProjectsCount => projects.length;
-  int get activeProjectsCount => projects.where((project) => project.isActive).length;
-  int get completedProjectsCount =>
-      projects.where((project) => project.isCompleted).length;
-  int get atRiskProjectsCount =>
-      projects.where((project) => projectHealthLabel(project) == 'At risk').length;
 
   String projectKey(ProjectModel project) {
     return '${project.projectType}-${project.teamId ?? 0}-${project.projectId}';
@@ -269,14 +223,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return tasks.first;
   }
 
-  String projectHealthLabel(ProjectModel project) {
-    final tasks = tasksForProject(project);
+  int compareUpcomingTaskItems(TaskListItem left, TaskListItem right) {
+    if (left.task.isOverdue != right.task.isOverdue) {
+      return left.task.isOverdue ? -1 : 1;
+    }
 
-    if (!project.isCompleted && project.daysLeft < 0) return 'At risk';
-    if (tasks.any((item) => item.task.isBlocked)) return 'Blocked';
-    if (tasks.any((item) => item.task.isOverdue)) return 'Needs attention';
-    if (project.daysLeft <= 3 && !project.isCompleted) return 'Due soon';
-    return 'Healthy';
+    final leftDue = left.task.dueDate;
+    final rightDue = right.task.dueDate;
+
+    if (leftDue == null && rightDue == null) {
+      return left.task.createdAt.compareTo(right.task.createdAt);
+    }
+
+    if (leftDue == null) return 1;
+    if (rightDue == null) return -1;
+    return leftDue.compareTo(rightDue);
   }
 
   Color getStatusColor(ProjectModel project) {
@@ -329,99 +290,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       searchController.clear();
       isSearchVisible = false;
       selectedFilterIndex = 0;
-    });
-  }
-
-  Future<bool> confirmDeleteProject(ProjectModel project) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Delete plan?'),
-          content: Text(
-            'This will permanently delete "${project.title}" and its tasks. This action cannot be undone.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: PlanoraTheme.error,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return confirmed == true;
-  }
-
-  Future<void> deleteProjectFromList(ProjectModel project) async {
-    final key = projectKey(project);
-    if (deletingProjectKeys.contains(key)) return;
-
-    final removedProject = project;
-    final removedTasks = tasksForProject(project);
-
-    setState(() {
-      deletingProjectKeys.add(key);
-      projects.removeWhere((item) => projectKey(item) == key);
-      projectTasks.removeWhere((item) {
-        return item.project.projectId == project.projectId &&
-            item.project.teamId == project.teamId;
-      });
-    });
-
-    try {
-      await _projectsApi.deleteProject(project);
-
-      if (!mounted) return;
-      setState(() => deletingProjectKeys.remove(key));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Plan deleted.')),
-      );
-    } on ApiException catch (error) {
-      restoreDeletedProject(key, removedProject, removedTasks);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error.statusCode == 403 || error.statusCode == 404
-                ? 'You do not have permission to delete this plan.'
-                : error.message,
-          ),
-        ),
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Project delete failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      restoreDeletedProject(key, removedProject, removedTasks);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete plan. Please try again.')),
-      );
-    }
-  }
-
-  void restoreDeletedProject(
-    String key,
-    ProjectModel removedProject,
-    List<TaskListItem> removedTasks,
-  ) {
-    if (!mounted) return;
-    setState(() {
-      if (!projects.any((item) => projectKey(item) == key)) {
-        projects.add(removedProject);
-        projects.sort((first, second) => second.createdAt.compareTo(first.createdAt));
-      }
-      projectTasks.addAll(removedTasks);
-      deletingProjectKeys.remove(key);
     });
   }
 
@@ -765,10 +633,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ],
           const SizedBox(height: 18),
           PlanoraAnimatedIn(index: 2, child: buildProjectTabsAndAction(context)),
-          const SizedBox(height: 18),
-          PlanoraAnimatedIn(index: 3, child: buildProjectStats(context)),
           const SizedBox(height: 20),
-          PlanoraAnimatedIn(index: 4, child: buildProjectContent(context)),
+          PlanoraAnimatedIn(index: 3, child: buildProjectContent(context)),
         ],
       ),
     );
@@ -815,139 +681,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget buildProjectStats(BuildContext context) {
-    final progress = totalProjectsCount == 0
-        ? 0.0
-        : completedProjectsCount / totalProjectsCount;
-
-    return PlanoraCard(
-      radius: 24,
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: PlanoraTheme.primaryGradientFor(context),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: PlanoraTheme.floatingShadowFor(context),
-                ),
-                child: const Icon(Icons.insights_rounded, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Project Health',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Live overview of your current plans',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              PlanoraRingProgress(
-                progress: progress,
-                centerText: '${(progress * 100).round()}%',
-                label: 'Plans Done',
-                size: 116,
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  children: [
-                    buildCompactMetric(
-                      context,
-                      icon: Icons.folder_copy_rounded,
-                      label: 'Plans',
-                      value: '$totalProjectsCount',
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(height: 9),
-                    buildCompactMetric(
-                      context,
-                      icon: Icons.play_circle_rounded,
-                      label: 'Active',
-                      value: '$activeProjectsCount',
-                      color: PlanoraTheme.info,
-                    ),
-                    const SizedBox(height: 9),
-                    buildCompactMetric(
-                      context,
-                      icon: Icons.warning_amber_rounded,
-                      label: 'At Risk',
-                      value: '$atRiskProjectsCount',
-                      color: PlanoraTheme.warning,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildCompactMetric(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: .18)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: mutedColor(context),
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-          ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1005,40 +738,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         for (var index = 0; index < visibleProjects.length; index++) ...[
           PlanoraAnimatedIn(
             index: index,
-            child: buildSwipeableProjectCard(context, visibleProjects[index]),
+            child: buildProjectCard(context, visibleProjects[index]),
           ),
           if (index != visibleProjects.length - 1) const SizedBox(height: 14),
         ],
       ],
-    );
-  }
-
-  Widget buildSwipeableProjectCard(BuildContext context, ProjectModel project) {
-    return Dismissible(
-      key: ValueKey('plan-${projectKey(project)}'),
-      direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => confirmDeleteProject(project),
-      onDismissed: (_) => deleteProjectFromList(project),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 22),
-        decoration: BoxDecoration(
-          color: PlanoraTheme.error,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Icon(Icons.delete_outline_rounded, color: Colors.white),
-            SizedBox(width: 8),
-            Text(
-              'Delete',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-            ),
-          ],
-        ),
-      ),
-      child: buildProjectCard(context, project),
     );
   }
 
@@ -1122,7 +826,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 6,
-                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primary.withValues(alpha: .10),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       project.isCompleted
                           ? PlanoraTheme.primaryPurple
@@ -1158,27 +863,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              buildHealthChip(context, project),
-              const SizedBox(width: 8),
               buildTypeChip(context, project),
             ],
           ),
         ],
       ),
     );
-  }
-
-  Widget buildHealthChip(BuildContext context, ProjectModel project) {
-    final label = projectHealthLabel(project);
-    final color = switch (label) {
-      'At risk' => PlanoraTheme.error,
-      'Blocked' => PlanoraTheme.warning,
-      'Needs attention' => PlanoraTheme.warning,
-      'Due soon' => PlanoraTheme.info,
-      _ => PlanoraTheme.success,
-    };
-
-    return buildChip(context, label, color);
   }
 
   Widget buildTypeChip(BuildContext context, ProjectModel project) {
