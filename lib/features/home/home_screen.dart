@@ -190,12 +190,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return 0;
   }
 
-  String get dashboardProgressLabel {
-    if (filteredDashboardTasks.isNotEmpty) return 'Tasks Done';
-    if (filteredDashboardProjects.isNotEmpty) return 'Projects Done';
-    return 'No Data';
-  }
-
   Future<void> loadDashboardData() async {
     setState(() {
       isLoadingDashboard = true;
@@ -713,8 +707,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 18),
                   buildProjectOverview(context),
                   const SizedBox(height: 18),
-                  buildQuickActions(context),
-                  const SizedBox(height: 18),
                   buildProjects(context),
                 ],
               ),
@@ -1205,89 +1197,6 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    gradient: PlanoraTheme.primaryGradientFor(context),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: PlanoraTheme.floatingShadowFor(context),
-                  ),
-                  child: const Icon(
-                    Icons.monitor_heart_outlined,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Project Health',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: isDark
-                                  ? PlanoraTheme.darkTextPrimary
-                                  : PlanoraTheme.textPrimary,
-                            ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Live overview of your current workload',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: mutedColor(context),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                InkWell(
-                  onTap: showDashboardRangeSheet,
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: primary.withValues(alpha: isDark ? 0.16 : 0.09),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: primary.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          dashboardRange.label,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                color: primary,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 16,
-                          color: primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            Row(
-              children: [
                 TweenAnimationBuilder<double>(
                   tween: Tween<double>(begin: 0, end: progress),
                   duration: const Duration(milliseconds: 900),
@@ -1331,60 +1240,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                           : PlanoraTheme.textPrimary,
                                     ),
                               ),
-                              Text(
-                                dashboardProgressLabel,
-                                style: Theme.of(context).textTheme.labelSmall
-                                    ?.copyWith(
-                                      color: primary,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                              ),
                             ],
                           ),
                         ],
                       ),
                     );
                   },
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    children: [
-                      buildHealthMetricPill(
-                        context,
-                        icon: Icons.folder_copy_outlined,
-                        label: 'Projects',
-                        value: filteredDashboardProjects.length.toString(),
-                        color: primary,
-                      ),
-                      const SizedBox(height: 8),
-                      buildHealthMetricPill(
-                        context,
-                        icon: Icons.play_circle_outline_rounded,
-                        label: 'Active',
-                        value: activeProjectCount.toString(),
-                        color: PlanoraTheme.info,
-                      ),
-                      const SizedBox(height: 8),
-                      buildHealthMetricPill(
-                        context,
-                        icon: Icons.warning_amber_rounded,
-                        label: 'At Risk',
-                        value: atRiskCount.toString(),
-                        color: atRiskCount > 0
-                            ? PlanoraTheme.error
-                            : PlanoraTheme.warning,
-                      ),
-                      const SizedBox(height: 8),
-                      buildHealthMetricPill(
-                        context,
-                        icon: Icons.task_alt_rounded,
-                        label: 'Done Tasks',
-                        value: completedTaskCount.toString(),
-                        color: PlanoraTheme.success,
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -1476,246 +1337,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
       ],
-    );
-  }
-
-  Widget buildQuickActions(BuildContext context) {
-    final actions = [
-      _HomeQuickAction(
-        icon: Icons.edit_note_rounded,
-        label: 'Create Manually',
-        isFilled: false,
-        onTap: openManualProjectFlow,
-      ),
-      _HomeQuickAction(
-        icon: Icons.add_task_rounded,
-        label: 'New Task',
-        isFilled: false,
-        onTap: openNewTaskFlow,
-      ),
-      _HomeQuickAction(
-        icon: Icons.chat_bubble_outline_rounded,
-        label: 'Ask Planora',
-        isFilled: false,
-        onTap: openAiPlannerTab,
-      ),
-      _HomeQuickAction(
-        icon: Icons.groups_2_outlined,
-        label: 'Teams',
-        isFilled: false,
-        onTap: openTeamsTab,
-      ),
-      _HomeQuickAction(
-        icon: Icons.check_box_outlined,
-        label: 'View Tasks',
-        isFilled: false,
-        onTap: openTasksTab,
-      ),
-    ];
-
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        buildSectionTitle(context, 'Quick Actions'),
-        const SizedBox(height: 12),
-        buildAnimatedEntrance(
-          4,
-          InkWell(
-            onTap: openAiPlanningFlow,
-            borderRadius: BorderRadius.circular(28),
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: PlanoraTheme.primaryGradientFor(context),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: primary.withValues(alpha: 0.28),
-                    blurRadius: 26,
-                    offset: const Offset(0, 16),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.22),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Plan with AI',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Generate a project, tasks, timeline, and risks instantly.',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.86),
-                                height: 1.35,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_rounded,
-                      color: primary,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final tileWidth = (constraints.maxWidth - 12) / 2;
-
-            return Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (var index = 0; index < actions.length; index++)
-                  SizedBox(
-                    width: tileWidth,
-                    child: buildAnimatedEntrance(
-                      index + 5,
-                      buildQuickActionTile(
-                        context,
-                        icon: actions[index].icon,
-                        label: actions[index].label,
-                        isFilled: actions[index].isFilled,
-                        onTap: actions[index].onTap,
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget buildQuickActionTile(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required bool isFilled,
-    required VoidCallback onTap,
-  }) {
-    final isDark = PlanoraTheme.isDark(context);
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Ink(
-          height: 92,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? PlanoraTheme.darkSurface : Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: isDark
-                  ? PlanoraTheme.darkBorder
-                  : primary.withValues(alpha: 0.08),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  gradient: isFilled
-                      ? PlanoraTheme.primaryGradientFor(context)
-                      : null,
-                  color: isFilled ? null : primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(
-                  icon,
-                  size: 19,
-                  color: isFilled ? Colors.white : primary,
-                ),
-              ),
-              const Spacer(),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.north_east_rounded,
-                    size: 14,
-                    color: mutedColor(context),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -2014,18 +1635,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-class _HomeQuickAction {
-  final IconData icon;
-  final String label;
-  final bool isFilled;
-  final VoidCallback onTap;
-
-  const _HomeQuickAction({
-    required this.icon,
-    required this.label,
-    required this.isFilled,
-    required this.onTap,
-  });
 }
