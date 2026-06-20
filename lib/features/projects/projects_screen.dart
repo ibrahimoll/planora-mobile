@@ -5,8 +5,6 @@ import '../../core/theme/planora_theme.dart';
 import '../../core/ui/planora_ui.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
-import '../tasks/data/tasks_api.dart';
-import '../tasks/models/task_models.dart';
 import 'ai_project_wizard_screen.dart';
 import 'project_detail_screen.dart';
 
@@ -34,8 +32,6 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
-  final TasksApi _tasksApi = const TasksApi();
-
   final TextEditingController searchController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -48,10 +44,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   bool isSearchVisible = false;
   bool isCreatingProject = false;
   String? errorMessage;
-  String? taskSummaryWarning;
-
   List<ProjectModel> projects = [];
-  List<TaskListItem> projectTasks = [];
 
   @override
   void initState() {
@@ -99,51 +92,23 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     setState(() {
       isLoading = true;
       errorMessage = null;
-      taskSummaryWarning = null;
     });
 
     try {
       final loadedProjects = await _projectsApi.getProjects();
-      var hadTaskLoadError = false;
-
-      final taskGroups = await Future.wait(
-        loadedProjects.map((project) async {
-          try {
-            return await _tasksApi.getProjectTasks(
-              project: TaskProjectSummary.fromProject(project),
-            );
-          } catch (error, stackTrace) {
-            debugPrint(
-              'Project task summary load failed for project ${project.projectId}: $error',
-            );
-            debugPrintStack(stackTrace: stackTrace);
-            hadTaskLoadError = true;
-            return <TaskListItem>[];
-          }
-        }),
-      );
-
       if (!mounted) return;
-
       setState(() {
         projects = loadedProjects;
-        projectTasks = taskGroups.expand((group) => group).toList();
-        taskSummaryWarning = hadTaskLoadError
-            ? 'Some plan task summaries could not be loaded.'
-            : null;
         isLoading = false;
       });
     } catch (error, stackTrace) {
       debugPrint('Project list load failed: $error');
       debugPrintStack(stackTrace: stackTrace);
-
       if (!mounted) return;
-
       setState(() {
         errorMessage = error is ApiException
             ? 'Could not load plans: ${error.message}'
             : 'Could not load plans. Please try again.';
-        projectTasks = [];
         isLoading = false;
       });
     }
@@ -164,80 +129,24 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (!matchesFilter) return false;
       if (query.isEmpty) return true;
 
-      final nextTask = nextTaskForProject(project);
       final searchable = [
         project.title,
         project.description ?? '',
         project.statusLabel,
         project.projectTypeLabel,
         project.deadlineLabel,
-        nextTask?.task.title ?? '',
       ].join(' ').toLowerCase();
 
       return searchable.contains(query);
     }).toList();
   }
 
-  String projectKey(ProjectModel project) {
-    return '${project.projectType}-${project.teamId ?? 0}-${project.projectId}';
-  }
-
-  List<TaskListItem> tasksForProject(ProjectModel project) {
-    return projectTasks.where((item) {
-      return item.project.projectId == project.projectId &&
-          item.project.teamId == project.teamId;
-    }).toList();
-  }
-
-  int completedTasksForProject(ProjectModel project) {
-    return tasksForProject(project).where((item) => item.task.isCompleted).length;
-  }
-
   double getProjectProgress(ProjectModel project) {
-    final tasks = tasksForProject(project);
-
-    if (tasks.isNotEmpty) {
-      return completedTasksForProject(project) / tasks.length;
-    }
-
     if (project.isCompleted) return 1;
     if (project.status == 'in_progress') return 0.55;
     if (project.status == 'on_hold') return 0.35;
     if (project.status == 'cancelled') return 0;
     return 0.12;
-  }
-
-  String getProjectTaskLabel(ProjectModel project) {
-    final tasks = tasksForProject(project);
-    if (tasks.isEmpty) return 'No tasks yet';
-    return '${completedTasksForProject(project)}/${tasks.length} tasks done';
-  }
-
-  TaskListItem? nextTaskForProject(ProjectModel project) {
-    final tasks = tasksForProject(project)
-        .where((item) => !item.task.isCompleted)
-        .toList()
-      ..sort(compareUpcomingTaskItems);
-
-    if (tasks.isEmpty) return null;
-    return tasks.first;
-  }
-
-  int compareUpcomingTaskItems(TaskListItem left, TaskListItem right) {
-    if (left.task.isOverdue != right.task.isOverdue) {
-      return left.task.isOverdue ? -1 : 1;
-    }
-
-    final leftDue = left.task.dueDate;
-    final rightDue = right.task.dueDate;
-
-    if (leftDue == null && rightDue == null) {
-      return left.task.createdAt.compareTo(right.task.createdAt);
-    }
-
-    if (leftDue == null) return 1;
-    if (rightDue == null) return -1;
-    return leftDue.compareTo(rightDue);
   }
 
   Color getStatusColor(ProjectModel project) {
@@ -291,6 +200,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       isSearchVisible = false;
       selectedFilterIndex = 0;
     });
+  }
+
+  Future<void> openAiProjectWizard() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadProjects),
+      ),
+    );
+
+    if (!mounted) return;
+    loadProjects();
   }
 
   Future<void> showProjectFilterSheet() async {
@@ -437,17 +357,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> openAiProjectWizard() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadProjects),
-      ),
-    );
-
-    if (!mounted) return;
-    loadProjects();
   }
 
   Future<void> showManualCreateProjectSheet() async {
@@ -614,27 +523,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PlanoraAnimatedIn(
-            index: 0,
-            child: PlanoraHeroPromptCard(
-              title: 'What do you want to plan next?',
-              description:
-                  'Create a manual plan or let Planora AI shape the plan, tasks, timeline, and risks.',
-              buttonText: 'Plan with AI',
-              onButtonPressed: openAiProjectWizard,
-              leadingIcon: Icons.auto_awesome_rounded,
-              trailingIcon: Icons.folder_copy_outlined,
-              badgeText: 'Plans',
-            ),
-          ),
           if (isSearchVisible) ...[
+            PlanoraAnimatedIn(index: 0, child: buildProjectSearchField(context)),
             const SizedBox(height: 14),
-            PlanoraAnimatedIn(index: 1, child: buildProjectSearchField(context)),
           ],
-          const SizedBox(height: 18),
-          PlanoraAnimatedIn(index: 2, child: buildProjectTabsAndAction(context)),
+          PlanoraAnimatedIn(index: 1, child: buildProjectTabsAndAction(context)),
           const SizedBox(height: 20),
-          PlanoraAnimatedIn(index: 3, child: buildProjectContent(context)),
+          PlanoraAnimatedIn(index: 2, child: buildProjectContent(context)),
         ],
       ),
     );
@@ -647,7 +542,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       onChanged: (_) => setState(() {}),
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: 'Search plans, status, deadlines, or next tasks...',
+        hintText: 'Search plans, status, deadlines, or descriptions...',
         prefixIcon: const Icon(Icons.search_rounded),
         suffixIcon: hasActiveSearch
             ? IconButton(
@@ -715,7 +610,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return PlanoraMessageState(
         icon: Icons.folder_open_rounded,
         title: 'No plans yet',
-        message: 'Describe an idea or create a manual plan to start organizing it.',
+        message: 'Create a manual plan or generate one with AI to start organizing it.',
         actionText: 'Start Plan',
         onAction: showCreateProjectSheet,
       );
@@ -724,10 +619,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (taskSummaryWarning != null) ...[
-          buildWarning(context, taskSummaryWarning!),
-          const SizedBox(height: 14),
-        ],
         Text(
           'Current Plans',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -750,7 +641,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final statusColor = getStatusColor(project);
     final iconColor = getProjectIconColor(project);
     final progress = getProjectProgress(project);
-    final nextTask = nextTaskForProject(project);
 
     return PlanoraCard(
       radius: 24,
@@ -800,9 +690,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      nextTask == null
-                          ? getProjectTaskLabel(project)
-                          : 'Next: ${nextTask.task.title}',
+                      (project.description?.trim().isNotEmpty ?? false)
+                          ? project.description!.trim()
+                          : project.projectTypeLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -908,33 +798,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   fontWeight: FontWeight.w900,
                   fontSize: 10,
                 ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildWarning(BuildContext context, String message) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: PlanoraTheme.warning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: PlanoraTheme.warning.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline_rounded, color: PlanoraTheme.warning),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: PlanoraTheme.warning,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
           ),
         ],
       ),
