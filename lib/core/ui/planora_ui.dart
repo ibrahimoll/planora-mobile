@@ -4,74 +4,1180 @@ import '../theme/planora_theme.dart';
 
 abstract final class PlanoraSpacing {
   static const double xs = 6, sm = 10, md = 14, lg = 18, xl = 22, xxl = 28;
-  static const double pageHorizontal = 20, pageTop = 18, pageBottom = 28, maxContentWidth = 540;
-  static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(pageHorizontal, pageTop, pageHorizontal, pageBottom);
+  static const double pageHorizontal = 20,
+      pageTop = 18,
+      pageBottom = 28,
+      maxContentWidth = 540;
+  static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(
+    pageHorizontal,
+    pageTop,
+    pageHorizontal,
+    pageBottom,
+  );
   static const EdgeInsets sheetPadding = EdgeInsets.fromLTRB(20, 16, 20, 24);
 }
 
 class PlanoraScaffold extends StatelessWidget {
-  final Widget child; final bool extendBody; final bool bottomSafeArea; final Widget? bottomNavigationBar;
-  const PlanoraScaffold({super.key, required this.child, this.extendBody = false, this.bottomSafeArea = false, this.bottomNavigationBar});
-  @override Widget build(BuildContext context) { final isDark = PlanoraTheme.isDark(context); return Scaffold(extendBody: extendBody, backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background, body: DecoratedBox(decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)), child: SafeArea(bottom: bottomSafeArea, child: child)), bottomNavigationBar: bottomNavigationBar); }
+  final Widget child;
+  final bool extendBody;
+  final bool bottomSafeArea;
+  final Widget? bottomNavigationBar;
+  const PlanoraScaffold({
+    super.key,
+    required this.child,
+    this.extendBody = false,
+    this.bottomSafeArea = false,
+    this.bottomNavigationBar,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    return Scaffold(
+      extendBody: extendBody,
+      backgroundColor: isDark
+          ? PlanoraTheme.darkBackground
+          : PlanoraTheme.background,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
+        child: SafeArea(bottom: bottomSafeArea, child: child),
+      ),
+      bottomNavigationBar: bottomNavigationBar,
+    );
+  }
 }
 
 class PlanoraPage extends StatelessWidget {
-  final String? title, subtitle; final VoidCallback? onBack; final List<Widget> actions; final Widget child; final Future<void> Function()? onRefresh; final EdgeInsetsGeometry padding; final double maxWidth; final ScrollPhysics physics;
-  const PlanoraPage({super.key, this.title, this.subtitle, this.onBack, this.actions = const [], required this.child, this.onRefresh, this.padding = PlanoraSpacing.pagePadding, this.maxWidth = PlanoraSpacing.maxContentWidth, this.physics = const AlwaysScrollableScrollPhysics()});
-  @override Widget build(BuildContext context) { Widget content = ListView(physics: physics, padding: padding, children: [Center(child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [if (title != null) ...[PlanoraTopBar(title: title!, subtitle: subtitle, onBack: onBack, actions: actions), const SizedBox(height: PlanoraSpacing.lg)], child]))) ]); if (onRefresh != null) content = RefreshIndicator(color: Theme.of(context).colorScheme.primary, backgroundColor: PlanoraTheme.isDark(context) ? PlanoraTheme.darkSurface : PlanoraTheme.surface, displacement: 42, strokeWidth: 2.4, onRefresh: onRefresh!, child: content); return content; }
+  final String? title, subtitle;
+  final VoidCallback? onBack;
+  final List<Widget> actions;
+  final Widget child;
+  final Future<void> Function()? onRefresh;
+  final EdgeInsetsGeometry padding;
+  final double maxWidth;
+  final ScrollPhysics physics;
+  const PlanoraPage({
+    super.key,
+    this.title,
+    this.subtitle,
+    this.onBack,
+    this.actions = const [],
+    required this.child,
+    this.onRefresh,
+    this.padding = PlanoraSpacing.pagePadding,
+    this.maxWidth = PlanoraSpacing.maxContentWidth,
+    this.physics = const AlwaysScrollableScrollPhysics(),
+  });
+  @override
+  Widget build(BuildContext context) {
+    Widget content = ListView(
+      physics: physics,
+      padding: padding,
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (title != null) ...[
+                  PlanoraTopBar(
+                    title: title!,
+                    subtitle: subtitle,
+                    onBack: onBack,
+                    actions: actions,
+                  ),
+                  const SizedBox(height: PlanoraSpacing.lg),
+                ],
+                child,
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    if (onRefresh != null) {
+      content = RefreshIndicator(
+        color: Theme.of(context).colorScheme.primary,
+        backgroundColor: PlanoraTheme.isDark(context)
+            ? PlanoraTheme.darkSurface
+            : PlanoraTheme.surface,
+        displacement: 42,
+        strokeWidth: 2.4,
+        onRefresh: onRefresh!,
+        child: content,
+      );
+    }
+    return content;
+  }
 }
 
 class PlanoraAnimatedIn extends StatelessWidget {
-  final int index; final Widget child; final int baseDurationMs, delayMs;
-  const PlanoraAnimatedIn({super.key, required this.index, required this.child, this.baseDurationMs = 340, this.delayMs = 60});
-  @override Widget build(BuildContext context) => TweenAnimationBuilder<double>(tween: Tween(begin: 0, end: 1), duration: Duration(milliseconds: baseDurationMs + index * delayMs), curve: Curves.easeOutCubic, builder: (context, value, c) => Opacity(opacity: value, child: Transform.translate(offset: Offset(0, (1 - value) * 18), child: Transform.scale(scale: .96 + value * .04, child: c))), child: child);
+  final int index;
+  final Widget child;
+  final int baseDurationMs, delayMs;
+  const PlanoraAnimatedIn({
+    super.key,
+    required this.index,
+    required this.child,
+    this.baseDurationMs = 340,
+    this.delayMs = 60,
+  });
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: Duration(milliseconds: baseDurationMs + index * delayMs),
+    curve: Curves.easeOutCubic,
+    builder: (context, value, c) => Opacity(
+      opacity: value,
+      child: Transform.translate(
+        offset: Offset(0, (1 - value) * 18),
+        child: Transform.scale(scale: .96 + value * .04, child: c),
+      ),
+    ),
+    child: child,
+  );
 }
 
 class PlanoraTopBar extends StatelessWidget {
-  final String title; final String? subtitle; final VoidCallback? onBack; final List<Widget> actions; final Widget? leading;
-  const PlanoraTopBar({super.key, required this.title, this.subtitle, this.onBack, this.actions = const [], this.leading});
-  @override Widget build(BuildContext context) { final isDark = PlanoraTheme.isDark(context); return Row(children: [if (leading != null) ...[leading!, const SizedBox(width: 12)] else if (onBack != null) ...[PlanoraIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back', onTap: onBack!), const SizedBox(width: 12)], Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary)), if (subtitle != null) ...[const SizedBox(height: 3), Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: isDark ? PlanoraTheme.darkTextSecondary : PlanoraTheme.textSecondary))]])), if (actions.isNotEmpty) ...[const SizedBox(width: 10), ...actions]]); }
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onBack;
+  final List<Widget> actions;
+  final Widget? leading;
+  const PlanoraTopBar({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.onBack,
+    this.actions = const [],
+    this.leading,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    return Row(
+      children: [
+        if (leading != null) ...[
+          leading!,
+          const SizedBox(width: 12),
+        ] else if (onBack != null) ...[
+          PlanoraIconButton(
+            icon: Icons.arrow_back_rounded,
+            tooltip: 'Back',
+            onTap: onBack!,
+          ),
+          const SizedBox(width: 12),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? PlanoraTheme.darkTextSecondary
+                        : PlanoraTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (actions.isNotEmpty) ...[const SizedBox(width: 10), ...actions],
+      ],
+    );
+  }
 }
 
 class PlanoraHomeTopBar extends StatelessWidget {
-  final String greeting, subtitle; final Widget avatar; final VoidCallback onSearch, onNotifications; final bool hasUnreadNotifications;
-  const PlanoraHomeTopBar({super.key, required this.greeting, required this.subtitle, required this.avatar, required this.onSearch, required this.onNotifications, this.hasUnreadNotifications = false});
-  @override Widget build(BuildContext context) { final isDark = PlanoraTheme.isDark(context); return Row(children: [avatar, const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(greeting, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary)), const SizedBox(height: 3), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? PlanoraTheme.darkTextSecondary : PlanoraTheme.textSecondary, fontWeight: FontWeight.w700))])), const SizedBox(width: 10), PlanoraIconButton(icon: Icons.search_rounded, tooltip: 'Search', onTap: onSearch), const SizedBox(width: 10), Stack(clipBehavior: Clip.none, children: [PlanoraIconButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onTap: onNotifications), if (hasUnreadNotifications) Positioned(right: 8, top: 8, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: PlanoraTheme.error, shape: BoxShape.circle, border: Border.all(color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface, width: 1.5))))])]); }
+  final String greeting, subtitle;
+  final Widget avatar;
+  final VoidCallback onSearch, onNotifications;
+  final bool hasUnreadNotifications;
+  const PlanoraHomeTopBar({
+    super.key,
+    required this.greeting,
+    required this.subtitle,
+    required this.avatar,
+    required this.onSearch,
+    required this.onNotifications,
+    this.hasUnreadNotifications = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    return Row(
+      children: [
+        avatar,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                greeting,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? PlanoraTheme.darkTextSecondary
+                      : PlanoraTheme.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        PlanoraIconButton(
+          icon: Icons.search_rounded,
+          tooltip: 'Search',
+          onTap: onSearch,
+        ),
+        const SizedBox(width: 10),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            PlanoraIconButton(
+              icon: Icons.notifications_none_rounded,
+              tooltip: 'Notifications',
+              onTap: onNotifications,
+            ),
+            if (hasUnreadNotifications)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: PlanoraTheme.error,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark
+                          ? PlanoraTheme.darkSurface
+                          : PlanoraTheme.surface,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class PlanoraIconButton extends StatelessWidget {
-  final IconData icon; final VoidCallback onTap; final String? tooltip; final double size, iconSize; final Color? iconColor, backgroundColor;
-  const PlanoraIconButton({super.key, required this.icon, required this.onTap, this.tooltip, this.size = 42, this.iconSize = 21, this.iconColor, this.backgroundColor});
-  @override Widget build(BuildContext context) { final isDark = PlanoraTheme.isDark(context); final bg = backgroundColor ?? (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface); final fg = iconColor ?? (isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary); final button = Material(color: Colors.transparent, shape: const CircleBorder(), child: InkWell(onTap: onTap, customBorder: const CircleBorder(), child: AnimatedContainer(duration: const Duration(milliseconds: 180), width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: bg, border: Border.all(color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border), boxShadow: PlanoraTheme.cardShadowFor(context)), child: Icon(icon, size: iconSize, color: fg)))); return tooltip == null ? button : Tooltip(message: tooltip!, child: button); }
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? tooltip;
+  final double size, iconSize;
+  final Color? iconColor, backgroundColor;
+  const PlanoraIconButton({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    this.tooltip,
+    this.size = 42,
+    this.iconSize = 21,
+    this.iconColor,
+    this.backgroundColor,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final bg =
+        backgroundColor ??
+        (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface);
+    final fg =
+        iconColor ??
+        (isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary);
+    final button = Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: bg,
+            border: Border.all(
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
+            boxShadow: PlanoraTheme.cardShadowFor(context),
+          ),
+          child: Icon(icon, size: iconSize, color: fg),
+        ),
+      ),
+    );
+    return tooltip == null ? button : Tooltip(message: tooltip!, child: button);
+  }
 }
 
-class PlanoraPrimaryButton extends StatelessWidget { final String label; final VoidCallback? onPressed; final IconData? icon; final bool isLoading; final double height; const PlanoraPrimaryButton({super.key, required this.label, required this.onPressed, this.icon, this.isLoading = false, this.height = 52}); @override Widget build(BuildContext context) => SizedBox(height: height, child: ElevatedButton(onPressed: isLoading ? null : onPressed, child: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)], Text(label)]))); }
-class PlanoraSecondaryButton extends StatelessWidget { final String label; final VoidCallback? onPressed; final IconData? icon; final double height; const PlanoraSecondaryButton({super.key, required this.label, required this.onPressed, this.icon, this.height = 52}); @override Widget build(BuildContext context) => SizedBox(height: height, child: OutlinedButton(onPressed: onPressed, child: icon == null ? Text(label) : Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 20), const SizedBox(width: 8), Text(label)]))); }
-class PlanoraGradientButton extends StatelessWidget { final String label; final VoidCallback? onTap; final IconData? icon; final bool isLoading; final double height, radius; const PlanoraGradientButton({super.key, required this.label, required this.onTap, this.icon, this.isLoading = false, this.height = 52, this.radius = 18}); @override Widget build(BuildContext context) => Material(color: Colors.transparent, borderRadius: BorderRadius.circular(radius), child: InkWell(onTap: isLoading ? null : onTap, borderRadius: BorderRadius.circular(radius), child: Ink(height: height, decoration: BoxDecoration(gradient: PlanoraTheme.primaryGradientFor(context), borderRadius: BorderRadius.circular(radius), boxShadow: PlanoraTheme.floatingShadowFor(context)), child: Center(child: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white)) : Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [if (icon != null) ...[Icon(icon, size: 22, color: Colors.white), const SizedBox(width: 8)], Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900))]))))); }
+class PlanoraPrimaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool isLoading;
+  final double height;
+  const PlanoraPrimaryButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.isLoading = false,
+    this.height = 52,
+  });
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    child: ElevatedButton(
+      onPressed: isLoading ? null : onPressed,
+      child: isLoading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.4,
+                color: Colors.white,
+              ),
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20),
+                  const SizedBox(width: 8),
+                ],
+                Text(label),
+              ],
+            ),
+    ),
+  );
+}
+
+class PlanoraSecondaryButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final double height;
+  const PlanoraSecondaryButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.height = 52,
+  });
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: height,
+    child: OutlinedButton(
+      onPressed: onPressed,
+      child: icon == null
+          ? Text(label)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20),
+                const SizedBox(width: 8),
+                Text(label),
+              ],
+            ),
+    ),
+  );
+}
+
+class PlanoraGradientButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  final IconData? icon;
+  final bool isLoading;
+  final double height, radius;
+  const PlanoraGradientButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.isLoading = false,
+    this.height = 52,
+    this.radius = 18,
+  });
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    borderRadius: BorderRadius.circular(radius),
+    child: InkWell(
+      onTap: isLoading ? null : onTap,
+      borderRadius: BorderRadius.circular(radius),
+      child: Ink(
+        height: height,
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.primaryGradientFor(context),
+          borderRadius: BorderRadius.circular(radius),
+          boxShadow: PlanoraTheme.floatingShadowFor(context),
+        ),
+        child: Center(
+          child: isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: Colors.white,
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 22, color: Colors.white),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    ),
+  );
+}
 
 class PlanoraCard extends StatelessWidget {
-  final Widget child; final EdgeInsetsGeometry padding; final EdgeInsetsGeometry? margin; final double radius; final VoidCallback? onTap; final Gradient? gradient; final Color? color; final Border? border; final List<BoxShadow>? boxShadow;
-  const PlanoraCard({super.key, required this.child, this.padding = const EdgeInsets.all(18), this.margin, this.radius = 22, this.onTap, this.gradient, this.color, this.border, this.boxShadow});
-  @override Widget build(BuildContext context) { final isDark = PlanoraTheme.isDark(context); final card = AnimatedContainer(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, width: double.infinity, margin: margin, padding: padding, decoration: BoxDecoration(color: gradient == null ? color ?? (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface) : null, gradient: gradient, borderRadius: BorderRadius.circular(radius), border: border ?? Border.all(color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border), boxShadow: boxShadow ?? PlanoraTheme.cardShadowFor(context)), child: child); if (onTap == null) return card; return Material(color: Colors.transparent, borderRadius: BorderRadius.circular(radius), child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(radius), child: card)); }
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? margin;
+  final double radius;
+  final VoidCallback? onTap;
+  final Gradient? gradient;
+  final Color? color;
+  final Border? border;
+  final List<BoxShadow>? boxShadow;
+  const PlanoraCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.margin,
+    this.radius = 22,
+    this.onTap,
+    this.gradient,
+    this.color,
+    this.border,
+    this.boxShadow,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final card = AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      width: double.infinity,
+      margin: margin,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: gradient == null
+            ? color ??
+                  (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface)
+            : null,
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(radius),
+        border:
+            border ??
+            Border.all(
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
+        boxShadow: boxShadow ?? PlanoraTheme.cardShadowFor(context),
+      ),
+      child: child,
+    );
+    if (onTap == null) return card;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(radius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: card,
+      ),
+    );
+  }
 }
 
-class PlanoraSkeletonBox extends StatefulWidget { final double? width; final double height, radius; final EdgeInsetsGeometry? margin; const PlanoraSkeletonBox({super.key, this.width, required this.height, this.radius = 14, this.margin}); @override State<PlanoraSkeletonBox> createState() => _PlanoraSkeletonBoxState(); }
-class _PlanoraSkeletonBoxState extends State<PlanoraSkeletonBox> with SingleTickerProviderStateMixin { late final AnimationController _c; @override void initState(){super.initState(); _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1250))..repeat();} @override void dispose(){_c.dispose(); super.dispose();} @override Widget build(BuildContext context){ final isDark = PlanoraTheme.isDark(context); final base = isDark ? const Color(0xFF171923) : const Color(0xFFEDEFF5); final hi = isDark ? const Color(0xFF242736) : const Color(0xFFF8FAFF); return Padding(padding: widget.margin ?? EdgeInsets.zero, child: AnimatedBuilder(animation: _c, builder: (_, __){ final start = -1.2 + _c.value * 2.4; return Container(width: widget.width, height: widget.height, decoration: BoxDecoration(borderRadius: BorderRadius.circular(widget.radius), gradient: LinearGradient(begin: Alignment(start, -.35), end: Alignment(start + .9, .35), colors: [base, hi, base], stops: const [.18, .50, .82]))); })); }}
+class PlanoraSkeletonBox extends StatefulWidget {
+  final double? width;
+  final double height, radius;
+  final EdgeInsetsGeometry? margin;
+  const PlanoraSkeletonBox({
+    super.key,
+    this.width,
+    required this.height,
+    this.radius = 14,
+    this.margin,
+  });
+  @override
+  State<PlanoraSkeletonBox> createState() => _PlanoraSkeletonBoxState();
+}
 
-class PlanoraLoadingIndicator extends StatelessWidget { final double size, strokeWidth; final Color? color; const PlanoraLoadingIndicator({super.key, this.size = 34, this.strokeWidth = 2.7, this.color}); @override Widget build(BuildContext context) => PlanoraSkeletonBox(width: size, height: size, radius: size / 2); }
-class _PlanoraSpinnerRing extends StatelessWidget { final double size, strokeWidth; const _PlanoraSpinnerRing({required this.size, required this.strokeWidth}); @override Widget build(BuildContext context){ final primary = Theme.of(context).colorScheme.primary; return SizedBox(width: size, height: size, child: CircularProgressIndicator(strokeWidth: strokeWidth, color: primary, backgroundColor: primary.withValues(alpha: .10), strokeCap: StrokeCap.round)); }}
+class _PlanoraSkeletonBoxState extends State<PlanoraSkeletonBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1250),
+    )..repeat();
+  }
 
-class PlanoraBrandLoader extends StatefulWidget { final String message; final double size; final bool showMessage; const PlanoraBrandLoader({super.key, this.message = 'Loading...', this.size = 88, this.showMessage = true}); @override State<PlanoraBrandLoader> createState() => _PlanoraBrandLoaderState(); }
-class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader> with SingleTickerProviderStateMixin { late final AnimationController _c; @override void initState(){super.initState(); _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1450))..repeat();} @override void dispose(){_c.dispose(); super.dispose();} @override Widget build(BuildContext context){ final badge = widget.size * .62; return AnimatedBuilder(animation: _c, builder: (_, __){ final pulse = .988 + math.sin(_c.value * math.pi * 2) * .018; return Column(mainAxisSize: MainAxisSize.min, children: [Transform.scale(scale: pulse, child: SizedBox(width: widget.size, height: widget.size, child: Stack(alignment: Alignment.center, children: [_PlanoraSpinnerRing(size: widget.size, strokeWidth: 3), Container(width: badge, height: badge, padding: EdgeInsets.all(widget.size * .09), decoration: BoxDecoration(borderRadius: BorderRadius.circular(widget.size * .22), gradient: PlanoraTheme.primaryGradientFor(context), border: Border.all(color: Colors.white.withValues(alpha: .10))), child: ClipRRect(borderRadius: BorderRadius.circular(widget.size * .15), child: Image.asset('assets/images/planora_logo.png', fit: BoxFit.cover)))]))), if (widget.showMessage) ...[const SizedBox(height: 16), Text(widget.message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .76), fontWeight: FontWeight.w800))]]); }); }}
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
 
-class PlanoraSkeletonFeed extends StatelessWidget { final int itemCount; final double topPadding; final bool dense; const PlanoraSkeletonFeed({super.key, this.itemCount = 3, this.topPadding = 20, this.dense = false}); @override Widget build(BuildContext context){ final children = <Widget>[]; for (var i = 0; i < itemCount; i++){ if (i > 0) children.add(const SizedBox(height: 12)); children.add(PlanoraAnimatedIn(index: i, child: PlanoraCard(radius: 24, padding: EdgeInsets.all(dense ? 14 : 18), child: Row(children: [PlanoraSkeletonBox(width: dense ? 38 : 48, height: dense ? 38 : 48, radius: dense ? 13 : 16), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [PlanoraSkeletonBox(width: double.infinity, height: dense ? 12 : 14, radius: 999), const SizedBox(height: 10), FractionallySizedBox(widthFactor: .68, alignment: Alignment.centerLeft, child: PlanoraSkeletonBox(height: dense ? 10 : 12, radius: 999)), if (!dense) ...[const SizedBox(height: 12), const FractionallySizedBox(widthFactor: .92, alignment: Alignment.centerLeft, child: PlanoraSkeletonBox(height: 8, radius: 999))]]))])))); } return Padding(padding: EdgeInsets.only(top: topPadding), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)); }}
-class PlanoraLoadingState extends StatelessWidget { final String message; final String? subtitle; final double topPadding, size; final bool branded; const PlanoraLoadingState({super.key, this.message = 'Loading...', this.subtitle, this.topPadding = 40, this.size = 42, this.branded = false}); @override Widget build(BuildContext context){ final full = topPadding == 0 && size >= 80; if (branded || full) return Center(child: PlanoraBrandLoader(message: message, size: size)); return PlanoraSkeletonFeed(topPadding: topPadding, itemCount: subtitle == null ? 3 : 2, dense: size < 38); }}
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    final base = isDark ? const Color(0xFF171923) : const Color(0xFFEDEFF5);
+    final hi = isDark ? const Color(0xFF242736) : const Color(0xFFF8FAFF);
+    return Padding(
+      padding: widget.margin ?? EdgeInsets.zero,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) {
+          final start = -1.2 + _c.value * 2.4;
+          return Container(
+            width: widget.width,
+            height: widget.height,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              gradient: LinearGradient(
+                begin: Alignment(start, -.35),
+                end: Alignment(start + .9, .35),
+                colors: [base, hi, base],
+                stops: const [.18, .50, .82],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
 
-class PlanoraMessageState extends StatelessWidget { final IconData icon; final String title, message; final String? actionText; final VoidCallback? onAction; final double topMargin; const PlanoraMessageState({super.key, required this.icon, required this.title, required this.message, this.actionText, this.onAction, this.topMargin = 36}); @override Widget build(BuildContext context){ final isDark = PlanoraTheme.isDark(context); return Container(margin: EdgeInsets.only(top: topMargin), child: PlanoraCard(padding: const EdgeInsets.all(22), radius: 24, child: Column(children: [Container(width: 58, height: 58, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .12), borderRadius: BorderRadius.circular(20)), child: Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary)), const SizedBox(height: 14), Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary)), const SizedBox(height: 8), Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: isDark ? PlanoraTheme.darkTextSecondary : PlanoraTheme.textSecondary)), if (actionText != null && onAction != null) ...[const SizedBox(height: 18), PlanoraGradientButton(label: actionText!, onTap: onAction)]]))); }}
+class PlanoraLoadingIndicator extends StatelessWidget {
+  final double size, strokeWidth;
+  final Color? color;
+  const PlanoraLoadingIndicator({
+    super.key,
+    this.size = 34,
+    this.strokeWidth = 2.7,
+    this.color,
+  });
+  @override
+  Widget build(BuildContext context) =>
+      PlanoraSkeletonBox(width: size, height: size, radius: size / 2);
+}
 
-class PlanoraSegmentedTabs extends StatelessWidget { final List<String> tabs; final int selectedIndex; final ValueChanged<int> onChanged; const PlanoraSegmentedTabs({super.key, required this.tabs, required this.selectedIndex, required this.onChanged}); @override Widget build(BuildContext context){ final isDark = PlanoraTheme.isDark(context); return Container(height: 48, padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border), boxShadow: PlanoraTheme.cardShadowFor(context)), child: Row(children: List.generate(tabs.length, (i){ final selected = selectedIndex == i; return Expanded(child: InkWell(onTap: () => onChanged(i), borderRadius: BorderRadius.circular(12), child: AnimatedContainer(duration: const Duration(milliseconds: 220), alignment: Alignment.center, decoration: BoxDecoration(color: selected ? Theme.of(context).colorScheme.primary.withValues(alpha: .12) : Colors.transparent, borderRadius: BorderRadius.circular(12)), child: Text(tabs[i], maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900, color: selected ? Theme.of(context).colorScheme.primary : isDark ? PlanoraTheme.darkTextSecondary : PlanoraTheme.textSecondary))))); }))); }}
+class _PlanoraSpinnerRing extends StatelessWidget {
+  final double size, strokeWidth;
+  const _PlanoraSpinnerRing({required this.size, required this.strokeWidth});
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CircularProgressIndicator(
+        strokeWidth: strokeWidth,
+        color: primary,
+        backgroundColor: primary.withValues(alpha: .10),
+        strokeCap: StrokeCap.round,
+      ),
+    );
+  }
+}
 
-class PlanoraHeroPromptCard extends StatelessWidget { final String title, description, buttonText, badgeText; final VoidCallback onButtonPressed; final IconData leadingIcon, trailingIcon; const PlanoraHeroPromptCard({super.key, required this.title, required this.description, required this.buttonText, required this.onButtonPressed, this.leadingIcon = Icons.auto_awesome_rounded, this.trailingIcon = Icons.chat_bubble_outline_rounded, this.badgeText = 'AI-first'}); @override Widget build(BuildContext context) => PlanoraCard(radius: 28, padding: const EdgeInsets.all(20), gradient: PlanoraTheme.primaryGradientFor(context), border: Border.all(color: Colors.white.withValues(alpha: .08)), boxShadow: PlanoraTheme.floatingShadowFor(context), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [Row(children: [Container(width: 46, height: 46, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withValues(alpha: .16))), child: Icon(leadingIcon, color: Colors.white, size: 24)), const Spacer(), Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(999)), child: Text(badgeText, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900)))]), const SizedBox(height: 20), Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, height: 1.18)), const SizedBox(height: 8), Text(description, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white.withValues(alpha: .86), fontWeight: FontWeight.w700, height: 1.35)), const SizedBox(height: 18), Row(children: [Expanded(child: SizedBox(height: 48, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Theme.of(context).colorScheme.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), onPressed: onButtonPressed, child: Text(buttonText, style: const TextStyle(fontWeight: FontWeight.w900))))), const SizedBox(width: 10), Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.white.withValues(alpha: .14), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withValues(alpha: .25))), child: Icon(trailingIcon, color: Colors.white, size: 24))]) ])); }
+class PlanoraBrandLoader extends StatefulWidget {
+  final String message;
+  final double size;
+  final bool showMessage;
+  const PlanoraBrandLoader({
+    super.key,
+    this.message = 'Loading...',
+    this.size = 88,
+    this.showMessage = true,
+  });
+  @override
+  State<PlanoraBrandLoader> createState() => _PlanoraBrandLoaderState();
+}
 
-class PlanoraRingProgress extends StatelessWidget { final double progress, size; final String centerText, label; const PlanoraRingProgress({super.key, required this.progress, required this.centerText, required this.label, this.size = 112}); @override Widget build(BuildContext context){ final clamped = progress.clamp(0.0, 1.0); return SizedBox(width: size, height: size, child: Stack(alignment: Alignment.center, children: [CustomPaint(size: Size.square(size), painter: _PlanoraRingPainter(progress: clamped, color: Theme.of(context).colorScheme.primary, backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .12))), Column(mainAxisSize: MainAxisSize.min, children: [Text(centerText, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)), Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900))]) ])); }}
-class _PlanoraRingPainter extends CustomPainter { final double progress; final Color color, backgroundColor; const _PlanoraRingPainter({required this.progress, required this.color, required this.backgroundColor}); @override void paint(Canvas canvas, Size size){ final stroke = size.width * .10; final center = (Offset.zero & size).center; final radius = (size.width - stroke) / 2; final bg = Paint()..color = backgroundColor..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round; final fg = Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = stroke..strokeCap = StrokeCap.round; canvas.drawCircle(center, radius, bg); canvas.drawArc(Rect.fromCircle(center: center, radius: radius), -math.pi / 2, progress * math.pi * 2, false, fg);} @override bool shouldRepaint(covariant _PlanoraRingPainter oldDelegate) => oldDelegate.progress != progress || oldDelegate.color != color || oldDelegate.backgroundColor != backgroundColor; }
+class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1450),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final badge = widget.size * .62;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) {
+        final pulse = .988 + math.sin(_c.value * math.pi * 2) * .018;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.scale(
+              scale: pulse,
+              child: SizedBox(
+                width: widget.size,
+                height: widget.size,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    _PlanoraSpinnerRing(size: widget.size, strokeWidth: 3),
+                    Container(
+                      width: badge,
+                      height: badge,
+                      padding: EdgeInsets.all(widget.size * .09),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(widget.size * .22),
+                        gradient: PlanoraTheme.primaryGradientFor(context),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .10),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(widget.size * .15),
+                        child: Image.asset(
+                          'assets/images/planora_logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (widget.showMessage) ...[
+              const SizedBox(height: 16),
+              Text(
+                widget.message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: .76),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class PlanoraSkeletonFeed extends StatelessWidget {
+  final int itemCount;
+  final double topPadding;
+  final bool dense;
+  const PlanoraSkeletonFeed({
+    super.key,
+    this.itemCount = 3,
+    this.topPadding = 20,
+    this.dense = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final children = <Widget>[];
+    for (var i = 0; i < itemCount; i++) {
+      if (i > 0) children.add(const SizedBox(height: 12));
+      children.add(
+        PlanoraAnimatedIn(
+          index: i,
+          child: PlanoraCard(
+            radius: 24,
+            padding: EdgeInsets.all(dense ? 14 : 18),
+            child: Row(
+              children: [
+                PlanoraSkeletonBox(
+                  width: dense ? 38 : 48,
+                  height: dense ? 38 : 48,
+                  radius: dense ? 13 : 16,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PlanoraSkeletonBox(
+                        width: double.infinity,
+                        height: dense ? 12 : 14,
+                        radius: 999,
+                      ),
+                      const SizedBox(height: 10),
+                      FractionallySizedBox(
+                        widthFactor: .68,
+                        alignment: Alignment.centerLeft,
+                        child: PlanoraSkeletonBox(
+                          height: dense ? 10 : 12,
+                          radius: 999,
+                        ),
+                      ),
+                      if (!dense) ...[
+                        const SizedBox(height: 12),
+                        const FractionallySizedBox(
+                          widthFactor: .92,
+                          alignment: Alignment.centerLeft,
+                          child: PlanoraSkeletonBox(height: 8, radius: 999),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+}
+
+class PlanoraLoadingState extends StatelessWidget {
+  final String message;
+  final String? subtitle;
+  final double topPadding, size;
+  final bool branded;
+  const PlanoraLoadingState({
+    super.key,
+    this.message = 'Loading...',
+    this.subtitle,
+    this.topPadding = 40,
+    this.size = 42,
+    this.branded = false,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final full = topPadding == 0 && size >= 80;
+    if (branded || full) {
+      return Center(
+        child: PlanoraBrandLoader(message: message, size: size),
+      );
+    }
+    return PlanoraSkeletonFeed(
+      topPadding: topPadding,
+      itemCount: subtitle == null ? 3 : 2,
+      dense: size < 38,
+    );
+  }
+}
+
+class PlanoraMessageState extends StatelessWidget {
+  final IconData icon;
+  final String title, message;
+  final String? actionText;
+  final VoidCallback? onAction;
+  final double topMargin;
+  const PlanoraMessageState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionText,
+    this.onAction,
+    this.topMargin = 36,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    return Container(
+      margin: EdgeInsets.only(top: topMargin),
+      child: PlanoraCard(
+        padding: const EdgeInsets.all(22),
+        radius: 24,
+        child: Column(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                icon,
+                size: 32,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? PlanoraTheme.darkTextSecondary
+                    : PlanoraTheme.textSecondary,
+              ),
+            ),
+            if (actionText != null && onAction != null) ...[
+              const SizedBox(height: 18),
+              PlanoraGradientButton(label: actionText!, onTap: onAction),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PlanoraSegmentedTabs extends StatelessWidget {
+  final List<String> tabs;
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+  const PlanoraSegmentedTabs({
+    super.key,
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+        ),
+        boxShadow: PlanoraTheme.cardShadowFor(context),
+      ),
+      child: Row(
+        children: List.generate(tabs.length, (i) {
+          final selected = selectedIndex == i;
+          return Expanded(
+            child: InkWell(
+              onTap: () => onChanged(i),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: .12)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  tabs[i],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: selected
+                        ? Theme.of(context).colorScheme.primary
+                        : isDark
+                        ? PlanoraTheme.darkTextSecondary
+                        : PlanoraTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class PlanoraHeroPromptCard extends StatelessWidget {
+  final String title, description, buttonText, badgeText;
+  final VoidCallback onButtonPressed;
+  final IconData leadingIcon, trailingIcon;
+  const PlanoraHeroPromptCard({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.buttonText,
+    required this.onButtonPressed,
+    this.leadingIcon = Icons.auto_awesome_rounded,
+    this.trailingIcon = Icons.chat_bubble_outline_rounded,
+    this.badgeText = 'AI-first',
+  });
+  @override
+  Widget build(BuildContext context) => PlanoraCard(
+    radius: 28,
+    padding: const EdgeInsets.all(20),
+    gradient: PlanoraTheme.primaryGradientFor(context),
+    border: Border.all(color: Colors.white.withValues(alpha: .08)),
+    boxShadow: PlanoraTheme.floatingShadowFor(context),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .16),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: .16)),
+              ),
+              child: Icon(leadingIcon, color: Colors.white, size: 24),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .16),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                badgeText,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            height: 1.18,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          description,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Colors.white.withValues(alpha: .86),
+            fontWeight: FontWeight.w700,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 48,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: onButtonPressed,
+                  child: Text(
+                    buttonText,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .14),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: .25)),
+              ),
+              child: Icon(trailingIcon, color: Colors.white, size: 24),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class PlanoraRingProgress extends StatelessWidget {
+  final double progress, size;
+  final String centerText, label;
+  const PlanoraRingProgress({
+    super.key,
+    required this.progress,
+    required this.centerText,
+    required this.label,
+    this.size = 112,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final clamped = progress.clamp(0.0, 1.0);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size.square(size),
+            painter: _PlanoraRingPainter(
+              progress: clamped,
+              color: Theme.of(context).colorScheme.primary,
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .12),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                centerText,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanoraRingPainter extends CustomPainter {
+  final double progress;
+  final Color color, backgroundColor;
+  const _PlanoraRingPainter({
+    required this.progress,
+    required this.color,
+    required this.backgroundColor,
+  });
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = size.width * .10;
+    final center = (Offset.zero & size).center;
+    final radius = (size.width - stroke) / 2;
+    final bg = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    final fg = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, bg);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      progress * math.pi * 2,
+      false,
+      fg,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlanoraRingPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.color != color ||
+      oldDelegate.backgroundColor != backgroundColor;
+}
