@@ -27,13 +27,13 @@ class PlanoraTheme {
   static const Color darkBackground = Color(0xFF090A11);
   static const Color darkSurface = Color(0xFF12131D);
   static const Color darkSurfaceVariant = Color(0xFF1A1C29);
-  static const Color darkElevatedSurface = Color(0xFF181A27);
+  static const Color darkElevatedSurface = Color(0xFF171925);
   static const Color darkToggleSurface = Color(0xFF0E1018);
   static const Color darkTextPrimary = Color(0xFFF8FAFC);
   static const Color darkTextSecondary = Color(0xFFC6CCD8);
   static const Color darkTextMuted = Color(0xFF7D8599);
-  static const Color darkBorder = Color(0xFF282C3F);
-  static const Color darkDivider = Color(0xFF1D2030);
+  static const Color darkBorder = Color(0xFF242839);
+  static const Color darkDivider = Color(0xFF191C29);
   static const Color darkPrimaryContainer = Color(0x332A1558);
 
   static const Color success = Color(0xFF10B981);
@@ -109,25 +109,21 @@ class PlanoraTheme {
     BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 4)),
   ];
 
-  static const List<BoxShadow> darkCardShadow = [
-    BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 8)),
-  ];
+  // Dark mode cards should look flat and premium. Heavy shadows create
+  // rectangular halos around cards on OLED-like backgrounds.
+  static const List<BoxShadow> darkCardShadow = [];
 
   static const List<BoxShadow> softCardShadow = [
     BoxShadow(color: Color(0x1A000000), blurRadius: 16, offset: Offset(0, 8)),
   ];
 
-  static const List<BoxShadow> darkSoftCardShadow = [
-    BoxShadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 10)),
-  ];
+  static const List<BoxShadow> darkSoftCardShadow = [];
 
   static const List<BoxShadow> floatingShadow = [
     BoxShadow(color: Color(0x267C3AED), blurRadius: 24, offset: Offset(0, 12)),
   ];
 
-  static const List<BoxShadow> darkFloatingShadow = [
-    BoxShadow(color: Color(0x66000000), blurRadius: 16, offset: Offset(0, 10)),
-  ];
+  static const List<BoxShadow> darkFloatingShadow = [];
 
   static bool isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
@@ -458,7 +454,8 @@ class PlanoraTheme {
     primaryColor: darkPrimary,
     fontFamily: GoogleFonts.inter().fontFamily,
     splashColor: darkPrimary.withValues(alpha: .10),
-    highlightColor: darkPrimary.withValues(alpha: .06),
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
     colorScheme: const ColorScheme.dark(
       primary: darkPrimary,
       onPrimary: Colors.white,
@@ -499,7 +496,7 @@ class PlanoraTheme {
     cardTheme: CardThemeData(
       color: darkSurface,
       elevation: 0,
-      shadowColor: const Color(0x66000000),
+      shadowColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
