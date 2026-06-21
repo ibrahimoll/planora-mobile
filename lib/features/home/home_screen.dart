@@ -1,3 +1,5 @@
+// ignore_for_file: curly_braces_in_flow_control_structures
+
 import 'package:flutter/material.dart';
 import 'package:mobile/features/ai/ai_chat_screen.dart';
 import 'package:mobile/features/notifications/data/notifications_api.dart';
@@ -49,7 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
   int projectCreateRequestId = 0;
   int taskCreateRequestId = 0;
-  ProjectCreateStartMode projectCreateStartMode = ProjectCreateStartMode.modeChoice;
+  ProjectCreateStartMode projectCreateStartMode =
+      ProjectCreateStartMode.modeChoice;
 
   bool hasUnreadNotifications = false;
   int pendingTeamInvitationCount = 0;
@@ -92,7 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final source = displayName.trim();
     if (source.isEmpty) return 'P';
     final parts = source.split(RegExp(r'\s+'));
-    if (parts.length >= 2) return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    if (parts.length >= 2)
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
     return source[0].toUpperCase();
   }
 
@@ -111,13 +115,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final loadedProjects = await _projectsApi.getProjects();
-      final projectSummaries = loadedProjects.map(TaskProjectSummary.fromProject).toList();
+      final projectSummaries = loadedProjects
+          .map(TaskProjectSummary.fromProject)
+          .toList();
       final taskGroups = await Future.wait(
         projectSummaries.map((project) async {
           try {
             return await _tasksApi.getProjectTasks(project: project);
           } catch (error, stackTrace) {
-            debugPrint('Dashboard task load failed for project ${project.projectId}: $error');
+            debugPrint(
+              'Dashboard task load failed for project ${project.projectId}: $error',
+            );
             debugPrintStack(stackTrace: stackTrace);
             return <TaskListItem>[];
           }
@@ -126,8 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);
-      final nextTasks = loadedTasks.where((item) => !item.task.isCompleted).toList()
-        ..sort(compareUpcomingTaskItems);
+      final nextTasks =
+          loadedTasks.where((item) => !item.task.isCompleted).toList()
+            ..sort(compareUpcomingTaskItems);
 
       if (!mounted) return;
       setState(() {
@@ -203,15 +212,18 @@ class _HomeScreenState extends State<HomeScreen> {
     return compareTaskItemsByDueDate(left, right);
   }
 
-  Color mutedColor(BuildContext context) =>
-      PlanoraTheme.isDark(context) ? PlanoraTheme.darkTextMuted : PlanoraTheme.textSecondary;
+  Color mutedColor(BuildContext context) => PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkTextMuted
+      : PlanoraTheme.textSecondary;
 
   BoxDecoration cardDecoration(BuildContext context, {double radius = 18}) {
     final isDark = PlanoraTheme.isDark(context);
     return BoxDecoration(
       color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
       borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border),
+      border: Border.all(
+        color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+      ),
       boxShadow: PlanoraTheme.cardShadowFor(context),
     );
   }
@@ -220,9 +232,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
     return Scaffold(
-      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
+      backgroundColor: isDark
+          ? PlanoraTheme.darkBackground
+          : PlanoraTheme.background,
       body: DecoratedBox(
-        decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
         child: SafeArea(
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 260),
@@ -301,10 +317,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget buildHomeDashboard(BuildContext context) {
     return RefreshIndicator(
       color: Theme.of(context).colorScheme.primary,
-      backgroundColor: PlanoraTheme.isDark(context) ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+      backgroundColor: PlanoraTheme.isDark(context)
+          ? PlanoraTheme.darkSurface
+          : PlanoraTheme.surface,
       onRefresh: refreshDashboard,
       child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
         children: [
           Center(
@@ -315,11 +335,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   PlanoraAnimatedIn(index: 0, child: buildHeader(context)),
                   const SizedBox(height: 18),
-                  PlanoraAnimatedIn(index: 1, child: buildMainAiPlanningCard(context)),
+                  PlanoraAnimatedIn(
+                    index: 1,
+                    child: buildMainAiPlanningCard(context),
+                  ),
                   const SizedBox(height: 18),
                   PlanoraAnimatedIn(index: 2, child: buildTodayFocus(context)),
                   const SizedBox(height: 18),
-                  PlanoraAnimatedIn(index: 3, child: buildProductivitySnapshot(context)),
+                  PlanoraAnimatedIn(
+                    index: 3,
+                    child: buildProductivitySnapshot(context),
+                  ),
                   const SizedBox(height: 18),
                   buildProjects(context),
                 ],
@@ -335,7 +361,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return PlanoraHomeTopBar(
       greeting: '$greeting, $firstName',
       subtitle: 'What should Planora help you?',
-      avatar: GestureDetector(onTap: openProfile, child: buildHomeAvatar(context)),
+      avatar: GestureDetector(
+        onTap: openProfile,
+        child: buildHomeAvatar(context),
+      ),
       onSearch: openSearch,
       onNotifications: openNotifications,
       hasUnreadNotifications: hasUnreadNotifications,
@@ -347,7 +376,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: 46,
       height: 46,
-      decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: PlanoraTheme.cardShadowFor(context)),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: PlanoraTheme.cardShadowFor(context),
+      ),
       child: ClipOval(
         child: imageUrl == null
             ? buildAvatarFallback(context)
@@ -356,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 46,
                 height: 46,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => buildAvatarFallback(context),
+                errorBuilder: (_, _, _) => buildAvatarFallback(context),
               ),
       ),
     );
@@ -365,15 +397,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget buildAvatarFallback(BuildContext context) {
     return Container(
       alignment: Alignment.center,
-      decoration: BoxDecoration(gradient: PlanoraTheme.primaryGradientFor(context), shape: BoxShape.circle),
-      child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 
   Widget buildMainAiPlanningCard(BuildContext context) {
     return PlanoraHeroPromptCard(
       title: 'What do you want to plan today?',
-      description: 'Describe an idea and Planora will shape the plan, tasks, timeline, and risks.',
+      description:
+          'Describe an idea and Planora will shape the plan, tasks, timeline, and risks.',
       buttonText: 'Plan with AI',
       onButtonPressed: openAiPlanningFlow,
       trailingIcon: Icons.chat_bubble_outline_rounded,
@@ -404,13 +446,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final overdueTasks = dashboardTasks.where((item) => item.task.isOverdue).toList()
-      ..sort(compareUpcomingTaskItems);
+    final overdueTasks =
+        dashboardTasks.where((item) => item.task.isOverdue).toList()
+          ..sort(compareUpcomingTaskItems);
     final focusTask = overdueTasks.isNotEmpty
         ? overdueTasks.first
         : upcomingTasks.isEmpty
-            ? null
-            : upcomingTasks.first;
+        ? null
+        : upcomingTasks.first;
 
     if (focusTask == null) {
       return buildFocusSection(
@@ -421,14 +464,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'Start with an idea and let Planora build the first plan.'
             : 'No urgent tasks. Ask Planora to refine a plan or create the next task.',
         actionText: dashboardProjects.isEmpty ? 'Plan with AI' : 'Ask Planora',
-        onAction: dashboardProjects.isEmpty ? openAiPlanningFlow : openAiPlannerTab,
+        onAction: dashboardProjects.isEmpty
+            ? openAiPlanningFlow
+            : openAiPlannerTab,
       );
     }
 
     final task = focusTask.task;
     return buildFocusSection(
       context,
-      icon: task.isOverdue ? Icons.warning_amber_rounded : Icons.radio_button_unchecked_rounded,
+      icon: task.isOverdue
+          ? Icons.warning_amber_rounded
+          : Icons.radio_button_unchecked_rounded,
       title: task.isOverdue ? 'Overdue: ${task.title}' : task.title,
       message: '${focusTask.project.title} - ${task.dueDateLabel}',
       actionText: 'Open Task',
@@ -439,18 +486,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildProductivitySnapshot(BuildContext context) {
     if (isLoadingDashboard) {
-      return const PlanoraSkeletonFeed(itemCount: 1, topPadding: 0, dense: true);
+      return const PlanoraSkeletonFeed(
+        itemCount: 1,
+        topPadding: 0,
+        dense: true,
+      );
     }
 
     final totalTasks = dashboardTasks.length;
-    final completedTasks = dashboardTasks.where((item) => item.task.isCompleted).length;
-    final overdueTasks = dashboardTasks.where((item) => item.task.isOverdue && !item.task.isCompleted).length;
-    final completionPercent = totalTasks == 0 ? 0 : ((completedTasks / totalTasks) * 100).round();
+    final completedTasks = dashboardTasks
+        .where((item) => item.task.isCompleted)
+        .length;
+    final overdueTasks = dashboardTasks
+        .where((item) => item.task.isOverdue && !item.task.isCompleted)
+        .length;
+    final completionPercent = totalTasks == 0
+        ? 0
+        : ((completedTasks / totalTasks) * 100).round();
     final accent = overdueTasks > 0
         ? PlanoraTheme.error
         : completionPercent >= 70
-            ? PlanoraTheme.success
-            : Theme.of(context).colorScheme.primary;
+        ? PlanoraTheme.success
+        : Theme.of(context).colorScheme.primary;
 
     return PlanoraCard(
       radius: 24,
@@ -474,18 +531,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Productivity Snapshot', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(
+                      'Productivity Snapshot',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      overdueTasks > 0 ? 'Clear overdue tasks first to reduce risk.' : 'Focus on one active task to keep progress moving.',
+                      overdueTasks > 0
+                          ? 'Clear overdue tasks first to reduce risk.'
+                          : 'Focus on one active task to keep progress moving.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor(context), fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ),
-              Text('$completionPercent%', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: accent, fontWeight: FontWeight.w900)),
+              Text(
+                '$completionPercent%',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -526,7 +599,10 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(15)),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(15),
+                ),
                 child: Icon(icon, color: color),
               ),
               const SizedBox(width: 13),
@@ -534,9 +610,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(message, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: mutedColor(context), height: 1.35, fontWeight: FontWeight.w700)),
+                    Text(
+                      message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: mutedColor(context),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -551,11 +643,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildSectionTitle(BuildContext context, String title, {String? action, VoidCallback? onAction}) {
+  Widget buildSectionTitle(
+    BuildContext context,
+    String title, {
+    String? action,
+    VoidCallback? onAction,
+  }) {
     return Row(
       children: [
-        Expanded(child: Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900))),
-        if (action != null) TextButton(onPressed: onAction, child: Text(action, style: const TextStyle(fontWeight: FontWeight.w800))),
+        Expanded(
+          child: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ),
+        if (action != null)
+          TextButton(
+            onPressed: onAction,
+            child: Text(
+              action,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
       ],
     );
   }
@@ -594,20 +705,29 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        buildSectionTitle(context, 'Continue Planning', action: 'All Plans', onAction: openProjectsTab),
+        buildSectionTitle(
+          context,
+          'Continue Planning',
+          action: 'All Plans',
+          onAction: openProjectsTab,
+        ),
         const SizedBox(height: 10),
         if (visibleProjects.isEmpty)
           PlanoraMessageState(
             icon: Icons.folder_open_rounded,
             title: 'No plans yet',
-            message: 'Start with an idea and let Planora build your first plan.',
+            message:
+                'Start with an idea and let Planora build your first plan.',
             actionText: 'Plan with AI',
             onAction: openAiPlanningFlow,
             topMargin: 0,
           )
         else
           for (int index = 0; index < visibleProjects.length; index++) ...[
-            PlanoraAnimatedIn(index: 4 + index, child: buildProjectTile(context, visibleProjects[index])),
+            PlanoraAnimatedIn(
+              index: 4 + index,
+              child: buildProjectTile(context, visibleProjects[index]),
+            ),
             if (index != visibleProjects.length - 1) const SizedBox(height: 10),
           ],
       ],
@@ -615,13 +735,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<TaskListItem> tasksForProject(ProjectModel project) {
-    return dashboardTasks.where((item) => item.project.projectId == project.projectId && item.project.teamId == project.teamId).toList();
+    return dashboardTasks
+        .where(
+          (item) =>
+              item.project.projectId == project.projectId &&
+              item.project.teamId == project.teamId,
+        )
+        .toList();
   }
 
   double projectProgress(ProjectModel project) {
     final projectTasks = tasksForProject(project);
     if (projectTasks.isNotEmpty) {
-      return projectTasks.where((item) => item.task.isCompleted).length / projectTasks.length;
+      return projectTasks.where((item) => item.task.isCompleted).length /
+          projectTasks.length;
     }
     if (project.isCompleted) return 1;
     if (project.status == 'in_progress') return .55;
@@ -661,10 +788,18 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [color, color.withValues(alpha: .68)]),
+              gradient: LinearGradient(
+                colors: [color, color.withValues(alpha: .68)],
+              ),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded, color: Colors.white, size: 22),
+            child: Icon(
+              project.isTeamProject
+                  ? Icons.groups_2_rounded
+                  : Icons.folder_rounded,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -673,16 +808,36 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900))),
-                    Text('${(progress * 100).round()}%', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w900)),
+                    Expanded(
+                      child: Text(
+                        project.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${(progress * 100).round()}%',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  projectTasks.isEmpty ? project.deadlineLabel : '${project.deadlineLabel} • ${projectTasks.length} tasks',
+                  projectTasks.isEmpty
+                      ? project.deadlineLabel
+                      : '${project.deadlineLabel} • ${projectTasks.length} tasks',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: mutedColor(context), fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: mutedColor(context),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 9),
                 ClipRRect(
@@ -712,7 +867,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void openNewProjectFlow({ProjectCreateStartMode mode = ProjectCreateStartMode.modeChoice}) {
+  void openNewProjectFlow({
+    ProjectCreateStartMode mode = ProjectCreateStartMode.modeChoice,
+  }) {
     setState(() {
       selectedIndex = 1;
       projectCreateRequestId += 1;
@@ -722,7 +879,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> openAiPlanningFlow() async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => AiProjectWizardScreen(onPlanCreated: loadDashboardData)));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AiProjectWizardScreen(onPlanCreated: loadDashboardData),
+      ),
+    );
     if (!mounted) return;
     loadDashboardData();
   }
@@ -747,25 +908,46 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> openUpcomingTaskDetail(TaskListItem item) async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (context) => TaskDetailScreen(initialTask: item, onTaskChanged: loadDashboardData)));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => TaskDetailScreen(
+          initialTask: item,
+          onTaskChanged: loadDashboardData,
+        ),
+      ),
+    );
     if (!mounted) return;
     loadDashboardData();
   }
 
   Future<void> openProjectDetail(ProjectModel project) async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (context) => ProjectDetailScreen(project: project, onProjectChanged: loadDashboardData)));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => ProjectDetailScreen(
+          project: project,
+          onProjectChanged: loadDashboardData,
+        ),
+      ),
+    );
     if (!mounted) return;
     loadDashboardData();
   }
 
   Future<void> openSearch() async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SearchScreen()));
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const SearchScreen()));
     if (!mounted) return;
     loadDashboardData();
   }
 
   Future<void> openNotifications() async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (context) => NotificationsScreen(currentUserId: widget.user.userId)));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            NotificationsScreen(currentUserId: widget.user.userId),
+      ),
+    );
     if (!mounted) return;
     loadUnreadNotificationCount();
     loadPendingTeamInvitationCount();
