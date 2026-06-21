@@ -187,7 +187,7 @@ class _PlanoraStartupLoadingState extends State<_PlanoraStartupLoading>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 1500),
     )..repeat();
   }
 
@@ -208,60 +208,131 @@ class _PlanoraStartupLoadingState extends State<_PlanoraStartupLoading>
         animation: _controller,
         builder: (context, child) {
           final progress = _controller.value;
-          final pulse = 0.94 + (math.sin(progress * math.pi * 2) * 0.06);
+          final pulse = 0.97 + (math.sin(progress * math.pi * 2) * 0.045);
+          final float = math.sin(progress * math.pi * 2) * 5;
+          final counterRotation = -progress * math.pi * 2;
 
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Transform.scale(
-                scale: pulse,
-                child: SizedBox(
-                  width: 112,
-                  height: 112,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CustomPaint(
-                        size: const Size.square(112),
-                        painter: _PlanoraLoadingPainter(
-                          progress: progress,
-                          color: primary,
-                        ),
-                      ),
-                      Container(
-                        width: 68,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+              Transform.translate(
+                offset: Offset(0, float),
+                child: Transform.scale(
+                  scale: pulse,
+                  child: SizedBox(
+                    width: 144,
+                    height: 144,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        CustomPaint(
+                          size: const Size.square(144),
+                          painter: _PlanoraLoadingPainter(
+                            progress: progress,
+                            color: primary,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primary.withOpacity(0.35),
-                              blurRadius: 26,
-                              offset: const Offset(0, 14),
+                        ),
+                        Container(
+                          width: 108,
+                          height: 108,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(34),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFA855F7),
+                                Color(0xFF7C3AED),
+                                Color(0xFF4F46E5),
+                              ],
                             ),
-                          ],
+                            boxShadow: [
+                              BoxShadow(
+                                color: primary.withOpacity(0.38),
+                                blurRadius: 34,
+                                spreadRadius: 1,
+                                offset: const Offset(0, 18),
+                              ),
+                              BoxShadow(
+                                color: const Color(0xFF7C3AED).withOpacity(0.22),
+                                blurRadius: 46,
+                                spreadRadius: 8,
+                              ),
+                            ],
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.auto_awesome_rounded,
-                          color: Colors.white,
-                          size: 32,
+                        Transform.rotate(
+                          angle: counterRotation * 0.08,
+                          child: Container(
+                            width: 86,
+                            height: 86,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.95),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.9),
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.asset(
+                                'assets/images/planora_logo.png',
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        Positioned(
+                          right: 21,
+                          bottom: 20,
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF9333EA), Color(0xFF6D28D9)],
+                              ),
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primary.withOpacity(0.35),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.auto_awesome_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 26),
               Text(
-                'Planora is getting ready',
+                'Preparing Planora',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: textColor,
                   fontWeight: FontWeight.w900,
+                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 8),
@@ -289,53 +360,60 @@ class _PlanoraLoadingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 9;
+    final radius = size.width / 2 - 12;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
+    final glowPaint = Paint()
+      ..color = color.withOpacity(0.10)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+    canvas.drawCircle(center, radius - 4, glowPaint);
+
     final trackPaint = Paint()
-      ..color = color.withOpacity(0.12)
+      ..color = color.withOpacity(0.11)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = 10
       ..strokeCap = StrokeCap.round;
 
     final arcPaint = Paint()
       ..shader = SweepGradient(
         colors: [
-          color.withOpacity(0.08),
-          color,
-          const Color(0xFF9333EA),
-          color.withOpacity(0.08),
+          color.withOpacity(0.02),
+          const Color(0xFFA855F7),
+          const Color(0xFF7C3AED),
+          const Color(0xFF4F46E5),
+          color.withOpacity(0.02),
         ],
-        stops: const [0.0, 0.45, 0.72, 1.0],
+        stops: const [0.0, 0.28, 0.58, 0.78, 1.0],
         transform: GradientRotation(progress * math.pi * 2),
       ).createShader(rect)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8
+      ..strokeWidth = 10
       ..strokeCap = StrokeCap.round;
 
     canvas.drawCircle(center, radius, trackPaint);
     canvas.drawArc(
       rect,
       -math.pi / 2 + progress * math.pi * 2,
-      math.pi * 1.45,
+      math.pi * 1.55,
       false,
       arcPaint,
     );
 
-    final dotPaint = Paint()..color = color.withOpacity(0.92);
-    final glowPaint = Paint()
-      ..color = color.withOpacity(0.16)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    final dotPaint = Paint()..color = const Color(0xFF7C3AED).withOpacity(0.95);
+    final dotGlowPaint = Paint()
+      ..color = color.withOpacity(0.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
 
-    for (var i = 0; i < 3; i++) {
-      final angle = progress * math.pi * 2 + (i * math.pi * 2 / 3);
-      final dotRadius = radius - (i * 7);
+    for (var i = 0; i < 4; i++) {
+      final angle = progress * math.pi * 2 + (i * math.pi * 2 / 4);
+      final dotRadius = radius - (i * 6);
       final offset = Offset(
         center.dx + math.cos(angle) * dotRadius,
         center.dy + math.sin(angle) * dotRadius,
       );
-      canvas.drawCircle(offset, 8 - i.toDouble(), glowPaint);
-      canvas.drawCircle(offset, 3.5 - (i * 0.35), dotPaint);
+      final size = 4.8 - (i * 0.45);
+      canvas.drawCircle(offset, size + 5, dotGlowPaint);
+      canvas.drawCircle(offset, size, dotPaint);
     }
   }
 
