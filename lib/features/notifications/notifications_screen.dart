@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
-import '../deadline_reminders/deadline_reminders_screen.dart';
 import '../projects/project_detail_screen.dart';
 import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
@@ -236,12 +235,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
       return false;
     }
-  }
-
-  Future<void> openDeadlineRemindersScreen() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const DeadlineRemindersScreen()),
-    );
   }
 
   Future<void> handleNotificationTap(NotificationModel notification) async {
@@ -568,81 +561,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           label: Text(isMarkingAllRead ? 'Updating' : 'Read All'),
         ),
       ],
-    );
-  }
-
-  Widget buildDeadlineRemindersEntry(BuildContext context) {
-    final isDark = PlanoraTheme.isDark(context);
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: openDeadlineRemindersScreen,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.softPurpleGradientFor(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: isDark ? 0.32 : 0.22),
-            ),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: PlanoraTheme.warning.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.event_rounded,
-                  color: PlanoraTheme.warning,
-                ),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Deadline Reminders',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Review overdue and upcoming task reminders.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: mutedColor(context).withValues(alpha: 0.72),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1017,8 +935,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   children: [
                     buildHeader(context),
                     const SizedBox(height: 20),
-                    buildDeadlineRemindersEntry(context),
-                    const SizedBox(height: 14),
                     buildContent(context),
                   ],
                 ),
