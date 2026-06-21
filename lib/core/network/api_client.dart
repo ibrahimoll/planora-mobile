@@ -64,6 +64,7 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? data,
     bool requiresAuth = true,
+    Duration? timeout,
   }) async {
     try {
       final response = await _dio.post(
@@ -72,6 +73,8 @@ class ApiClient {
         options: Options(
           contentType: Headers.jsonContentType,
           extra: {'requiresAuth': requiresAuth},
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
         ),
       );
 

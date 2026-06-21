@@ -4,6 +4,8 @@ import '../../auth/models/project_models.dart';
 class AiPlanApi {
   const AiPlanApi();
 
+  static const Duration _aiTimeout = Duration(seconds: 90);
+
   String _path(ProjectModel project) {
     if (project.isTeamProject && project.teamId != null) {
       return '/teams/${project.teamId}/projects/${project.projectId}/ai-plan/generate';
@@ -29,6 +31,7 @@ class AiPlanApi {
         'preferred_task_count': preferredTaskCount,
         'include_milestones': includeMilestones,
       },
+      timeout: _aiTimeout,
     );
 
     return AiPlanGenerateResponse.fromJson(response as Map<String, dynamic>);
@@ -45,6 +48,7 @@ class AiPlanApi {
     bool includeMilestones = true,
   }) async {
     final trimmedRequirements = requirements?.trim();
+
     final data = <String, dynamic>{
       'project_idea': projectIdea,
       'deadline': deadline.toIso8601String(),
@@ -65,6 +69,7 @@ class AiPlanApi {
     final response = await ApiClient.postJson(
       '/ai-plans/preview-from-idea',
       data: data,
+      timeout: _aiTimeout,
     );
 
     return AiPlanPreviewResponse.fromJson(response as Map<String, dynamic>);
@@ -76,6 +81,7 @@ class AiPlanApi {
     final response = await ApiClient.postJson(
       '/ai-plans/accept-preview',
       data: {'preview': preview.toJson()},
+      timeout: _aiTimeout,
     );
 
     return AiPlanAcceptPreviewResponse.fromJson(
