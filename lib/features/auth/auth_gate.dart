@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile/features/home/home_screen.dart';
 import 'package:mobile/features/onboarding/onboarding_screen.dart';
@@ -37,7 +39,8 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<void> _checkSession() async {
     try {
-      final hasToken = await TokenStorage.hasAccessToken();
+      final hasToken = await TokenStorage.hasAccessToken()
+          .timeout(const Duration(seconds: 6));
 
       if (!hasToken) {
         if (!mounted) return;
@@ -50,19 +53,26 @@ class _AuthGateState extends State<AuthGate> {
         return;
       }
 
-      final user = await AuthApi.getCurrentUser();
-
-      try {
-        await PushNotificationService.instance.registerCurrentDevice();
-      } catch (error, stackTrace) {
-        debugPrint('Push registration after session restore failed: $error');
-        debugPrintStack(stackTrace: stackTrace);
-      }
+      final user = await AuthApi.getCurrentUser()
+          .timeout(const Duration(seconds: 12));
 
       if (!mounted) return;
 
       setState(() {
         currentUser = user;
+        isLoading = false;
+      });
+
+      unawaited(_registerPushDeviceAfterSessionRestore());
+    } on TimeoutException catch (error, stackTrace) {
+      debugPrint('AuthGate session check timed out: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      await TokenStorage.clearAccessToken();
+
+      if (!mounted) return;
+
+      setState(() {
+        currentUser = null;
         isLoading = false;
       });
     } on ApiException catch (error, stackTrace) {
@@ -87,6 +97,17 @@ class _AuthGateState extends State<AuthGate> {
         currentUser = null;
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> _registerPushDeviceAfterSessionRestore() async {
+    try {
+      await PushNotificationService.instance
+          .registerCurrentDevice()
+          .timeout(const Duration(seconds: 8));
+    } catch (error, stackTrace) {
+      debugPrint('Push registration after session restore failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
