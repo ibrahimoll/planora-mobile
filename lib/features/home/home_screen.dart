@@ -873,9 +873,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text(
                 'Loading productivity snapshot...',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: mutedColor(context),
-                    ),
+                  fontWeight: FontWeight.w800,
+                  color: mutedColor(context),
+                ),
               ),
             ),
           ],
@@ -884,36 +884,39 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final totalTasks = dashboardTasks.length;
-    final completedTasks =
-        dashboardTasks.where((item) => item.task.isCompleted).length;
+    final completedTasks = dashboardTasks
+        .where((item) => item.task.isCompleted)
+        .length;
     final overdueTasks = dashboardTasks
         .where((item) => item.task.isOverdue && !item.task.isCompleted)
         .length;
-    final activeProjects =
-        dashboardProjects.where((project) => !project.isCompleted).length;
-    final completionPercent =
-        totalTasks == 0 ? 0 : ((completedTasks / totalTasks) * 100).round();
+    final activeProjects = dashboardProjects
+        .where((project) => !project.isCompleted)
+        .length;
+    final completionPercent = totalTasks == 0
+        ? 0
+        : ((completedTasks / totalTasks) * 100).round();
 
     final progressValue = (completionPercent / 100).clamp(0.0, 1.0);
     final accent = overdueTasks > 0
         ? PlanoraTheme.error
         : completionPercent >= 70
-            ? PlanoraTheme.success
-            : primary;
+        ? PlanoraTheme.success
+        : primary;
 
     final statusLabel = overdueTasks > 0
         ? 'Needs focus'
         : completionPercent >= 70
-            ? 'On track'
-            : 'In progress';
+        ? 'On track'
+        : 'In progress';
 
     final recommendation = overdueTasks > 0
         ? 'Clear overdue tasks first to reduce risk.'
         : activeProjects == 0
-            ? 'Start a new plan or ask AI to shape your next project.'
-            : completionPercent >= 70
-                ? 'Good progress. Keep the active plan moving.'
-                : 'Focus on one active task to raise completion faster.';
+        ? 'Start a new plan or ask AI to shape your next project.'
+        : completionPercent >= 70
+        ? 'Good progress. Keep the active plan moving.'
+        : 'Focus on one active task to raise completion faster.';
 
     Widget metricTile({
       required String label,
@@ -951,11 +954,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: isDark
-                          ? PlanoraTheme.darkTextPrimary
-                          : PlanoraTheme.textPrimary,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: isDark
+                      ? PlanoraTheme.darkTextPrimary
+                      : PlanoraTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
@@ -963,9 +966,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: mutedColor(context),
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -989,11 +992,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: primary.withValues(alpha: isDark ? 0.18 : 0.10),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  Icons.insights_rounded,
-                  color: primary,
-                  size: 24,
-                ),
+                child: Icon(Icons.insights_rounded, color: primary, size: 24),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -1003,11 +1002,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       'Productivity Snapshot',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: isDark
-                                ? PlanoraTheme.darkTextPrimary
-                                : PlanoraTheme.textPrimary,
-                          ),
+                        fontWeight: FontWeight.w900,
+                        color: isDark
+                            ? PlanoraTheme.darkTextPrimary
+                            : PlanoraTheme.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -1015,10 +1014,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            height: 1.35,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: mutedColor(context),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -1033,9 +1032,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(
                   statusLabel,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: accent,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: accent,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -1046,9 +1045,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 '$completionPercent%',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: accent,
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: accent,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1095,7 +1094,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 
   Widget buildFocusSection(
     BuildContext context, {
@@ -1286,7 +1284,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (project.status == 'in_progress') return 0.55;
     if (project.status == 'on_hold') return 0.35;
     if (project.status == 'cancelled') return 0;
-    return 0.12;
+    return 0;
   }
 
   Color projectAccentColor(ProjectModel project) {
