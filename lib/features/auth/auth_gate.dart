@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:mobile/features/home/home_screen.dart';
@@ -152,7 +151,11 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const PlanoraScaffold(
-        child: _PlanoraStartupLoading(),
+        child: PlanoraLoadingState(
+          message: 'Loading Planora...',
+          topPadding: 0,
+          size: 92,
+        ),
       );
     }
 
@@ -167,114 +170,6 @@ class _AuthGateState extends State<AuthGate> {
       onThemeToggle: widget.onThemeToggle,
       onLoggedOut: _logout,
       onUserUpdated: _updateCurrentUser,
-    );
-  }
-}
-
-class _PlanoraStartupLoading extends StatefulWidget {
-  const _PlanoraStartupLoading();
-
-  @override
-  State<_PlanoraStartupLoading> createState() => _PlanoraStartupLoadingState();
-}
-
-class _PlanoraStartupLoadingState extends State<_PlanoraStartupLoading>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1450),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
-    final textColor = theme.colorScheme.onSurface;
-
-    return Center(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          final progress = _controller.value;
-          final pulse = 0.985 + (math.sin(progress * math.pi * 2) * 0.025);
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Transform.scale(
-                scale: pulse,
-                child: SizedBox(
-                  width: 104,
-                  height: 104,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 100,
-                        height: 100,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 3.2,
-                          color: primary,
-                          backgroundColor: primary.withOpacity(0.10),
-                          strokeCap: StrokeCap.round,
-                        ),
-                      ),
-                      Container(
-                        width: 76,
-                        height: 76,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primary.withOpacity(0.20),
-                              blurRadius: 22,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: Image.asset(
-                            'assets/images/planora_logo.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 22),
-              Text(
-                'Loading Planora...',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: textColor.withOpacity(0.72),
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.1,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 }
