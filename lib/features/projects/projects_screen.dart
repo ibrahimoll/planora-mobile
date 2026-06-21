@@ -5,7 +5,6 @@ import '../../core/theme/planora_theme.dart';
 import '../../core/ui/planora_ui.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
-import '../tasks/models/task_models.dart';
 import 'ai_project_wizard_screen.dart';
 import 'project_detail_screen.dart';
 
@@ -437,6 +436,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         );
       },
     );
+  }
+
+  String formatInputDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+
+    return '$day/$month/$year';
   }
 
   Future<DateTime?> pickDeadlineDate() async {
