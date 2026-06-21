@@ -310,11 +310,6 @@ class NotificationsApi {
     return _parseNotificationList(response);
   }
 
-  Future<int> getUnreadCount() async {
-    final notifications = await getNotifications(unreadOnly: true);
-    return notifications.where((notification) => !notification.isRead).length;
-  }
-
   Future<NotificationModel> markAsRead(int notificationId) async {
     final response = await ApiClient.patchJson(
       '/notifications/$notificationId/read',
@@ -346,6 +341,24 @@ class NotificationsApi {
       type: 'system',
       createdAt: null,
     );
+  }
+
+  Future<int> getUnreadCount() async {
+    final response = await ApiClient.get('/notifications/unread-count');
+
+    if (response is Map) {
+      final map = Map<String, dynamic>.from(response);
+      final value =
+          map['unread_count'] ??
+          map['unreadCount'] ??
+          map['count'] ??
+          map['total'];
+
+      if (value is int) return value;
+      return int.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    return 0;
   }
 
   Future<void> markAllAsRead() async {
@@ -383,5 +396,9 @@ class NotificationsApi {
     }
 
     return const [];
+  }
+
+  Future<void> deleteNotification(int notificationId) async {
+    await ApiClient.delete('/notifications/$notificationId');
   }
 }

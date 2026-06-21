@@ -40,6 +40,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool isLoading = true;
   bool isMarkingAllRead = false;
   bool _handledInitialNotification = false;
+  int? deletingNotificationId;
   String? errorMessage;
   List<NotificationModel> notifications = [];
 
@@ -117,11 +118,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     for (final notification in loadedNotifications) {
-      final sameTask = initialNotification.taskId != null &&
+      final sameTask =
+          initialNotification.taskId != null &&
           notification.taskId == initialNotification.taskId;
-      final sameProject = initialNotification.projectId != null &&
+      final sameProject =
+          initialNotification.projectId != null &&
           notification.projectId == initialNotification.projectId;
-      final sameTeam = initialNotification.teamId != null &&
+      final sameTeam =
+          initialNotification.teamId != null &&
           notification.teamId == initialNotification.teamId;
       final sameType = notification.type == initialNotification.type;
 
@@ -193,6 +197,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not update notification.')),
       );
+    }
+  }
+
+  Future<bool> deleteNotification(NotificationModel notification) async {
+    if (notification.notificationId <= 0) {
+      return false;
+    }
+
+    setState(() {
+      deletingNotificationId = notification.notificationId;
+    });
+
+    try {
+      await _notificationsApi.deleteNotification(notification.notificationId);
+
+      if (!mounted) return false;
+
+      setState(() {
+        deletingNotificationId = null;
+      });
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Notification delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return false;
+
+      setState(() {
+        deletingNotificationId = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete notification.')),
+      );
+
+      return false;
     }
   }
 
@@ -401,9 +442,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       children: [
                         Text(
                           notification.title,
-                          style: Theme.of(sheetContext)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(sheetContext).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 5),
@@ -633,12 +672,54 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           opacity: value,
           child: Transform.translate(
             offset: Offset(0, (1 - value) * 16),
-            child: Transform.scale(
-              scale: 0.98 + (value * 0.02),
-              child: child,
-            ),
+            child: Transform.scale(scale: 0.98 + (value * 0.02), child: child),
           ),
         );
+      },
+      child: buildDismissibleNotificationCard(context, notification),
+    );
+  }
+
+  Widget buildDismissibleNotificationCard(
+    BuildContext context,
+    NotificationModel notification,
+  ) {
+    final notificationId = notification.notificationId;
+    final isDeleting = deletingNotificationId == notificationId;
+
+    return Dismissible(
+      key: ValueKey<String>(
+        notificationId > 0
+            ? 'notification-$notificationId'
+            : 'notification-${notification.title}-${notification.createdAt?.toIso8601String()}',
+      ),
+      direction: isDeleting
+          ? DismissDirection.none
+          : DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 22),
+        decoration: BoxDecoration(
+          color: PlanoraTheme.error.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: Colors.white,
+          size: 26,
+        ),
+      ),
+      confirmDismiss: (_) => deleteNotification(notification),
+      onDismissed: (_) {
+        setState(() {
+          notifications = notifications
+              .where((item) => item.notificationId != notificationId)
+              .toList();
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Notification deleted.')));
       },
       child: buildNotificationCard(context, notification),
     );
@@ -667,7 +748,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             color: isUnread
                 ? null
                 : (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface),
-            gradient: isUnread ? PlanoraTheme.softPurpleGradientFor(context) : null,
+            gradient: isUnread
+                ? PlanoraTheme.softPurpleGradientFor(context)
+                : null,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: isUnread
@@ -741,9 +824,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                             child: Text(
                               'New',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
+                              style: Theme.of(context).textTheme.labelSmall
                                   ?.copyWith(
                                     color: primary,
                                     fontWeight: FontWeight.w900,
