@@ -13,7 +13,7 @@ import 'package:mobile/features/tasks/task_detail_screen.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
 import 'package:mobile/features/teams/data/teams_api.dart';
 import 'package:mobile/features/teams/teams_screen.dart';
-
+import 'package:mobile/features/insights/productivity_insights_screen.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
@@ -134,8 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final loadedTasks = taskGroups.expand((group) => group).toList()
         ..sort(compareTaskItemsByDueDate);
-      final nextTasks = loadedTasks.where((item) => !item.task.isCompleted).toList()
-        ..sort(compareUpcomingTaskItems);
+      final nextTasks =
+          loadedTasks.where((item) => !item.task.isCompleted).toList()
+            ..sort(compareUpcomingTaskItems);
 
       if (!mounted) return;
 
@@ -283,6 +284,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
     loadDashboardData();
+  }
+
+  Future<void> openProductivityInsights() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const ProductivityInsightsScreen(),
+      ),
+    );
   }
 
   Future<void> openNotifications() async {
@@ -501,6 +510,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   buildAnimatedEntrance(1, buildMainAiPlanningCard(context)),
                   const SizedBox(height: 18),
                   buildAnimatedEntrance(2, buildTodayFocus(context)),
+                  const SizedBox(height: 18),
+                  buildAnimatedEntrance(
+                    3,
+                    buildProductivityInsightsEntry(context),
+                  ),
                   const SizedBox(height: 18),
                   buildProjects(context),
                 ],
@@ -827,7 +841,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'Start with an idea and let Planora build the first plan.'
             : 'No urgent tasks. Ask Planora to refine a plan or create the next task.',
         actionText: dashboardProjects.isEmpty ? 'Plan with AI' : 'Ask Planora',
-        onAction: dashboardProjects.isEmpty ? openAiPlanningFlow : openAiPlannerTab,
+        onAction: dashboardProjects.isEmpty
+            ? openAiPlanningFlow
+            : openAiPlannerTab,
       );
     }
 
@@ -843,6 +859,85 @@ class _HomeScreenState extends State<HomeScreen> {
       actionText: 'Open Task',
       onAction: () => openUpcomingTaskDetail(focusTask),
       accent: task.isOverdue ? PlanoraTheme.error : null,
+    );
+  }
+
+  Widget buildProductivityInsightsEntry(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: openProductivityInsights,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: PlanoraTheme.softPurpleGradientFor(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: isDark ? 0.30 : 0.20),
+            ),
+            boxShadow: PlanoraTheme.cardShadowFor(context),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.insights_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Productivity Insights',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: isDark
+                            ? PlanoraTheme.darkTextPrimary
+                            : PlanoraTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'View workload, progress, project health, and recommendations.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: mutedColor(context),
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: mutedColor(context).withValues(alpha: 0.72),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1025,7 +1120,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final projectTasks = tasksForProject(project);
 
     if (projectTasks.isNotEmpty) {
-      final completed = projectTasks.where((item) => item.task.isCompleted).length;
+      final completed = projectTasks
+          .where((item) => item.task.isCompleted)
+          .length;
       return completed / projectTasks.length;
     }
 
@@ -1147,7 +1244,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
-                                  color: project.daysLeft < 0 &&
+                                  color:
+                                      project.daysLeft < 0 &&
                                           !project.isCompleted
                                       ? PlanoraTheme.error
                                       : mutedColor(context),
