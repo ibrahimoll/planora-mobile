@@ -275,7 +275,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     if (project.status == 'in_progress') return 0.55;
     if (project.status == 'on_hold') return 0.35;
     if (project.status == 'cancelled') return 0;
-    return 0.12;
+    return 0;
   }
 
   int get completedTaskCount {
@@ -887,16 +887,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
 
     if (sections.isEmpty) {
-      return buildSectionCard(
-        context,
-        title: 'Timeline and Milestones',
-        icon: Icons.timeline_rounded,
-        child: buildInlineMessage(
-          context,
-          icon: Icons.timeline_rounded,
-          message: 'Milestones will appear when task sections are available.',
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     return buildSectionCard(

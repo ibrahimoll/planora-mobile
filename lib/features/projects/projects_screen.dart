@@ -146,7 +146,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (project.status == 'in_progress') return 0.55;
     if (project.status == 'on_hold') return 0.35;
     if (project.status == 'cancelled') return 0;
-    return 0.12;
+    if (project.status == 'not_started') return 0;
+    return 0;
   }
 
   Color getStatusColor(ProjectModel project) {

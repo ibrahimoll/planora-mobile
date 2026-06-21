@@ -229,15 +229,13 @@ class TaskModel {
   }
 
   bool get isOverdue {
-    if (dueDate == null || isCompleted) {
-      return false;
-    }
+    if (isCompleted || dueDate == null) return false;
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final dueDay = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+    final due = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
 
-    return dueDay.isBefore(today);
+    return due.isBefore(today);
   }
 
   String? get assigneeLabel {
@@ -306,7 +304,11 @@ class TaskModel {
     final date = dueDate;
 
     if (date == null) {
-      return 'No due date';
+      return isCompleted ? 'Completed' : 'No due date';
+    }
+
+    if (isCompleted) {
+      return 'Completed';
     }
 
     final now = DateTime.now();
