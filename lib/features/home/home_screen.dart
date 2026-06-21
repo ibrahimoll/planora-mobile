@@ -13,7 +13,6 @@ import 'package:mobile/features/tasks/task_detail_screen.dart';
 import 'package:mobile/features/tasks/tasks_screen.dart';
 import 'package:mobile/features/teams/data/teams_api.dart';
 import 'package:mobile/features/teams/teams_screen.dart';
-import 'package:mobile/features/insights/productivity_insights_screen.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/project_api.dart';
@@ -284,14 +283,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
     loadDashboardData();
-  }
-
-  Future<void> openProductivityInsights() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ProductivityInsightsScreen(),
-      ),
-    );
   }
 
   Future<void> openNotifications() async {
@@ -864,40 +855,144 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildProductivityInsightsEntry(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
+    final primary = Theme.of(context).colorScheme.primary;
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: openProductivityInsights,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.softPurpleGradientFor(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: isDark ? 0.30 : 0.20),
+    if (isLoadingDashboard) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: cardDecoration(context, radius: 24),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 26,
+              height: 26,
+              child: CircularProgressIndicator(strokeWidth: 2.4),
             ),
-            boxShadow: PlanoraTheme.cardShadowFor(context),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Loading productivity snapshot...',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: mutedColor(context),
+                    ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final totalTasks = dashboardTasks.length;
+    final completedTasks =
+        dashboardTasks.where((item) => item.task.isCompleted).length;
+    final overdueTasks = dashboardTasks
+        .where((item) => item.task.isOverdue && !item.task.isCompleted)
+        .length;
+    final activeProjects =
+        dashboardProjects.where((project) => !project.isCompleted).length;
+    final completionPercent =
+        totalTasks == 0 ? 0 : ((completedTasks / totalTasks) * 100).round();
+
+    final progressValue = (completionPercent / 100).clamp(0.0, 1.0);
+    final accent = overdueTasks > 0
+        ? PlanoraTheme.error
+        : completionPercent >= 70
+            ? PlanoraTheme.success
+            : primary;
+
+    final statusLabel = overdueTasks > 0
+        ? 'Needs focus'
+        : completionPercent >= 70
+            ? 'On track'
+            : 'In progress';
+
+    final recommendation = overdueTasks > 0
+        ? 'Clear overdue tasks first to reduce risk.'
+        : activeProjects == 0
+            ? 'Start a new plan or ask AI to shape your next project.'
+            : completionPercent >= 70
+                ? 'Good progress. Keep the active plan moving.'
+                : 'Focus on one active task to raise completion faster.';
+
+    Widget metricTile({
+      required String label,
+      required String value,
+      required IconData icon,
+      required Color color,
+    }) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+          decoration: BoxDecoration(
+            color: isDark
+                ? PlanoraTheme.darkSurfaceVariant
+                : PlanoraTheme.surfaceVariant,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+            ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isDark ? 0.18 : 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 16, color: color),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: isDark
+                          ? PlanoraTheme.darkTextPrimary
+                          : PlanoraTheme.textPrimary,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: mutedColor(context),
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(context, radius: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.14),
+                  color: primary.withValues(alpha: isDark ? 0.18 : 0.10),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   Icons.insights_rounded,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: primary,
+                  size: 24,
                 ),
               ),
               const SizedBox(width: 13),
@@ -906,40 +1001,101 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Productivity Insights',
+                      'Productivity Snapshot',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark
-                            ? PlanoraTheme.darkTextPrimary
-                            : PlanoraTheme.textPrimary,
-                      ),
+                            fontWeight: FontWeight.w900,
+                            color: isDark
+                                ? PlanoraTheme.darkTextPrimary
+                                : PlanoraTheme.textPrimary,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'View workload, progress, project health, and recommendations.',
+                      recommendation,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: mutedColor(context),
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: mutedColor(context).withValues(alpha: 0.72),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Text(
+                '$completionPercent%',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: accent,
+                    ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: progressValue,
+                    minHeight: 7,
+                    color: accent,
+                    backgroundColor: accent.withValues(alpha: 0.12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              metricTile(
+                label: 'Done',
+                value: '$completedTasks/$totalTasks',
+                icon: Icons.check_circle_rounded,
+                color: accent,
+              ),
+              const SizedBox(width: 8),
+              metricTile(
+                label: 'Overdue',
+                value: '$overdueTasks',
+                icon: Icons.warning_amber_rounded,
+                color: overdueTasks > 0
+                    ? PlanoraTheme.error
+                    : PlanoraTheme.success,
+              ),
+              const SizedBox(width: 8),
+              metricTile(
+                label: 'Active',
+                value: '$activeProjects',
+                icon: Icons.folder_rounded,
+                color: primary,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
+
 
   Widget buildFocusSection(
     BuildContext context, {
