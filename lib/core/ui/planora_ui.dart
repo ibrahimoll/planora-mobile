@@ -47,9 +47,7 @@ class PlanoraScaffold extends StatelessWidget {
 
     return Scaffold(
       extendBody: extendBody,
-      backgroundColor: isDark
-          ? PlanoraTheme.darkBackground
-          : PlanoraTheme.background,
+      backgroundColor: isDark ? PlanoraTheme.darkBackground : PlanoraTheme.background,
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: PlanoraTheme.onboardingBackgroundFor(context),
@@ -117,6 +115,11 @@ class PlanoraPage extends StatelessWidget {
     if (onRefresh != null) {
       content = RefreshIndicator(
         color: Theme.of(context).colorScheme.primary,
+        backgroundColor: PlanoraTheme.isDark(context)
+            ? PlanoraTheme.darkSurface
+            : PlanoraTheme.surface,
+        displacement: 42,
+        strokeWidth: 2.4,
         onRefresh: onRefresh!,
         child: content,
       );
@@ -319,9 +322,7 @@ class PlanoraHomeTopBar extends StatelessWidget {
                     color: PlanoraTheme.error,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isDark
-                          ? PlanoraTheme.darkSurface
-                          : PlanoraTheme.surface,
+                      color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
                       width: 1.5,
                     ),
                   ),
@@ -610,6 +611,35 @@ class PlanoraCard extends StatelessWidget {
   }
 }
 
+class PlanoraLoadingIndicator extends StatelessWidget {
+  final double size;
+  final double strokeWidth;
+  final Color? color;
+
+  const PlanoraLoadingIndicator({
+    super.key,
+    this.size = 34,
+    this.strokeWidth = 2.7,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = color ?? Theme.of(context).colorScheme.primary;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CircularProgressIndicator(
+        strokeWidth: strokeWidth,
+        color: primary,
+        backgroundColor: primary.withValues(alpha: .10),
+        strokeCap: StrokeCap.round,
+      ),
+    );
+  }
+}
+
 class PlanoraBrandLoader extends StatefulWidget {
   final String message;
   final double size;
@@ -618,7 +648,7 @@ class PlanoraBrandLoader extends StatefulWidget {
   const PlanoraBrandLoader({
     super.key,
     this.message = 'Loading...',
-    this.size = 92,
+    this.size = 88,
     this.showMessage = true,
   });
 
@@ -648,15 +678,14 @@ class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primary = theme.colorScheme.primary;
     final textColor = theme.colorScheme.onSurface;
-    final badgeSize = widget.size * .68;
+    final badgeSize = widget.size * .62;
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         final progress = _controller.value;
-        final pulse = 0.985 + (math.sin(progress * math.pi * 2) * 0.025);
+        final pulse = 0.988 + (math.sin(progress * math.pi * 2) * 0.018);
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -669,16 +698,7 @@ class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    SizedBox(
-                      width: widget.size,
-                      height: widget.size,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3.2,
-                        color: primary,
-                        backgroundColor: primary.withValues(alpha: .10),
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
+                    PlanoraLoadingIndicator(size: widget.size, strokeWidth: 3),
                     Container(
                       width: badgeSize,
                       height: badgeSize,
@@ -686,12 +706,10 @@ class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(widget.size * .22),
                         gradient: PlanoraTheme.primaryGradientFor(context),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: .10),
-                        ),
+                        border: Border.all(color: Colors.white.withValues(alpha: .10)),
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(widget.size * .16),
+                        borderRadius: BorderRadius.circular(widget.size * .15),
                         child: Image.asset(
                           'assets/images/planora_logo.png',
                           fit: BoxFit.cover,
@@ -703,14 +721,13 @@ class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
               ),
             ),
             if (widget.showMessage) ...[
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               Text(
                 widget.message,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  color: textColor.withValues(alpha: .72),
+                  color: textColor.withValues(alpha: .76),
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.1,
                 ),
               ),
             ],
@@ -723,24 +740,61 @@ class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
 
 class PlanoraLoadingState extends StatelessWidget {
   final String message;
+  final String? subtitle;
   final double topPadding;
   final double size;
+  final bool branded;
 
   const PlanoraLoadingState({
     super.key,
     this.message = 'Loading...',
-    this.topPadding = 72,
-    this.size = 86,
+    this.subtitle,
+    this.topPadding = 40,
+    this.size = 42,
+    this.branded = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final fullScreenLoader = topPadding == 0 && size >= 80;
+
+    if (branded || fullScreenLoader) {
+      return Center(
+        child: PlanoraBrandLoader(message: message, size: size),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.only(top: topPadding),
       child: Center(
-        child: PlanoraBrandLoader(
-          message: message,
-          size: size,
+        child: PlanoraCard(
+          radius: 24,
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PlanoraLoadingIndicator(size: size.clamp(30, 52), strokeWidth: 2.8),
+              const SizedBox(height: 14),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -1036,8 +1090,7 @@ class PlanoraRingProgress extends StatelessWidget {
             painter: _PlanoraRingPainter(
               progress: clamped,
               color: Theme.of(context).colorScheme.primary,
-              backgroundColor:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
             ),
           ),
           Column(
@@ -1077,27 +1130,30 @@ class _PlanoraRingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final strokeWidth = size.width * .10;
+    final stroke = size.width * .10;
     final rect = Offset.zero & size;
-    final insetRect = rect.deflate(strokeWidth / 2);
-    final backgroundPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..color = backgroundColor;
-    final progressPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..color = color;
+    final center = rect.center;
+    final radius = (size.width - stroke) / 2;
 
-    canvas.drawArc(insetRect, 0, math.pi * 2, false, backgroundPaint);
+    final backgroundPaint = Paint()
+      ..color = backgroundColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+
+    final foregroundPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, backgroundPaint);
     canvas.drawArc(
-      insetRect,
+      Rect.fromCircle(center: center, radius: radius),
       -math.pi / 2,
-      math.pi * 2 * progress,
+      progress * math.pi * 2,
       false,
-      progressPaint,
+      foregroundPaint,
     );
   }
 
