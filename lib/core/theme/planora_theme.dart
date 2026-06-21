@@ -4,13 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 class PlanoraTheme {
   PlanoraTheme._();
 
-  // Brand colors.
   static const Color primaryPurple = Color(0xFF6D28D9);
   static const Color secondaryPurple = Color(0xFF7C3AED);
   static const Color primaryLight = Color(0x1A6D28D9);
   static const Color secondaryLight = Color(0x1A7C3AED);
 
-  // Light surfaces and text.
   static const Color background = Color(0xFFF8FAFC);
   static const Color secondaryBackground = Color(0xFFF1F5F9);
   static const Color surface = Color(0xFFFFFFFF);
@@ -24,7 +22,6 @@ class PlanoraTheme {
   static const Color border = Color(0xFFE5E7EB);
   static const Color divider = Color(0xFFF3F4F6);
 
-  // Dark mode: near-black, premium, and not washed-out blue.
   static const Color darkPrimary = Color(0xFF8B5CF6);
   static const Color darkSecondary = Color(0xFFA78BFA);
   static const Color darkBackground = Color(0xFF090A11);
@@ -39,14 +36,12 @@ class PlanoraTheme {
   static const Color darkDivider = Color(0xFF1D2030);
   static const Color darkPrimaryContainer = Color(0x332A1558);
 
-  // Semantic colors.
   static const Color success = Color(0xFF10B981);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
   static const Color accent = Color(0xFFF59E0B);
 
-  // Backward-compatible aliases used by older screens.
   static const Color deepIndigo = primaryPurple;
   static const Color softViolet = secondaryPurple;
   static const Color lavenderGlow = primaryLight;
@@ -54,7 +49,6 @@ class PlanoraTheme {
   static const Color green = success;
   static const Color orange = Color(0xFFF97316);
 
-  // Radii.
   static BorderRadius radiusSmall = BorderRadius.circular(8);
   static BorderRadius radiusMedium = BorderRadius.circular(12);
   static BorderRadius radiusLarge = BorderRadius.circular(20);
@@ -84,8 +78,7 @@ class PlanoraTheme {
   static const LinearGradient darkOnboardingBackground = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFF090A11), Color(0xFF0C0E17), Color(0xFF10121E)],
-    stops: [0.0, 0.55, 1.0],
+    colors: [darkBackground, darkBackground],
   );
 
   static const LinearGradient softPurpleGradient = LinearGradient(
@@ -97,7 +90,7 @@ class PlanoraTheme {
   static const LinearGradient darkSoftPurpleGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF1B1430), darkSurface],
+    colors: [darkSurface, darkSurface],
   );
 
   static const LinearGradient softGradient = LinearGradient(
@@ -109,7 +102,7 @@ class PlanoraTheme {
   static const LinearGradient darkSoftGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF171624), darkSurface],
+    colors: [darkSurface, darkSurface],
   );
 
   static const List<BoxShadow> cardShadow = [
@@ -117,7 +110,7 @@ class PlanoraTheme {
   ];
 
   static const List<BoxShadow> darkCardShadow = [
-    BoxShadow(color: Color(0x73000000), blurRadius: 18, offset: Offset(0, 10)),
+    BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 8)),
   ];
 
   static const List<BoxShadow> softCardShadow = [
@@ -125,7 +118,7 @@ class PlanoraTheme {
   ];
 
   static const List<BoxShadow> darkSoftCardShadow = [
-    BoxShadow(color: Color(0x80000000), blurRadius: 22, offset: Offset(0, 14)),
+    BoxShadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 10)),
   ];
 
   static const List<BoxShadow> floatingShadow = [
@@ -133,7 +126,7 @@ class PlanoraTheme {
   ];
 
   static const List<BoxShadow> darkFloatingShadow = [
-    BoxShadow(color: Color(0x406D28D9), blurRadius: 30, offset: Offset(0, 16)),
+    BoxShadow(color: Color(0x66000000), blurRadius: 16, offset: Offset(0, 10)),
   ];
 
   static bool isDark(BuildContext context) =>
@@ -506,7 +499,7 @@ class PlanoraTheme {
     cardTheme: CardThemeData(
       color: darkSurface,
       elevation: 0,
-      shadowColor: const Color(0x80000000),
+      shadowColor: const Color(0x66000000),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
