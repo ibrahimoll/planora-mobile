@@ -36,7 +36,9 @@ class HomeBottomNav extends StatelessWidget {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
     final barColor = isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface;
-    final inactiveColor = isDark ? Colors.white : PlanoraTheme.textSecondary;
+    final inactiveColor = isDark
+        ? PlanoraTheme.darkTextMuted
+        : PlanoraTheme.textSecondary;
     final aiSelected = selectedIndex == 2;
 
     return SafeArea(
@@ -81,7 +83,7 @@ class HomeBottomNav extends StatelessWidget {
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: primary.withValues(
-                                  alpha: isDark ? 0.20 : 0.12,
+                                  alpha: isDark ? 0.16 : 0.12,
                                 ),
                                 borderRadius: BorderRadius.circular(18),
                               ),
@@ -141,19 +143,19 @@ class HomeBottomNav extends StatelessWidget {
                       gradient: PlanoraTheme.primaryGradientFor(context),
                       border: Border.all(
                         color: isDark
-                            ? PlanoraTheme.darkSurface
+                            ? PlanoraTheme.darkBackground
                             : PlanoraTheme.surface,
                         width: 6,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.28 : 0.16,
-                          ),
-                          blurRadius: aiSelected ? 22 : 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+                      boxShadow: isDark
+                          ? const []
+                          : [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.16),
+                                blurRadius: aiSelected ? 22 : 16,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                     ),
                     child: const Icon(
                       Icons.auto_awesome_rounded,
@@ -238,17 +240,14 @@ class HomeBottomNav extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 240),
-              curve: Curves.easeOutCubic,
-              style: Theme.of(context).textTheme.labelSmall!.copyWith(
-                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
                 color: color,
-              ),
-              child: Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
               ),
             ),
           ],
