@@ -357,10 +357,10 @@ class PlanoraIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
-    final resolvedBackground = backgroundColor ??
-        (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface);
-    final resolvedIconColor = iconColor ??
-        (isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary);
+    final resolvedBackground =
+        backgroundColor ?? (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface);
+    final resolvedIconColor =
+        iconColor ?? (isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary);
 
     final button = Material(
       color: Colors.transparent,
@@ -610,14 +610,127 @@ class PlanoraCard extends StatelessWidget {
   }
 }
 
+class PlanoraBrandLoader extends StatefulWidget {
+  final String message;
+  final double size;
+  final bool showMessage;
+
+  const PlanoraBrandLoader({
+    super.key,
+    this.message = 'Loading...',
+    this.size = 92,
+    this.showMessage = true,
+  });
+
+  @override
+  State<PlanoraBrandLoader> createState() => _PlanoraBrandLoaderState();
+}
+
+class _PlanoraBrandLoaderState extends State<PlanoraBrandLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1450),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final textColor = theme.colorScheme.onSurface;
+    final badgeSize = widget.size * .68;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        final pulse = 0.985 + (math.sin(progress * math.pi * 2) * 0.025);
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Transform.scale(
+              scale: pulse,
+              child: SizedBox(
+                width: widget.size,
+                height: widget.size,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: widget.size,
+                      height: widget.size,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3.2,
+                        color: primary,
+                        backgroundColor: primary.withValues(alpha: .10),
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                    Container(
+                      width: badgeSize,
+                      height: badgeSize,
+                      padding: EdgeInsets.all(widget.size * .09),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(widget.size * .22),
+                        gradient: PlanoraTheme.primaryGradientFor(context),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .10),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(widget.size * .16),
+                        child: Image.asset(
+                          'assets/images/planora_logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (widget.showMessage) ...[
+              const SizedBox(height: 18),
+              Text(
+                widget.message,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: textColor.withValues(alpha: .72),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 class PlanoraLoadingState extends StatelessWidget {
   final String message;
   final double topPadding;
+  final double size;
 
   const PlanoraLoadingState({
     super.key,
     this.message = 'Loading...',
-    this.topPadding = 48,
+    this.topPadding = 72,
+    this.size = 86,
   });
 
   @override
@@ -625,30 +738,9 @@ class PlanoraLoadingState extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(top: topPadding),
       child: Center(
-        child: PlanoraCard(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-          radius: 24,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-            ],
-          ),
+        child: PlanoraBrandLoader(
+          message: message,
+          size: size,
         ),
       ),
     );
@@ -944,7 +1036,8 @@ class PlanoraRingProgress extends StatelessWidget {
             painter: _PlanoraRingPainter(
               progress: clamped,
               color: Theme.of(context).colorScheme.primary,
-              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+              backgroundColor:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: .12),
             ),
           ),
           Column(
