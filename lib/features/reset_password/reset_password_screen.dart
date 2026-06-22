@@ -280,7 +280,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           prefixIcon: Icons.pin_outlined,
                           keyboardType: TextInputType.number,
                           textInputAction: TextInputAction.next,
-                          inputFormatters: const [
+                          inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(6),
                           ],
