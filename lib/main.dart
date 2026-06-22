@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:mobile/core/notifications/push_notification_service.dart';
 import 'package:mobile/core/theme/planora_theme.dart';
 import 'package:mobile/features/auth/auth_gate.dart';
-import 'package:mobile/features/reset_password/reset_password_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,50 +44,6 @@ class _PlanoraAppState extends State<PlanoraApp> {
     });
   }
 
-  bool _isResetPasswordPath(String path) {
-    final normalizedPath = path.trim().toLowerCase();
-    return normalizedPath == '/reset-password' ||
-        normalizedPath == '/reset-password/';
-  }
-
-  Uri? _resetPasswordUriFrom(Uri uri) {
-    if (_isResetPasswordPath(uri.path)) {
-      return uri;
-    }
-
-    final fragment = uri.fragment.trim();
-    if (fragment.isEmpty) {
-      return null;
-    }
-
-    final fragmentUri = Uri.tryParse(
-      fragment.startsWith('/') ? fragment : '/$fragment',
-    );
-
-    if (fragmentUri != null && _isResetPasswordPath(fragmentUri.path)) {
-      return fragmentUri;
-    }
-
-    return null;
-  }
-
-  Widget _buildInitialScreen() {
-    final resetUri = _resetPasswordUriFrom(Uri.base);
-
-    if (resetUri != null) {
-      final email = resetUri.queryParameters['email'] ?? '';
-      final resetToken = resetUri.queryParameters['token'] ?? '';
-
-      return ResetPasswordScreen(
-        onThemeToggle: _toggleThemeMode,
-        email: email,
-        resetToken: resetToken,
-      );
-    }
-
-    return AuthGate(onThemeToggle: _toggleThemeMode);
-  }
-
   SystemUiOverlayStyle _systemOverlayStyle() {
     final isDark =
         _themeMode == ThemeMode.dark ||
@@ -118,7 +73,7 @@ class _PlanoraAppState extends State<PlanoraApp> {
         darkTheme: PlanoraTheme.darkTheme,
         themeMode: _themeMode,
         scrollBehavior: const PlanoraScrollBehavior(),
-        home: _buildInitialScreen(),
+        home: AuthGate(onThemeToggle: _toggleThemeMode),
       ),
     );
   }
