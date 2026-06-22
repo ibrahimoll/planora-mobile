@@ -71,6 +71,19 @@ class AuthApi {
     return MessageResponse.fromJson(data as Map<String, dynamic>);
   }
 
+  static Future<MessageResponse> verifyResetCode({
+    required String email,
+    required String resetCode,
+  }) async {
+    final data = await ApiClient.postJson(
+      '/auth/verify-reset-code',
+      data: {'email': email, 'code': resetCode},
+      requiresAuth: false,
+    );
+
+    return MessageResponse.fromJson(data as Map<String, dynamic>);
+  }
+
   static Future<MessageResponse> resetPassword({
     required String email,
     required String resetCode,
