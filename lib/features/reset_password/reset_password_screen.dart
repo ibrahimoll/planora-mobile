@@ -164,10 +164,22 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final password = passwordController.text;
     final confirm = confirmPasswordController.text;
     if (!(isCodeVerified && verifiedCode == code) && !await _verifyCode()) return;
-    if (password.isEmpty) return _showMessage('Enter your new password');
-    if (!_isStrongPassword(password)) return _showMessage('Password must be 8+ characters with uppercase and symbol.');
-    if (confirm.isEmpty) return _showMessage('Confirm your new password');
-    if (password != confirm) return _showMessage('Passwords do not match');
+    if (password.isEmpty) {
+      _showMessage('Enter your new password');
+      return;
+    }
+    if (!_isStrongPassword(password)) {
+      _showMessage('Password must be 8+ characters with uppercase and symbol.');
+      return;
+    }
+    if (confirm.isEmpty) {
+      _showMessage('Confirm your new password');
+      return;
+    }
+    if (password != confirm) {
+      _showMessage('Passwords do not match');
+      return;
+    }
     setState(() => isLoading = true);
     try {
       await AuthApi.resetPassword(email: widget.email, resetCode: code, newPassword: password);
