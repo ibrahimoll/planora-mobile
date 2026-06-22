@@ -11,13 +11,11 @@ import '../login/login_screen.dart';
 class ResetPasswordScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
   final String email;
-  final String resetToken;
 
   const ResetPasswordScreen({
     super.key,
     required this.onThemeToggle,
     required this.email,
-    required this.resetToken,
   });
 
   @override
@@ -25,6 +23,7 @@ class ResetPasswordScreen extends StatefulWidget {
 }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+  final TextEditingController codeController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController confirmPasswordController =
       TextEditingController();
@@ -32,6 +31,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
   bool isLoading = false;
+  bool isResendingCode = false;
 
   @override
   void initState() {
@@ -46,6 +46,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   @override
   void dispose() {
+    codeController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     super.dispose();
@@ -69,17 +70,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         _hasSymbol(password);
   }
 
+  bool _isValidResetCode(String code) {
+    return RegExp(r'^\d{6}$').hasMatch(code);
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _goToSignIn({bool clearResetLinkFromUrl = false}) {
-    if (clearResetLinkFromUrl) {
-      SystemNavigator.routeInformationUpdated(location: '/', replace: true);
-    }
-
+  void _goToSignIn() {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
@@ -88,12 +89,55 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 
+  Future<void> _resendCode() async {
+    if (isResendingCode || isLoading) {
+      return;
+    }
+
+    setState(() {
+      isResendingCode = true;
+    });
+
+    try {
+      await AuthApi.forgotPassword(email: widget.email);
+
+      if (!mounted) return;
+      _showMessage('A new reset code has been sent.');
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (error, stackTrace) {
+      debugPrint('Resend reset code failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+      _showMessage('Could not resend code. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          isResendingCode = false;
+        });
+      }
+    }
+  }
+
   Future<void> _resetPassword() async {
+    final code = codeController.text.trim();
     final password = passwordController.text;
     final confirmPassword = confirmPasswordController.text;
 
-    if (widget.email.trim().isEmpty || widget.resetToken.trim().isEmpty) {
-      _showMessage('Invalid reset link. Please request a new reset link.');
+    if (widget.email.trim().isEmpty) {
+      _showMessage('Email is missing. Please request a new code.');
+      return;
+    }
+
+    if (code.isEmpty) {
+      _showMessage('Enter the reset code from your email');
+      return;
+    }
+
+    if (!_isValidResetCode(code)) {
+      _showMessage('Reset code must be 6 digits');
       return;
     }
 
@@ -124,7 +168,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     try {
       await AuthApi.resetPassword(
         email: widget.email,
-        resetToken: widget.resetToken,
+        resetCode: code,
         newPassword: password,
       );
 
@@ -135,7 +179,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       });
 
       _showMessage('Password reset successfully. Please sign in.');
-      _goToSignIn(clearResetLinkFromUrl: true);
+      _goToSignIn();
     } on ApiException catch (error) {
       if (!mounted) return;
       _showMessage(error.message);
@@ -207,9 +251,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                   : PlanoraTheme.textPrimary,
                             ),
                             children: [
-                              const TextSpan(text: 'Set new '),
+                              const TextSpan(text: 'Reset with '),
                               TextSpan(
-                                text: 'password',
+                                text: 'code',
                                 style: TextStyle(
                                   color: Theme.of(context).colorScheme.primary,
                                 ),
@@ -219,7 +263,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Enter your new password below.',
+                          'Enter the 6-digit code sent to ${widget.email}, then choose your new password.',
                           textAlign: TextAlign.center,
                           style: textTheme.bodyMedium?.copyWith(
                             fontSize: metrics.subtitleSize,
@@ -228,6 +272,29 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           ),
                         ),
                         SizedBox(height: metrics.titleToFormGap),
+                        const PlanoraFieldLabel(label: 'Reset Code'),
+                        SizedBox(height: metrics.labelToFieldGap),
+                        PlanoraAuthTextField(
+                          controller: codeController,
+                          hintText: 'Enter 6-digit code',
+                          prefixIcon: Icons.pin_outlined,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                          inputFormatters: const [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: isResendingCode ? null : _resendCode,
+                            child: Text(
+                              isResendingCode ? 'Sending...' : 'Resend code',
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: metrics.fieldGap),
                         const PlanoraFieldLabel(label: 'New Password'),
                         SizedBox(height: metrics.labelToFieldGap),
                         PlanoraAuthTextField(
@@ -305,8 +372,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         SizedBox(height: metrics.sectionGap),
                         Center(
                           child: TextButton.icon(
-                            onPressed: () =>
-                                _goToSignIn(clearResetLinkFromUrl: true),
+                            onPressed: _goToSignIn,
                             icon: const Icon(Icons.chevron_left_rounded),
                             label: const Text('Back to Sign In'),
                           ),
