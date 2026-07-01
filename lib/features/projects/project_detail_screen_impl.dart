@@ -131,6 +131,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: pageX),
                   child: LinearProgressIndicator(
+                    key: const Key('project_detail_loading'),
                     minHeight: 2,
                     borderRadius: BorderRadius.circular(999),
                   ),
@@ -226,7 +227,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         ),
         tabs: const [
           Tab(text: 'Overview'),
-          Tab(text: 'Tasks'),
+          Tab(key: Key('project_tasks_tab'), text: 'Tasks'),
           Tab(text: 'AI Tools'),
           Tab(text: 'Reports'),
         ],
@@ -471,6 +472,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
+        key: const Key('task_card'),
         borderRadius: BorderRadius.circular(18),
         onTap: () async {
           await Navigator.of(context).push(

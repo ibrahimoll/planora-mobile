@@ -895,6 +895,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final completedTasks = completedTasksForProject(project);
 
     return PlanoraCard(
+      key: const Key('project_card'),
       radius: 24,
       padding: const EdgeInsets.all(16),
       onTap: deletingProjectKey == projectKey(project)

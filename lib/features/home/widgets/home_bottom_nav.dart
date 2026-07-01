@@ -198,6 +198,11 @@ class HomeBottomNav extends StatelessWidget {
 
     return Expanded(
       child: InkWell(
+        key: switch (item.index) {
+          0 => const Key('home_tab'),
+          1 => const Key('projects_tab'),
+          _ => null,
+        },
         borderRadius: BorderRadius.circular(18),
         onTap: () => onTap(item.index),
         child: Column(

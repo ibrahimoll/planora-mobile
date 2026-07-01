@@ -316,6 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget buildHomeDashboard(BuildContext context) {
     return RefreshIndicator(
+      key: const Key('home_screen'),
       color: Theme.of(context).colorScheme.primary,
       backgroundColor: PlanoraTheme.isDark(context)
           ? PlanoraTheme.darkSurface
@@ -362,6 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
       greeting: '$greeting, $firstName',
       subtitle: 'What should Planora help you?',
       avatar: GestureDetector(
+        key: const Key('home_profile_button'),
         onTap: openProfile,
         child: buildHomeAvatar(context),
       ),

@@ -3225,6 +3225,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('task_detail_screen'),
       body: DecoratedBox(
         decoration: BoxDecoration(
           gradient: PlanoraTheme.onboardingBackgroundFor(context),

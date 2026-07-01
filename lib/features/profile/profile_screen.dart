@@ -900,6 +900,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(22),
       child: InkWell(
+        key: const Key('logout_button'),
         onTap: handleLogout,
         borderRadius: BorderRadius.circular(22),
         child: Ink(

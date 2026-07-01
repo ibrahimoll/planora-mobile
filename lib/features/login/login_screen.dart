@@ -268,6 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const PlanoraFieldLabel(label: 'Email or Username'),
                         SizedBox(height: metrics.labelToFieldGap),
                         PlanoraAuthTextField(
+                          fieldKey: const Key('login_email_field'),
                           controller: emailController,
                           hintText: 'Enter your email or username',
                           prefixIcon: Icons.email_outlined,
@@ -278,6 +279,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const PlanoraFieldLabel(label: 'Password'),
                         SizedBox(height: metrics.labelToFieldGap),
                         PlanoraAuthTextField(
+                          fieldKey: const Key('login_password_field'),
                           controller: passwordController,
                           hintText: 'Enter your password',
                           prefixIcon: Icons.lock_outline_rounded,
@@ -322,6 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         SizedBox(height: metrics.sectionGap),
                         PlanoraGradientButton(
+                          key: const Key('login_button'),
                           height: metrics.buttonHeight,
                           label: isLoading ? 'Signing In...' : 'Sign In',
                           onPressed: isLoading ? null : _signIn,

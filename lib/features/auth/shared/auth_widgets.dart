@@ -168,6 +168,7 @@ class PlanoraFieldLabel extends StatelessWidget {
 }
 
 class PlanoraAuthTextField extends StatelessWidget {
+  final Key? fieldKey;
   final TextEditingController controller;
   final String hintText;
   final IconData prefixIcon;
@@ -182,6 +183,7 @@ class PlanoraAuthTextField extends StatelessWidget {
 
   const PlanoraAuthTextField({
     super.key,
+    this.fieldKey,
     required this.controller,
     required this.hintText,
     required this.prefixIcon,
@@ -200,6 +202,7 @@ class PlanoraAuthTextField extends StatelessWidget {
     final isDark = PlanoraTheme.isDark(context);
 
     return TextField(
+      key: fieldKey,
       controller: controller,
       focusNode: focusNode,
       obscureText: obscureText,
