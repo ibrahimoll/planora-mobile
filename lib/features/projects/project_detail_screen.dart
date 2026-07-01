@@ -101,9 +101,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       String? loadedReportDate;
 
       try {
-        loadedProgress = await _insightsApi.getProjectProgress(
-          loadedProject.projectId,
-        );
+        loadedProgress = await _insightsApi.getProjectProgress(loadedProject.projectId);
       } catch (_) {
         loadedProgress = null;
       }
@@ -130,10 +128,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           queryParameters: {'limit': 1, 'offset': 0},
         );
         final items = asList(asMap(exportsData)['items']);
-        if (items.isNotEmpty) {
-          loadedStatus = loadedStatus == 'pending' || loadedStatus == 'rejected'
-              ? loadedStatus
-              : 'ready';
+        if (items.isNotEmpty && loadedStatus != 'pending' && loadedStatus != 'rejected') {
+          loadedStatus = 'ready';
           loadedReportDate ??= stringValue(asMap(items.first), 'created_at');
         }
       } catch (err) {
@@ -523,10 +519,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             const SizedBox(height: 10),
             Text(
               'Reason: $reportReason',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.error,
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.w800),
             ),
           ],
           if (isReportReady && latestReportDate != null) ...[
@@ -935,7 +928,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                             child: buildReportInfoPill(
                               context,
                               'Completion',
-                              '${numValue(progressData, 'completion_percentage').round()}%',
+                              '${numValue(progressData, "completion_percentage").round()}%',
                             ),
                           ),
                         ],
@@ -954,19 +947,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                             child: buildReportInfoPill(
                               context,
                               'Completed',
-                              '${numValue(progressData, 'completed_tasks').round()}/${numValue(progressData, 'total_tasks').round()}',
+                              '${numValue(progressData, "completed_tasks").round()}/${numValue(progressData, "total_tasks").round()}',
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Expanded(child: buildReportInfoPill(context, 'Overdue', '${numValue(progressData, 'overdue_tasks').round()}')),
+                          Expanded(child: buildReportInfoPill(context, 'Overdue', '${numValue(progressData, "overdue_tasks").round()}')),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(child: buildReportInfoPill(context, 'Estimated', '${numValue(hoursData, 'estimated_hours_total').toStringAsFixed(1)}h')),
+                          Expanded(child: buildReportInfoPill(context, 'Estimated', '${numValue(hoursData, "estimated_hours_total").toStringAsFixed(1)}h')),
                           const SizedBox(width: 10),
-                          Expanded(child: buildReportInfoPill(context, 'Actual', '${numValue(hoursData, 'actual_hours_total').toStringAsFixed(1)}h')),
+                          Expanded(child: buildReportInfoPill(context, 'Actual', '${numValue(hoursData, "actual_hours_total").toStringAsFixed(1)}h')),
                         ],
                       ),
                     ],
@@ -980,9 +973,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     children: [
                       Text('Activity', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                       const SizedBox(height: 10),
-                      Text('Comments: ${numValue(activityData, 'comments_count').round()}'),
-                      Text('Attachments: ${numValue(activityData, 'attachments_count').round()}'),
-                      Text('Deadline reminders: ${numValue(activityData, 'deadline_reminders_count').round()}'),
+                      Text('Comments: ${numValue(activityData, "comments_count").round()}'),
+                      Text('Attachments: ${numValue(activityData, "attachments_count").round()}'),
+                      Text('Deadline reminders: ${numValue(activityData, "deadline_reminders_count").round()}'),
                     ],
                   ),
                 ),
@@ -1027,7 +1020,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
-                  '${stringValue(task, 'status').replaceAll('_', ' ')} • ${stringValue(task, 'priority')}',
+                  '${stringValue(task, "status").replaceAll("_", " ")} • ${stringValue(task, "priority")}',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
