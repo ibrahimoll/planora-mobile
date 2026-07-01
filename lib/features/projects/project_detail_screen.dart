@@ -267,7 +267,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return const <dynamic>[];
   }
 
-  String stringValue(Map<String, dynamic> map, String key, {String fallback = ''}) {
+  String stringValue(
+    Map<String, dynamic> map,
+    String key, {
+    String fallback = '',
+  }) {
     final value = map[key];
     if (value == null) return fallback;
     return value.toString();
@@ -289,7 +293,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   void showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   double get completionPercent {
@@ -347,9 +353,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         Expanded(
           child: Text(
             'Project Details',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         IconButton(
@@ -399,16 +405,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Text(
                       project.title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${project.statusLabel} • ${project.projectTypeLabel} • ${project.deadlineLabel}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -420,18 +426,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               project.description!.trim(),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: colors.onSurfaceVariant,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
           const SizedBox(height: 16),
           Text(
             '${percent.round()}% complete',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: percent / 100, minHeight: 8),
@@ -449,10 +455,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       children: [
-        buildStatTile(context, 'Tasks', '${tasks.length}', Icons.list_alt_rounded),
-        buildStatTile(context, 'Completed', '$doneTasks', Icons.check_circle_rounded),
-        buildStatTile(context, 'Overdue', '$overdueTasks', Icons.timer_off_rounded),
-        buildStatTile(context, 'Members', '${members.length}', Icons.groups_rounded),
+        buildStatTile(
+          context,
+          'Tasks',
+          '${tasks.length}',
+          Icons.list_alt_rounded,
+        ),
+        buildStatTile(
+          context,
+          'Completed',
+          '$doneTasks',
+          Icons.check_circle_rounded,
+        ),
+        buildStatTile(
+          context,
+          'Overdue',
+          '$overdueTasks',
+          Icons.timer_off_rounded,
+        ),
+        buildStatTile(
+          context,
+          'Members',
+          '${members.length}',
+          Icons.groups_rounded,
+        ),
       ],
     );
   }
@@ -500,10 +526,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         ? 'Your admin prepared this report. The email only notifies you; the report details stay inside Planora.'
                         : 'This asks admins to prepare or approve the report. When it is ready, you will get an email and can view it here in the app.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          height: 1.45,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      color: colors.onSurfaceVariant,
+                      height: 1.45,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -514,9 +540,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               'Latest report: $latestReportDate',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -568,8 +594,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   requestingReport
                       ? 'Sending request...'
                       : reportRequested
-                          ? 'Request sent to admin'
-                          : 'Request report from admin',
+                      ? 'Request sent to admin'
+                      : 'Request report from admin',
                 ),
               ),
             ),
@@ -578,9 +604,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               reportMessage!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: reportRequested ? Colors.green : colors.error,
-                    fontWeight: FontWeight.w800,
-                  ),
+                color: reportRequested ? Colors.green : colors.error,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ],
@@ -658,7 +684,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withOpacity(.5),
             ),
           ),
           child: Row(
@@ -674,17 +702,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     Text(
                       '${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -720,16 +748,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               children: [
                 Text(
                   member.displayName,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
                   member.email ?? member.roleLabel,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -775,21 +803,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 14),
@@ -839,17 +867,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 Text(
                   value,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -859,7 +887,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildMessage(BuildContext context, String message, {required bool isError}) {
+  Widget buildMessage(
+    BuildContext context,
+    String message, {
+    required bool isError,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
@@ -877,17 +909,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return Text(
       message,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
-          ),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 
-  Widget buildReportInfoPill(
-    BuildContext context,
-    String label,
-    String value,
-  ) {
+  Widget buildReportInfoPill(BuildContext context, String label, String value) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
@@ -901,18 +929,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: 5),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -926,8 +954,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final activityData = asMap(report['activity']);
     final tasksData = asList(report['tasks']);
     final title = stringValue(projectData, 'title', fallback: project.title);
-    final status = stringValue(projectData, 'status', fallback: project.statusLabel)
-        .replaceAll('_', ' ');
+    final status = stringValue(
+      projectData,
+      'status',
+      fallback: project.statusLabel,
+    ).replaceAll('_', ' ');
 
     showModalBottomSheet<void>(
       context: context,
@@ -950,8 +981,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       child: Text(
                         'Project Report',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                     IconButton(
@@ -968,9 +999,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 10),
                       Row(
@@ -1051,13 +1081,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       Text(
                         'Activity',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       const SizedBox(height: 10),
-                      Text('Comments: ${numValue(activityData, 'comments_count').round()}'),
-                      Text('Attachments: ${numValue(activityData, 'attachments_count').round()}'),
-                      Text('Deadline reminders: ${numValue(activityData, 'deadline_reminders_count').round()}'),
+                      Text(
+                        'Comments: ${numValue(activityData, 'comments_count').round()}',
+                      ),
+                      Text(
+                        'Attachments: ${numValue(activityData, 'attachments_count').round()}',
+                      ),
+                      Text(
+                        'Deadline reminders: ${numValue(activityData, 'deadline_reminders_count').round()}',
+                      ),
                     ],
                   ),
                 ),
@@ -1070,8 +1106,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       Text(
                         'Tasks',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       if (tasksData.isEmpty)
@@ -1105,16 +1141,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   stringValue(task, 'title', fallback: 'Untitled task'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
                   '${stringValue(task, 'status').replaceAll('_', ' ')} • ${stringValue(task, 'priority')}',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -1149,8 +1185,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           ? 'Invite member'
                           : 'Invite collaborator',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     TextField(
@@ -1169,8 +1205,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'member', child: Text('Member')),
-                        DropdownMenuItem(value: 'manager', child: Text('Manager')),
+                        DropdownMenuItem(
+                          value: 'member',
+                          child: Text('Member'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'manager',
+                          child: Text('Manager'),
+                        ),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
