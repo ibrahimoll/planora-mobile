@@ -70,8 +70,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     if (code.length < 6 ||
         isVerifyingCode ||
         code == verifiedCode ||
-        code == lastFailedCode)
+        code == lastFailedCode) {
       return;
+    }
     _verifyCode(showSuccessMessage: false);
   }
 
@@ -148,8 +149,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         lastFailedCode = null;
       });
       codeFocusNode.unfocus();
-      if (showSuccessMessage)
+      if (showSuccessMessage) {
         _showMessage('Code verified. Choose a new password.');
+      }
       return true;
     } on ApiException catch (error) {
       if (!mounted) return false;
@@ -181,8 +183,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final code = codeController.text.trim();
     final password = passwordController.text;
     final confirm = confirmPasswordController.text;
-    if (!(isCodeVerified && verifiedCode == code) && !await _verifyCode())
+    if (!(isCodeVerified && verifiedCode == code) && !await _verifyCode()) {
       return;
+    }
     if (password.isEmpty) {
       _showMessage('Enter your new password');
       return;
