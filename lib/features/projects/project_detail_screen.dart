@@ -39,23 +39,27 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   late ProjectModel project = widget.project;
 
   bool loading = true;
+  bool savingRisk = false;
+  bool previewingSchedule = false;
+  bool applyingSchedule = false;
   bool requestingReport = false;
   bool openingReport = false;
-  bool savingRisk = false;
   bool inviting = false;
   int? deletingTaskId;
   String? error;
   String? reportStatus;
   String? reportReason;
   String? reportDate;
-  String? reportMessage;
+  String? message;
 
   List<TaskListItem> tasks = [];
   List<ProjectMemberModel> members = [];
   List<ProjectActivityModel> activities = [];
   List<Map<String, dynamic>> riskHistory = [];
+  List<AiPlanHistoryModel> aiPlans = [];
   ProjectProgressModel? progress;
-  RiskAnalysisPreviewModel? riskPreview;
+  RiskAnalysisPreviewModel? risk;
+  SmartSchedulePreviewModel? schedule;
 
   @override
   void initState() {
@@ -71,7 +75,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   List<dynamic> asList(dynamic value) => value is List ? value : const <dynamic>[];
 
-  String stringValue(Map<String, dynamic> map, String key, {String fallback = ''}) {
+  String textValue(Map<String, dynamic> map, String key, {String fallback = ''}) {
     final value = map[key];
     return value == null ? fallback : value.toString();
   }
@@ -88,9 +92,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return fallback;
   }
 
-  void showMessage(String message) {
+  void snack(String value) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
   Future<List<Map<String, dynamic>>> loadRiskHistory(int projectId) async {
@@ -113,8 +117,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
       ProjectProgressModel? loadedProgress;
       RiskAnalysisPreviewModel? loadedRisk;
-      List<ProjectActivityModel> loadedActivity = const [];
       List<Map<String, dynamic>> loadedRiskHistory = const [];
+      List<ProjectActivityModel> loadedActivities = const [];
+      List<AiPlanHistoryModel> loadedPlans = const [];
       String? loadedReportStatus;
       String? loadedReportReason;
       String? loadedReportDate;
@@ -124,28 +129,26 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       } catch (err) {
         debugPrint('Progress load failed: $err');
       }
-
       try {
         loadedRisk = await insightsApi.previewRisk(loadedProject.projectId);
       } catch (err) {
         debugPrint('Risk preview load failed: $err');
       }
-
       try {
         loadedRiskHistory = await loadRiskHistory(loadedProject.projectId);
       } catch (err) {
         debugPrint('Risk history load failed: $err');
       }
-
       try {
-        loadedActivity = await insightsApi.getProjectActivity(
-          projectId: loadedProject.projectId,
-          limit: 8,
-        );
+        loadedActivities = await insightsApi.getProjectActivity(projectId: loadedProject.projectId, limit: 8);
       } catch (err) {
         debugPrint('Activity load failed: $err');
       }
-
+      try {
+        loadedPlans = await insightsApi.getAiPlanHistory(loadedProject);
+      } catch (err) {
+        debugPrint('AI plan history load failed: $err');
+      }
       try {
         final data = await ApiClient.get(
           '/reports/requests/me',
@@ -154,14 +157,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         final items = asList(asMap(data)['items']);
         if (items.isNotEmpty) {
           final latest = asMap(items.first);
-          loadedReportStatus = stringValue(latest, 'status');
-          loadedReportReason = stringValue(latest, 'rejection_reason');
-          loadedReportDate = stringValue(latest, 'resolved_at');
+          loadedReportStatus = textValue(latest, 'status');
+          loadedReportReason = textValue(latest, 'rejection_reason');
+          loadedReportDate = textValue(latest, 'resolved_at');
         }
       } catch (err) {
-        debugPrint('Report status load failed: $err');
+        debugPrint('Report request status failed: $err');
       }
-
       try {
         final exports = await ApiClient.get(
           '/reports/projects/${loadedProject.projectId}/exports',
@@ -170,10 +172,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         final items = asList(asMap(exports)['items']);
         if (items.isNotEmpty && loadedReportStatus != 'pending' && loadedReportStatus != 'rejected') {
           loadedReportStatus = 'ready';
-          loadedReportDate ??= stringValue(asMap(items.first), 'created_at');
+          loadedReportDate ??= textValue(asMap(items.first), 'created_at');
         }
       } catch (err) {
-        debugPrint('Report export load failed: $err');
+        debugPrint('Report export status failed: $err');
       }
 
       if (!mounted) return;
@@ -182,9 +184,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         tasks = loadedTasks;
         members = loadedMembers;
         progress = loadedProgress;
-        riskPreview = loadedRisk;
+        risk = loadedRisk;
         riskHistory = loadedRiskHistory;
-        activities = loadedActivity;
+        activities = loadedActivities;
+        aiPlans = loadedPlans;
         reportStatus = loadedReportStatus;
         reportReason = loadedReportReason;
         reportDate = loadedReportDate;
@@ -204,59 +207,114 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Future<void> saveRiskAnalysis() async {
     if (savingRisk) return;
     setState(() => savingRisk = true);
-
     try {
       await ApiClient.postJson('/projects/${project.projectId}/risk-analysis');
-      final loadedRisk = await insightsApi.previewRisk(project.projectId);
-      final loadedHistory = await loadRiskHistory(project.projectId);
+      final nextRisk = await insightsApi.previewRisk(project.projectId);
+      final nextHistory = await loadRiskHistory(project.projectId);
       if (!mounted) return;
       setState(() {
-        riskPreview = loadedRisk;
-        riskHistory = loadedHistory;
+        risk = nextRisk;
+        riskHistory = nextHistory;
         savingRisk = false;
       });
-      showMessage('Risk analysis saved. High risk will notify project members.');
+      snack('Risk analysis saved.');
     } catch (err, stackTrace) {
-      debugPrint('Risk analysis save failed: $err');
+      debugPrint('Risk save failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => savingRisk = false);
-      showMessage(friendlyError(err, 'Could not save risk analysis.'));
+      snack(friendlyError(err, 'Could not save risk analysis.'));
+    }
+  }
+
+  Future<void> previewSmartSchedule() async {
+    if (previewingSchedule) return;
+    setState(() {
+      previewingSchedule = true;
+      message = null;
+    });
+    try {
+      final preview = await insightsApi.previewSmartSchedule(project: project);
+      if (!mounted) return;
+      setState(() {
+        schedule = preview;
+        previewingSchedule = false;
+        message = preview.tasks.isEmpty
+            ? 'No schedulable tasks found.'
+            : 'Preview ready for ${preview.schedulableTaskCount} task(s).';
+      });
+    } catch (err, stackTrace) {
+      debugPrint('Schedule preview failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        previewingSchedule = false;
+        message = friendlyError(err, 'Could not preview schedule.');
+      });
+    }
+  }
+
+  Future<void> applySmartSchedule() async {
+    if (applyingSchedule || schedule == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Apply smart schedule?'),
+        content: const Text('This will update task due dates using the previewed schedule.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Apply')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => applyingSchedule = true);
+    try {
+      await insightsApi.applySmartSchedule(project: project);
+      if (!mounted) return;
+      setState(() {
+        applyingSchedule = false;
+        schedule = null;
+        message = 'Smart schedule applied.';
+      });
+      widget.onProjectChanged?.call();
+      await refresh();
+      snack('Smart schedule applied.');
+    } catch (err, stackTrace) {
+      debugPrint('Schedule apply failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        applyingSchedule = false;
+        message = friendlyError(err, 'Could not apply smart schedule.');
+      });
     }
   }
 
   Future<void> requestReport() async {
     if (requestingReport) return;
-    setState(() {
-      requestingReport = true;
-      reportMessage = null;
-    });
-
+    setState(() => requestingReport = true);
     try {
       await ApiClient.postJson('/reports/projects/${project.projectId}/request');
       if (!mounted) return;
       setState(() {
         requestingReport = false;
         reportStatus = 'pending';
-        reportReason = null;
-        reportMessage = 'Request sent. You can track the status here.';
       });
-      showMessage('Report request sent to admin.');
+      snack('Report request sent to admin.');
     } catch (err, stackTrace) {
       debugPrint('Report request failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      setState(() {
-        requestingReport = false;
-        reportMessage = friendlyError(err, 'Could not send the report request.');
-      });
+      setState(() => requestingReport = false);
+      snack(friendlyError(err, 'Could not send report request.'));
     }
   }
 
   Future<void> openLatestReport() async {
     if (openingReport) return;
     setState(() => openingReport = true);
-
     try {
       final data = await ApiClient.get('/reports/projects/${project.projectId}/latest');
       if (!mounted) return;
@@ -267,16 +325,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => openingReport = false);
-      showMessage(friendlyError(err, 'Could not open the ready report.'));
+      snack(friendlyError(err, 'Could not open report.'));
     }
   }
 
   Future<void> inviteMember(String emailOrUsername, String role) async {
     final value = emailOrUsername.trim();
     if (value.isEmpty || inviting) return;
-
     setState(() => inviting = true);
-
     try {
       if (!project.isTeamProject && members.length <= 1) {
         project = await projectsApi.invitePersonalProjectMemberAndConvert(
@@ -285,15 +341,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           role: role,
         );
       } else {
-        await projectsApi.inviteProjectMember(
-          project: project,
-          emailOrUsername: value,
-          role: role,
-        );
+        await projectsApi.inviteProjectMember(project: project, emailOrUsername: value, role: role);
       }
       if (!mounted) return;
       setState(() => inviting = false);
-      showMessage('Invitation sent.');
+      snack('Invitation sent.');
       await refresh();
       widget.onProjectChanged?.call();
     } catch (err, stackTrace) {
@@ -301,7 +353,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => inviting = false);
-      showMessage(friendlyError(err, 'Could not invite this person.'));
+      snack(friendlyError(err, 'Could not invite this person.'));
     }
   }
 
@@ -312,10 +364,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         title: const Text('Delete task?'),
         content: Text('Delete "${item.task.title}" from this project?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton.tonalIcon(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             icon: const Icon(Icons.delete_outline_rounded),
@@ -325,7 +374,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       ),
     );
     if (confirmed != true) return;
-
     setState(() => deletingTaskId = item.task.taskId);
     try {
       await tasksApi.deleteTask(project: item.project, taskId: item.task.taskId);
@@ -334,14 +382,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         tasks.removeWhere((taskItem) => taskItem.task.taskId == item.task.taskId);
         deletingTaskId = null;
       });
-      showMessage('Task deleted.');
       widget.onProjectChanged?.call();
+      snack('Task deleted.');
     } catch (err, stackTrace) {
       debugPrint('Task delete failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => deletingTaskId = null);
-      showMessage(friendlyError(err, 'Could not delete task.'));
+      snack(friendlyError(err, 'Could not delete task.'));
     }
   }
 
@@ -368,25 +416,26 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
             children: [
-              buildTopBar(context),
+              topBar(context),
               const SizedBox(height: 16),
-              if (error != null) ...[
-                buildMessage(context, error!, isError: true),
-                const SizedBox(height: 12),
-              ],
-              buildProjectCard(context),
+              if (error != null) ...[messageBox(context, error!, isError: true), const SizedBox(height: 12)],
+              projectCard(context),
               const SizedBox(height: 12),
-              buildStatsGrid(context),
+              statsGrid(context),
               const SizedBox(height: 12),
-              buildRiskCard(context),
+              riskCard(context),
               const SizedBox(height: 12),
-              buildActivityCard(context),
+              smartScheduleCard(context),
               const SizedBox(height: 12),
-              buildReportCard(context),
+              aiPlanHistoryCard(context),
               const SizedBox(height: 12),
-              buildTasksCard(context),
+              activityCard(context),
               const SizedBox(height: 12),
-              buildMembersCard(context),
+              reportCard(context),
+              const SizedBox(height: 12),
+              tasksCard(context),
+              const SizedBox(height: 12),
+              membersCard(context),
             ],
           ),
         ),
@@ -394,69 +443,42 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildTopBar(BuildContext context) {
+  Widget topBar(BuildContext context) {
     return Row(
       children: [
-        IconButton.filledTonal(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
+        IconButton.filledTonal(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Project Details',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-          ),
-        ),
+        Expanded(child: Text('Project Details', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
         IconButton(
           onPressed: loading ? null : refresh,
-          icon: loading
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.refresh_rounded),
+          icon: loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded),
         ),
       ],
     );
   }
 
-  Widget buildProjectCard(BuildContext context) {
+  Widget projectCard(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final percent = completionPercent.clamp(0, 100);
-    return buildCard(
+    return card(
       context,
-      child: Column(
+      Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: colors.primary.withOpacity(.12),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(
-                  project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded,
-                  color: colors.primary,
-                ),
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: colors.primary.withOpacity(.12),
+                child: Icon(project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded, color: colors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      project.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${project.statusLabel} • ${project.projectTypeLabel} • ${project.deadlineLabel}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
+                    Text(project.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                    Text('${project.statusLabel} • ${project.projectTypeLabel} • ${project.deadlineLabel}', style: smallMuted(context)),
                   ],
                 ),
               ),
@@ -464,20 +486,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           ),
           if ((project.description ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(
-              project.description!.trim(),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
+            Text(project.description!.trim(), style: smallMuted(context)),
           ],
-          const SizedBox(height: 16),
-          Text(
-            '${percent.round()}% complete',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
+          const SizedBox(height: 14),
+          Text('${percent.round()}% complete', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: percent / 100, minHeight: 8),
         ],
@@ -485,7 +497,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildStatsGrid(BuildContext context) {
+  Widget statsGrid(BuildContext context) {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -494,646 +506,292 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       children: [
-        buildStatTile(context, 'Tasks', '${tasks.length}', Icons.list_alt_rounded),
-        buildStatTile(context, 'Completed', '$doneTasks', Icons.check_circle_rounded),
-        buildStatTile(context, 'Overdue', '$overdueTasks', Icons.timer_off_rounded),
-        buildStatTile(context, 'Members', '${members.length}', Icons.groups_rounded),
+        statTile(context, 'Tasks', '${tasks.length}', Icons.list_alt_rounded),
+        statTile(context, 'Completed', '$doneTasks', Icons.check_circle_rounded),
+        statTile(context, 'Overdue', '$overdueTasks', Icons.timer_off_rounded),
+        statTile(context, 'Members', '${members.length}', Icons.groups_rounded),
       ],
     );
   }
 
-  Widget buildRiskCard(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final risk = riskPreview;
+  Widget riskCard(BuildContext context) {
     final latestSaved = riskHistory.isNotEmpty ? riskHistory.first : null;
-    final riskLevel = risk?.riskLevel ?? stringValue(latestSaved ?? {}, 'risk_level', fallback: 'unknown');
+    final riskLevel = risk?.riskLevel ?? textValue(latestSaved ?? const <String, dynamic>{}, 'risk_level', fallback: 'unknown');
     final riskColor = colorForRisk(context, riskLevel);
-    final subtitle = risk == null && latestSaved == null ? 'Not analyzed yet' : '${riskLevel.toUpperCase()} risk';
-
-    return buildSection(
+    return section(
       context,
       title: 'Risk Analysis',
-      subtitle: subtitle,
+      subtitle: riskLevel == 'unknown' ? 'Not analyzed yet' : '${riskLevel.toUpperCase()} risk',
       icon: Icons.warning_amber_rounded,
       trailing: TextButton.icon(
         onPressed: savingRisk ? null : saveRiskAnalysis,
-        icon: savingRisk
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.save_as_rounded, size: 18),
+        icon: savingRisk ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_as_rounded, size: 18),
         label: Text(savingRisk ? 'Saving' : 'Analyze'),
       ),
       child: risk == null && latestSaved == null
-          ? buildEmpty(context, 'No saved risk analysis yet. Tap Analyze to save one and notify members if risk is high.')
+          ? emptyText(context, 'No saved risk analysis yet. Tap Analyze to save one and notify members if risk is high.')
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (latestSaved != null) ...[
-                  buildRiskBanner(context, latestSaved, riskColor),
-                  const SizedBox(height: 12),
-                ],
+                if (latestSaved != null) banner(context, Icons.verified_rounded, 'Latest saved • ${formatDateText(textValue(latestSaved, 'created_at'))}', riskColor),
+                if (latestSaved != null) const SizedBox(height: 10),
                 if (risk != null) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: riskColor.withOpacity(.07),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: riskColor.withOpacity(.18)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.shield_rounded, color: riskColor),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '${risk.predictedDelayDays} predicted delay days • ${risk.daysUntilDeadline} days until deadline',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: colors.onSurfaceVariant,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  banner(context, Icons.shield_rounded, '${risk!.predictedDelayDays} predicted delay days • ${risk!.daysUntilDeadline} days until deadline', riskColor),
+                  const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      buildMiniPill(context, 'Overdue', '${risk.overdueTasks}'),
-                      buildMiniPill(context, 'Blocked', '${risk.blockedTasks}'),
-                      buildMiniPill(context, 'Remaining', '${risk.remainingEstimatedHours.toStringAsFixed(1)}h'),
-                      buildMiniPill(context, 'Done', '${risk.completedTasks}/${risk.totalTasks}'),
+                      pill(context, 'Overdue', '${risk!.overdueTasks}'),
+                      pill(context, 'Blocked', '${risk!.blockedTasks}'),
+                      pill(context, 'Remaining', '${risk!.remainingEstimatedHours.toStringAsFixed(1)}h'),
+                      pill(context, 'Done', '${risk!.completedTasks}/${risk!.totalTasks}'),
                     ],
                   ),
-                  if (risk.reason.trim().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      risk.reason.trim(),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                            height: 1.45,
-                          ),
-                    ),
-                  ],
-                  if (risk.recommendation.trim().isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      'Recommendation: ${risk.recommendation.trim()}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w900,
-                            height: 1.45,
-                          ),
-                    ),
-                  ],
+                  if (risk!.reason.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(risk!.reason.trim(), style: smallMuted(context))),
+                  if (risk!.recommendation.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Recommendation: ${risk!.recommendation.trim()}', style: smallPrimary(context))),
                 ],
                 if (riskHistory.length > 1) ...[
                   const SizedBox(height: 14),
-                  Text(
-                    'Risk History',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                  ),
+                  Text('Risk History', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
-                  for (final item in riskHistory.take(4)) buildRiskHistoryRow(context, item),
+                  for (final item in riskHistory.take(4)) historyRow(context, textValue(item, 'risk_level', fallback: 'medium'), '${numValue(item, 'predicted_delay_days').round()} delay day(s) • ${formatDateText(textValue(item, 'created_at'))}'),
                 ],
               ],
             ),
     );
   }
 
-  Widget buildRiskBanner(BuildContext context, Map<String, dynamic> latestSaved, Color riskColor) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: riskColor.withOpacity(.09),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: riskColor.withOpacity(.22)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.verified_rounded, color: riskColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Latest saved analysis • ${formatDateText(stringValue(latestSaved, 'created_at'))}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w900,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildRiskHistoryRow(BuildContext context, Map<String, dynamic> item) {
-    final colors = Theme.of(context).colorScheme;
-    final level = stringValue(item, 'risk_level', fallback: 'medium');
-    final color = colorForRisk(context, level);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface.withOpacity(.45),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.outlineVariant.withOpacity(.45)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.insights_rounded, color: color, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '${level.toUpperCase()} • ${numValue(item, 'predicted_delay_days').round()} delay day(s) • ${formatDateText(stringValue(item, 'created_at'))}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildActivityCard(BuildContext context) {
-    return buildSection(
+  Widget smartScheduleCard(BuildContext context) {
+    final preview = schedule;
+    return section(
       context,
-      title: 'Activity Timeline',
-      subtitle: activities.isEmpty ? 'No recent project activity' : '${activities.length} latest events',
-      icon: Icons.timeline_rounded,
-      child: activities.isEmpty
-          ? buildEmpty(context, 'Project activity will appear here when tasks, comments, attachments, or reports change.')
-          : Column(
-              children: [
-                for (var index = 0; index < activities.length; index++)
-                  buildActivityRow(context, activities[index], isLast: index == activities.length - 1),
-              ],
-            ),
-    );
-  }
-
-  Widget buildActivityRow(BuildContext context, ProjectActivityModel item, {required bool isLast}) {
-    final colors = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: colors.primary.withOpacity(.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(iconForActivity(item.eventType), color: colors.primary, size: 17),
-            ),
-            if (!isLast)
-              Container(width: 2, height: 38, color: colors.outlineVariant.withOpacity(.55)),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.message.trim().isEmpty ? item.eventType.replaceAll('_', ' ') : item.message.trim(),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${item.actorLabel} • ${formatDateTime(item.createdAt)}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget buildReportCard(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final tone = isReportReady
-        ? Colors.green
-        : isReportRejected
-            ? colors.error
-            : isReportPending
-                ? Colors.orange
-                : colors.primary;
-    final subtitle = isReportReady
-        ? 'Ready'
-        : isReportRejected
-            ? 'Rejected'
-            : isReportPending
-                ? 'Pending admin review'
-                : 'No request yet';
-
-    return buildSection(
-      context,
-      title: 'Reports',
-      subtitle: subtitle,
-      icon: Icons.description_rounded,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: tone.withOpacity(.08),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: tone.withOpacity(.18)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  isReportReady
-                      ? Icons.verified_rounded
-                      : isReportRejected
-                          ? Icons.cancel_rounded
-                          : isReportPending
-                              ? Icons.hourglass_top_rounded
-                              : Icons.admin_panel_settings_rounded,
-                  color: tone,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    isReportReady
-                        ? 'Your admin prepared this report. The email only notifies you; the report details stay inside Planora.'
-                        : isReportRejected
-                            ? 'The admin rejected this report request. You can request again when needed.'
-                            : isReportPending
-                                ? 'Your report request is waiting for admin review.'
-                                : 'Ask admins to prepare or approve a report. You can track the status here.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          height: 1.45,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (isReportRejected && (reportReason ?? '').isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Reason: $reportReason',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.w800),
-            ),
-          ],
-          if (isReportReady && reportDate != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Latest report: $reportDate',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          if (isReportReady) ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: openingReport ? null : openLatestReport,
-                icon: openingReport
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.visibility_rounded),
-                label: Text(openingReport ? 'Opening report...' : 'View report in app'),
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: requestingReport ? null : requestReport,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Request updated report'),
-              ),
-            ),
-          ] else
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: requestingReport || isReportPending ? null : requestReport,
-                icon: requestingReport
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(isReportPending ? Icons.hourglass_top_rounded : Icons.mail_outline_rounded),
-                label: Text(
-                  requestingReport
-                      ? 'Sending request...'
-                      : isReportPending
-                          ? 'Waiting for admin'
-                          : 'Request report from admin',
-                ),
-              ),
-            ),
-          if (reportMessage != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              reportMessage!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget buildTasksCard(BuildContext context) {
-    return buildSection(
-      context,
-      title: 'Project Tasks',
-      subtitle: 'Open or delete project tasks directly',
-      icon: Icons.task_alt_rounded,
-      child: tasks.isEmpty
-          ? buildEmpty(context, 'No tasks in this project yet.')
-          : Column(children: [for (final item in tasks.take(8)) buildTaskRow(context, item)]),
-    );
-  }
-
-  Widget buildMembersCard(BuildContext context) {
-    return buildSection(
-      context,
-      title: project.isTeamProject ? 'Members' : 'Collaborators',
-      subtitle: 'People connected to this project',
-      icon: Icons.groups_rounded,
-      trailing: TextButton.icon(
-        onPressed: inviting ? null : showInviteSheet,
-        icon: inviting
-            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.person_add_alt_1_rounded, size: 18),
-        label: Text(inviting ? 'Inviting' : 'Invite'),
-      ),
-      child: members.isEmpty
-          ? buildEmpty(context, 'No members found.')
-          : Column(children: [for (final member in members) buildMemberRow(context, member)]),
-    );
-  }
-
-  Widget buildTaskRow(BuildContext context, TaskListItem item) {
-    final task = item.task;
-    final deleting = deletingTaskId == task.taskId;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => TaskDetailScreen(
-                initialTask: item,
-                onTaskChanged: () {
-                  refresh();
-                  widget.onProjectChanged?.call();
-                },
-              ),
-            ),
-          );
-          await refresh();
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.circle, size: 11),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    Text(
-                      '${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              deleting
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : IconButton(
-                      tooltip: 'Delete task',
-                      onPressed: () => removeTask(item),
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget buildMemberRow(BuildContext context, ProjectMemberModel member) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          CircleAvatar(child: Text(member.initials)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  member.displayName,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                Text(
-                  member.email ?? member.roleLabel,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-          ),
-          Chip(label: Text(member.roleLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget buildSection(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Widget child,
-    Widget? trailing,
-  }) {
-    final colors = Theme.of(context).colorScheme;
-    return buildCard(
-      context,
+      title: 'Smart Schedule',
+      subtitle: preview == null ? 'Preview better task due dates' : '${preview.schedulableTaskCount} schedulable • ${preview.estimatedTotalHours.toStringAsFixed(1)}h',
+      icon: Icons.event_available_rounded,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: colors.primary.withOpacity(.10),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: colors.primary, size: 21),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                  ],
+                child: OutlinedButton.icon(
+                  onPressed: previewingSchedule ? null : previewSmartSchedule,
+                  icon: previewingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_motion_rounded),
+                  label: Text(previewingSchedule ? 'Previewing...' : 'Preview'),
                 ),
               ),
-              if (trailing != null) trailing,
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: applyingSchedule || preview == null ? null : applySmartSchedule,
+                  icon: applyingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.done_all_rounded),
+                  label: Text(applyingSchedule ? 'Applying...' : 'Apply'),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          child,
+          if (message != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(message!, style: smallMuted(context))),
+          if (preview == null) Padding(padding: const EdgeInsets.only(top: 10), child: emptyText(context, 'Preview first, then apply the suggested due dates.')),
+          if (preview != null) ...[
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              pill(context, 'Capacity', '${preview.dailyCapacityHours.toStringAsFixed(1)}h/day'),
+              pill(context, 'Tasks', '${preview.schedulableTaskCount}/${preview.totalTasks}'),
+              pill(context, 'Done', '${preview.completedTaskCount}'),
+            ]),
+            if (preview.warnings.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              for (final warning in preview.warnings.take(2)) Text('Warning: $warning', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w800)),
+            ],
+            const SizedBox(height: 10),
+            for (final item in preview.tasks.take(5)) scheduleTaskRow(context, item),
+          ],
         ],
       ),
     );
   }
 
-  Widget buildCard(BuildContext context, {required Widget child}) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(.55),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant.withOpacity(.55)),
-      ),
-      child: child,
+  Widget aiPlanHistoryCard(BuildContext context) {
+    return section(
+      context,
+      title: 'AI Plan History',
+      subtitle: aiPlans.isEmpty ? 'No AI plans yet' : '${aiPlans.length} saved AI plan(s)',
+      icon: Icons.auto_awesome_rounded,
+      child: aiPlans.isEmpty
+          ? emptyText(context, 'Generated AI plans for this project will appear here.')
+          : Column(children: [for (final item in aiPlans.take(4)) aiPlanRow(context, item)]),
     );
   }
 
-  Widget buildStatTile(BuildContext context, String label, String value, IconData icon) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(.40),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withOpacity(.45)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: colors.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget aiPlanRow(BuildContext context, AiPlanHistoryModel item) {
+    return simpleInkRow(
+      context,
+      icon: Icons.psychology_alt_rounded,
+      title: item.summary,
+      subtitle: '${item.generatedTaskCount} generated task(s) • ${formatDateTime(item.createdAt)}',
+      onTap: () => showAiPlanSheet(item),
+      trailing: const Icon(Icons.chevron_right_rounded),
     );
   }
 
-  Widget buildMiniPill(BuildContext context, String label, String value) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.surface.withOpacity(.55),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colors.outlineVariant.withOpacity(.55)),
-      ),
-      child: Text(
-        '$label: $value',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900),
-      ),
+  Widget activityCard(BuildContext context) {
+    return section(
+      context,
+      title: 'Activity Timeline',
+      subtitle: activities.isEmpty ? 'No recent activity' : '${activities.length} latest event(s)',
+      icon: Icons.timeline_rounded,
+      child: activities.isEmpty
+          ? emptyText(context, 'Project activity will appear here when tasks, comments, attachments, or reports change.')
+          : Column(children: [for (final item in activities) activityRow(context, item)]),
     );
   }
 
-  Widget buildMessage(BuildContext context, String message, {required bool isError}) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isError ? colors.errorContainer.withOpacity(.35) : colors.primaryContainer.withOpacity(.35),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Text(message),
+  Widget activityRow(BuildContext context, ProjectActivityModel item) {
+    return simpleRow(
+      context,
+      icon: iconForActivity(item.eventType),
+      title: item.message.trim().isEmpty ? item.eventType.replaceAll('_', ' ') : item.message.trim(),
+      subtitle: '${item.actorLabel} • ${formatDateTime(item.createdAt)}',
     );
   }
 
-  Widget buildEmpty(BuildContext context, String message) {
-    return Text(
-      message,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
-          ),
+  Widget reportCard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final tone = isReportReady ? Colors.green : isReportRejected ? colors.error : isReportPending ? Colors.orange : colors.primary;
+    final subtitle = isReportReady ? 'Ready' : isReportRejected ? 'Rejected' : isReportPending ? 'Pending admin review' : 'No request yet';
+    return section(
+      context,
+      title: 'Reports',
+      subtitle: subtitle,
+      icon: Icons.description_rounded,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        banner(context, isReportReady ? Icons.verified_rounded : isReportRejected ? Icons.cancel_rounded : isReportPending ? Icons.hourglass_top_rounded : Icons.admin_panel_settings_rounded, isReportReady ? 'Report ready. Open it inside Planora.' : isReportRejected ? 'Request rejected. You can request again.' : isReportPending ? 'Waiting for admin review.' : 'Ask admins to prepare a report.', tone),
+        if (isReportRejected && (reportReason ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Reason: $reportReason', style: TextStyle(color: colors.error, fontWeight: FontWeight.w800))),
+        if (isReportReady && reportDate != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Latest report: $reportDate', style: smallMuted(context))),
+        const SizedBox(height: 12),
+        if (isReportReady) ...[
+          fullButton(context, openingReport ? 'Opening report...' : 'View report in app', openingReport ? null : openLatestReport, Icons.visibility_rounded),
+          const SizedBox(height: 8),
+          fullOutlineButton(context, 'Request updated report', requestingReport ? null : requestReport, Icons.refresh_rounded),
+        ] else
+          fullButton(context, requestingReport ? 'Sending request...' : isReportPending ? 'Waiting for admin' : 'Request report from admin', requestingReport || isReportPending ? null : requestReport, isReportPending ? Icons.hourglass_top_rounded : Icons.mail_outline_rounded),
+      ]),
     );
   }
+
+  Widget tasksCard(BuildContext context) {
+    return section(
+      context,
+      title: 'Project Tasks',
+      subtitle: 'Open or delete project tasks directly',
+      icon: Icons.task_alt_rounded,
+      child: tasks.isEmpty ? emptyText(context, 'No tasks in this project yet.') : Column(children: [for (final item in tasks.take(8)) taskRow(context, item)]),
+    );
+  }
+
+  Widget membersCard(BuildContext context) {
+    return section(
+      context,
+      title: project.isTeamProject ? 'Members' : 'Collaborators',
+      subtitle: 'People connected to this project',
+      icon: Icons.groups_rounded,
+      trailing: TextButton.icon(onPressed: inviting ? null : showInviteSheet, icon: const Icon(Icons.person_add_alt_1_rounded, size: 18), label: Text(inviting ? 'Inviting' : 'Invite')),
+      child: members.isEmpty ? emptyText(context, 'No members found.') : Column(children: [for (final member in members) memberRow(context, member)]),
+    );
+  }
+
+  Widget taskRow(BuildContext context, TaskListItem item) {
+    final task = item.task;
+    final deleting = deletingTaskId == task.taskId;
+    return simpleInkRow(
+      context,
+      icon: Icons.circle,
+      iconSize: 11,
+      title: task.title,
+      subtitle: '${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}',
+      onTap: () async {
+        await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TaskDetailScreen(initialTask: item, onTaskChanged: () { refresh(); widget.onProjectChanged?.call(); })));
+        await refresh();
+      },
+      trailing: deleting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : IconButton(onPressed: () => removeTask(item), icon: const Icon(Icons.delete_outline_rounded)),
+    );
+  }
+
+  Widget memberRow(BuildContext context, ProjectMemberModel member) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        CircleAvatar(child: Text(member.initials)),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, style: boldSmall(context)), Text(member.email ?? member.roleLabel, style: smallMuted(context))])),
+        Chip(label: Text(member.roleLabel)),
+      ]),
+    );
+  }
+
+  Widget scheduleTaskRow(BuildContext context, SmartScheduleTaskItemModel item) {
+    return simpleRow(
+      context,
+      icon: item.isAfterProjectDeadline ? Icons.warning_amber_rounded : Icons.event_rounded,
+      title: item.title,
+      subtitle: '${item.priority} • ${item.estimatedHours.toStringAsFixed(1)}h • ${formatDateTime(item.suggestedDueDate)}',
+      iconColor: item.isAfterProjectDeadline ? Theme.of(context).colorScheme.error : null,
+    );
+  }
+
+  Widget historyRow(BuildContext context, String level, String subtitle) {
+    return simpleRow(context, icon: Icons.insights_rounded, title: level.toUpperCase(), subtitle: subtitle, iconColor: colorForRisk(context, level));
+  }
+
+  Widget section(BuildContext context, {required String title, required String subtitle, required IconData icon, required Widget child, Widget? trailing}) {
+    final colors = Theme.of(context).colorScheme;
+    return card(context, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        CircleAvatar(backgroundColor: colors.primary.withOpacity(.10), child: Icon(icon, color: colors.primary, size: 21)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 3), Text(subtitle, style: smallMuted(context))])),
+        if (trailing != null) trailing,
+      ]),
+      const SizedBox(height: 14),
+      child,
+    ]));
+  }
+
+  Widget card(BuildContext context, Widget child) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: colors.surfaceVariant.withOpacity(.45), borderRadius: BorderRadius.circular(24), border: Border.all(color: colors.outlineVariant.withOpacity(.55))), child: child);
+  }
+
+  Widget statTile(BuildContext context, String label, String value, IconData icon) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: colors.surfaceVariant.withOpacity(.28), borderRadius: BorderRadius.circular(20), border: Border.all(color: colors.outlineVariant.withOpacity(.45))), child: Row(children: [Icon(icon, color: colors.primary), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)), Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: smallMuted(context))]))]));
+  }
+
+  Widget banner(BuildContext context, IconData icon, String text, Color color) {
+    return Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: color.withOpacity(.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withOpacity(.18))), child: Row(children: [Icon(icon, color: color), const SizedBox(width: 10), Expanded(child: Text(text, style: smallMuted(context)?.copyWith(fontWeight: FontWeight.w800)))]));
+  }
+
+  Widget pill(BuildContext context, String label, String value) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8), decoration: BoxDecoration(color: colors.surface.withOpacity(.55), borderRadius: BorderRadius.circular(999), border: Border.all(color: colors.outlineVariant.withOpacity(.55))), child: Text('$label: $value', style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900)));
+  }
+
+  Widget simpleRow(BuildContext context, {required IconData icon, required String title, required String subtitle, Color? iconColor}) {
+    return Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [Icon(icon, color: iconColor ?? Theme.of(context).colorScheme.primary, size: 19), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: boldSmall(context)), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: smallMuted(context))]))]));
+  }
+
+  Widget simpleInkRow(BuildContext context, {required IconData icon, double iconSize = 19, required String title, required String subtitle, required VoidCallback onTap, Widget? trailing}) {
+    return Padding(padding: const EdgeInsets.only(bottom: 10), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onTap, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5))), child: Row(children: [Icon(icon, size: iconSize, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: boldSmall(context)), Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: smallMuted(context))])), if (trailing != null) trailing]))));
+  }
+
+  Widget fullButton(BuildContext context, String label, VoidCallback? onPressed, IconData icon) => SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: onPressed, icon: Icon(icon), label: Text(label)));
+  Widget fullOutlineButton(BuildContext context, String label, VoidCallback? onPressed, IconData icon) => SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: onPressed, icon: Icon(icon), label: Text(label)));
+  Widget emptyText(BuildContext context, String value) => Text(value, style: smallMuted(context));
+  Widget messageBox(BuildContext context, String value, {required bool isError}) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: (isError ? Theme.of(context).colorScheme.errorContainer : Theme.of(context).colorScheme.primaryContainer).withOpacity(.35), borderRadius: BorderRadius.circular(18)), child: Text(value));
+  TextStyle? smallMuted(BuildContext context) => Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, height: 1.35);
+  TextStyle? smallPrimary(BuildContext context) => Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900, height: 1.35);
+  TextStyle? boldSmall(BuildContext context) => Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900);
 
   Color colorForRisk(BuildContext context, String riskLevel) {
     final level = riskLevel.toLowerCase();
@@ -1165,262 +823,37 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   String formatDateText(String value) {
     final parsed = DateTime.tryParse(value);
     if (parsed == null) return value.isEmpty ? 'just now' : value;
-    return formatDateTime(parsed);
+    return formatDateTime(parsed.toLocal());
   }
 
-  Widget buildReportInfoPill(BuildContext context, String label, String value) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.primary.withOpacity(.07),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-        ],
-      ),
-    );
+  void showAiPlanSheet(AiPlanHistoryModel item) {
+    final generatedTasks = item.generatedPlan['tasks'];
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, builder: (sheetContext) => DraggableScrollableSheet(expand: false, initialChildSize: .78, minChildSize: .45, maxChildSize: .95, builder: (context, controller) => ListView(controller: controller, padding: const EdgeInsets.fromLTRB(20, 18, 20, 28), children: [Row(children: [Expanded(child: Text('AI Plan Details', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))), IconButton(onPressed: () => Navigator.of(sheetContext).pop(), icon: const Icon(Icons.close_rounded))]), const SizedBox(height: 12), card(context, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.summary, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 8), Text('Generated ${formatDateTime(item.createdAt)}'), if (item.inputPrompt.trim().isNotEmpty) ...[const SizedBox(height: 10), Text('Prompt: ${item.inputPrompt.trim()}')]])), if (generatedTasks is List && generatedTasks.isNotEmpty) ...[const SizedBox(height: 12), card(context, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Generated tasks', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 10), for (final rawTask in generatedTasks.take(20)) generatedPlanTaskRow(context, asMap(rawTask))]))]])));
+  }
+
+  Widget generatedPlanTaskRow(BuildContext context, Map<String, dynamic> task) {
+    final title = textValue(task, 'title', fallback: textValue(task, 'name', fallback: 'Untitled task'));
+    final description = textValue(task, 'description', fallback: textValue(task, 'details'));
+    return Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [const Icon(Icons.task_alt_rounded, size: 18), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: boldSmall(context)), if (description.trim().isNotEmpty) Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: smallMuted(context))]))]));
   }
 
   void showReportSheet(Map<String, dynamic> report) {
     final projectData = asMap(report['project']);
     final progressData = asMap(report['progress']);
     final hoursData = asMap(report['hours']);
-    final activityData = asMap(report['activity']);
     final tasksData = asList(report['tasks']);
-    final title = stringValue(projectData, 'title', fallback: project.title);
-    final status = stringValue(projectData, 'status', fallback: project.statusLabel).replaceAll('_', ' ');
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: .88,
-          minChildSize: .55,
-          maxChildSize: .95,
-          builder: (context, scrollController) {
-            return ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Project Report',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                buildCard(
-                  context,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(child: buildReportInfoPill(context, 'Status', status)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: buildReportInfoPill(
-                              context,
-                              'Completion',
-                              '${numValue(progressData, "completion_percentage").round()}%',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                buildCard(
-                  context,
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: buildReportInfoPill(
-                              context,
-                              'Completed',
-                              '${numValue(progressData, "completed_tasks").round()}/${numValue(progressData, "total_tasks").round()}',
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(child: buildReportInfoPill(context, 'Overdue', '${numValue(progressData, "overdue_tasks").round()}')),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(child: buildReportInfoPill(context, 'Estimated', '${numValue(hoursData, "estimated_hours_total").toStringAsFixed(1)}h')),
-                          const SizedBox(width: 10),
-                          Expanded(child: buildReportInfoPill(context, 'Actual', '${numValue(hoursData, "actual_hours_total").toStringAsFixed(1)}h')),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                buildCard(
-                  context,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Activity', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 10),
-                      Text('Comments: ${numValue(activityData, "comments_count").round()}'),
-                      Text('Attachments: ${numValue(activityData, "attachments_count").round()}'),
-                      Text('Deadline reminders: ${numValue(activityData, "deadline_reminders_count").round()}'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                buildCard(
-                  context,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Tasks', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 10),
-                      if (tasksData.isEmpty)
-                        buildEmpty(context, 'No tasks included.')
-                      else
-                        for (final rawTask in tasksData.take(20)) buildReportTaskRow(context, asMap(rawTask)),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    final title = textValue(projectData, 'title', fallback: project.title);
+    final status = textValue(projectData, 'status', fallback: project.statusLabel).replaceAll('_', ' ');
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, builder: (sheetContext) => DraggableScrollableSheet(expand: false, initialChildSize: .86, minChildSize: .50, maxChildSize: .95, builder: (context, controller) => ListView(controller: controller, padding: const EdgeInsets.fromLTRB(20, 18, 20, 28), children: [Row(children: [Expanded(child: Text('Project Report', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))), IconButton(onPressed: () => Navigator.of(sheetContext).pop(), icon: const Icon(Icons.close_rounded))]), const SizedBox(height: 12), card(context, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 8, children: [pill(context, 'Status', status), pill(context, 'Completion', '${numValue(progressData, "completion_percentage").round()}%'), pill(context, 'Completed', '${numValue(progressData, "completed_tasks").round()}/${numValue(progressData, "total_tasks").round()}'), pill(context, 'Estimated', '${numValue(hoursData, "estimated_hours_total").toStringAsFixed(1)}h')])])), const SizedBox(height: 12), card(context, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Tasks', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 10), if (tasksData.isEmpty) emptyText(context, 'No tasks included.') else for (final rawTask in tasksData.take(20)) reportTaskRow(context, asMap(rawTask))]))])));
   }
 
-  Widget buildReportTaskRow(BuildContext context, Map<String, dynamic> task) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.task_alt_rounded, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stringValue(task, 'title', fallback: 'Untitled task'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                Text(
-                  '${stringValue(task, "status").replaceAll("_", " ")} • ${stringValue(task, "priority")}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  Widget reportTaskRow(BuildContext context, Map<String, dynamic> task) {
+    return simpleRow(context, icon: Icons.task_alt_rounded, title: textValue(task, 'title', fallback: 'Untitled task'), subtitle: '${textValue(task, "status").replaceAll("_", " ")} • ${textValue(task, "priority")}');
   }
 
   void showInviteSheet() {
     final controller = TextEditingController();
     var role = 'member';
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      project.isTeamProject ? 'Invite member' : 'Invite collaborator',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: controller,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email or username', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: role,
-                      decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
-                      items: const [
-                        DropdownMenuItem(value: 'member', child: Text('Member')),
-                        DropdownMenuItem(value: 'manager', child: Text('Manager')),
-                        DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) setSheetState(() => role = value);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          final value = controller.text;
-                          Navigator.of(sheetContext).pop();
-                          inviteMember(value, role);
-                        },
-                        icon: const Icon(Icons.person_add_alt_1_rounded),
-                        label: const Text('Send invitation'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    ).whenComplete(controller.dispose);
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, useSafeArea: true, builder: (sheetContext) { final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom; return StatefulBuilder(builder: (context, setSheetState) => Padding(padding: EdgeInsets.only(bottom: bottomInset), child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 18, 20, 24), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(project.isTeamProject ? 'Invite member' : 'Invite collaborator', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 14), TextField(controller: controller, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email or username', border: OutlineInputBorder())), const SizedBox(height: 12), DropdownButtonFormField<String>(value: role, decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()), items: const [DropdownMenuItem(value: 'member', child: Text('Member')), DropdownMenuItem(value: 'manager', child: Text('Manager')), DropdownMenuItem(value: 'admin', child: Text('Admin'))], onChanged: (value) { if (value != null) setSheetState(() => role = value); }), const SizedBox(height: 16), SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: () { final value = controller.text; Navigator.of(sheetContext).pop(); inviteMember(value, role); }, icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text('Send invitation')))])))); });
   }
 }
