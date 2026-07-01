@@ -105,8 +105,11 @@ void main() {
     await _waitFor(tester, find.byKey(const Key('home_screen')));
     await tester.tap(find.byKey(const Key('home_profile_button')));
     await _waitFor(tester, find.byKey(const Key('logout_button')));
-    await tester.ensureVisible(find.byKey(const Key('logout_button')));
-    await tester.tap(find.byKey(const Key('logout_button')));
+    await _scrollToAndTap(
+      tester,
+      find.byKey(const Key('logout_button')),
+      scrollable: find.byType(Scrollable).last,
+    );
 
     await _waitForAny(tester, [
       find.byKey(const Key('login_email_field')),
@@ -158,4 +161,27 @@ Future<void> _waitUntilAbsent(
   }
 
   throw TestFailure('Timed out waiting for: ${finder.description} to leave.');
+}
+
+Future<void> _scrollToAndTap(
+  WidgetTester tester,
+  Finder target, {
+  required Finder scrollable,
+}) async {
+  await _waitFor(tester, target);
+
+  if (scrollable.evaluate().isNotEmpty) {
+    await tester.scrollUntilVisible(
+      target,
+      320,
+      scrollable: scrollable,
+      maxScrolls: 20,
+    );
+    await tester.pumpAndSettle();
+  }
+
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.tap(target);
+  await tester.pumpAndSettle();
 }
