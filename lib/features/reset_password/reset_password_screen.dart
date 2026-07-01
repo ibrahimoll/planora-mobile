@@ -11,7 +11,11 @@ import '../login/login_screen.dart';
 class ResetPasswordScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
   final String email;
-  const ResetPasswordScreen({super.key, required this.onThemeToggle, required this.email});
+  const ResetPasswordScreen({
+    super.key,
+    required this.onThemeToggle,
+    required this.email,
+  });
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
@@ -63,21 +67,30 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         confirmPasswordController.clear();
       });
     }
-    if (code.length < 6 || isVerifyingCode || code == verifiedCode || code == lastFailedCode) return;
+    if (code.length < 6 ||
+        isVerifyingCode ||
+        code == verifiedCode ||
+        code == lastFailedCode)
+      return;
     _verifyCode(showSuccessMessage: false);
   }
 
   bool _hasMinLength(String value) => value.length >= 8;
   bool _hasUppercase(String value) => RegExp(r'[A-Z]').hasMatch(value);
   bool _hasSymbol(String value) => RegExp(r'[^A-Za-z0-9]').hasMatch(value);
-  bool _isStrongPassword(String value) => _hasMinLength(value) && _hasUppercase(value) && _hasSymbol(value);
+  bool _isStrongPassword(String value) =>
+      _hasMinLength(value) && _hasUppercase(value) && _hasSymbol(value);
   bool _isValidResetCode(String code) => RegExp(r'^\d{6}$').hasMatch(code);
 
-  void _showMessage(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _showMessage(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 
   void _goToSignIn() {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle)),
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
+      ),
       (_) => false,
     );
   }
@@ -116,7 +129,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       return false;
     }
     if (!_isValidResetCode(code)) {
-      _showMessage(code.isEmpty ? 'Enter the reset code from your email' : 'Reset code must be 6 digits');
+      _showMessage(
+        code.isEmpty
+            ? 'Enter the reset code from your email'
+            : 'Reset code must be 6 digits',
+      );
       return false;
     }
     if (isVerifyingCode) return false;
@@ -131,7 +148,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         lastFailedCode = null;
       });
       codeFocusNode.unfocus();
-      if (showSuccessMessage) _showMessage('Code verified. Choose a new password.');
+      if (showSuccessMessage)
+        _showMessage('Code verified. Choose a new password.');
       return true;
     } on ApiException catch (error) {
       if (!mounted) return false;
@@ -163,7 +181,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final code = codeController.text.trim();
     final password = passwordController.text;
     final confirm = confirmPasswordController.text;
-    if (!(isCodeVerified && verifiedCode == code) && !await _verifyCode()) return;
+    if (!(isCodeVerified && verifiedCode == code) && !await _verifyCode())
+      return;
     if (password.isEmpty) {
       _showMessage('Enter your new password');
       return;
@@ -182,7 +201,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     }
     setState(() => isLoading = true);
     try {
-      await AuthApi.resetPassword(email: widget.email, resetCode: code, newPassword: password);
+      await AuthApi.resetPassword(
+        email: widget.email,
+        resetCode: code,
+        newPassword: password,
+      );
       if (!mounted) return;
       setState(() => isLoading = false);
       _showMessage('Password reset successfully. Please sign in.');
@@ -209,14 +232,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         return Scaffold(
           resizeToAvoidBottomInset: true,
           body: DecoratedBox(
-            decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
+            decoration: BoxDecoration(
+              gradient: PlanoraTheme.onboardingBackgroundFor(context),
+            ),
             child: SafeArea(
               child: Center(
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: metrics.maxContentWidth),
+                  constraints: BoxConstraints(
+                    maxWidth: metrics.maxContentWidth,
+                  ),
                   child: SingleChildScrollView(
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: EdgeInsets.symmetric(horizontal: metrics.horizontalPadding),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: metrics.horizontalPadding,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -232,11 +262,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                             style: textTheme.headlineSmall?.copyWith(
                               fontSize: metrics.titleSize,
                               fontWeight: FontWeight.w800,
-                              color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+                              color: isDark
+                                  ? PlanoraTheme.darkTextPrimary
+                                  : PlanoraTheme.textPrimary,
                             ),
                             children: [
                               const TextSpan(text: 'Reset with '),
-                              TextSpan(text: 'code', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                              TextSpan(
+                                text: 'code',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -258,7 +295,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           isVerified: isCodeVerified,
                           isVerifying: isVerifyingCode,
                           isResending: isResendingCode,
-                          onVerifyPressed: isVerifyingCode ? null : () => _verifyCode(),
+                          onVerifyPressed: isVerifyingCode
+                              ? null
+                              : () => _verifyCode(),
                           onResendPressed: isResendingCode ? null : _resendCode,
                         ),
                         SizedBox(height: metrics.fieldGap),
@@ -269,9 +308,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           child: isCodeVerified
                               ? Column(
                                   key: const ValueKey('password-form'),
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
-                                    const PlanoraFieldLabel(label: 'New Password'),
+                                    const PlanoraFieldLabel(
+                                      label: 'New Password',
+                                    ),
                                     SizedBox(height: metrics.labelToFieldGap),
                                     PlanoraAuthTextField(
                                       controller: passwordController,
@@ -280,21 +322,39 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                       obscureText: obscurePassword,
                                       textInputAction: TextInputAction.next,
                                       suffixIcon: IconButton(
-                                        tooltip: obscurePassword ? 'Show password' : 'Hide password',
-                                        onPressed: () => setState(() => obscurePassword = !obscurePassword),
+                                        tooltip: obscurePassword
+                                            ? 'Show password'
+                                            : 'Hide password',
+                                        onPressed: () => setState(
+                                          () => obscurePassword =
+                                              !obscurePassword,
+                                        ),
                                         icon: Icon(
-                                          obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                          obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
                                           size: 20,
                                           color: authMutedColor(context),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(height: 10),
-                                    _PasswordRequirementRow(isValid: _hasMinLength(metricsPassword), label: 'At least 8 characters'),
-                                    _PasswordRequirementRow(isValid: _hasUppercase(metricsPassword), label: 'One uppercase letter'),
-                                    _PasswordRequirementRow(isValid: _hasSymbol(metricsPassword), label: 'One symbol'),
+                                    _PasswordRequirementRow(
+                                      isValid: _hasMinLength(metricsPassword),
+                                      label: 'At least 8 characters',
+                                    ),
+                                    _PasswordRequirementRow(
+                                      isValid: _hasUppercase(metricsPassword),
+                                      label: 'One uppercase letter',
+                                    ),
+                                    _PasswordRequirementRow(
+                                      isValid: _hasSymbol(metricsPassword),
+                                      label: 'One symbol',
+                                    ),
                                     SizedBox(height: metrics.fieldGap),
-                                    const PlanoraFieldLabel(label: 'Confirm Password'),
+                                    const PlanoraFieldLabel(
+                                      label: 'Confirm Password',
+                                    ),
                                     SizedBox(height: metrics.labelToFieldGap),
                                     PlanoraAuthTextField(
                                       controller: confirmPasswordController,
@@ -304,10 +364,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                       textInputAction: TextInputAction.done,
                                       onSubmitted: (_) => _resetPassword(),
                                       suffixIcon: IconButton(
-                                        tooltip: obscureConfirmPassword ? 'Show password' : 'Hide password',
-                                        onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
+                                        tooltip: obscureConfirmPassword
+                                            ? 'Show password'
+                                            : 'Hide password',
+                                        onPressed: () => setState(
+                                          () => obscureConfirmPassword =
+                                              !obscureConfirmPassword,
+                                        ),
                                         icon: Icon(
-                                          obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                          obscureConfirmPassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
                                           size: 20,
                                           color: authMutedColor(context),
                                         ),
@@ -316,12 +383,18 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                                     SizedBox(height: metrics.sectionGap),
                                     PlanoraGradientButton(
                                       height: metrics.buttonHeight,
-                                      label: isLoading ? 'Resetting...' : 'Reset Password',
-                                      onPressed: isLoading ? null : _resetPassword,
+                                      label: isLoading
+                                          ? 'Resetting...'
+                                          : 'Reset Password',
+                                      onPressed: isLoading
+                                          ? null
+                                          : _resetPassword,
                                     ),
                                   ],
                                 )
-                              : const _LockedPasswordNotice(key: ValueKey('locked-password')),
+                              : const _LockedPasswordNotice(
+                                  key: ValueKey('locked-password'),
+                                ),
                         ),
                         SizedBox(height: metrics.sectionGap),
                         Center(
@@ -354,7 +427,7 @@ class _ResetPasswordHeroSlot extends StatelessWidget {
       height: 132,
       width: double.infinity,
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const SizedBox(height: 8),
+      errorBuilder: (_, _, _) => const SizedBox(height: 8),
     );
   }
 }
@@ -367,11 +440,21 @@ class _ResetCodeCard extends StatelessWidget {
   final bool isResending;
   final VoidCallback? onVerifyPressed;
   final VoidCallback? onResendPressed;
-  const _ResetCodeCard({required this.controller, required this.focusNode, required this.isVerified, required this.isVerifying, required this.isResending, required this.onVerifyPressed, required this.onResendPressed});
+  const _ResetCodeCard({
+    required this.controller,
+    required this.focusNode,
+    required this.isVerified,
+    required this.isVerifying,
+    required this.isResending,
+    required this.onVerifyPressed,
+    required this.onResendPressed,
+  });
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
-    final statusColor = isVerified ? PlanoraTheme.success : Theme.of(context).colorScheme.primary;
+    final statusColor = isVerified
+        ? PlanoraTheme.success
+        : Theme.of(context).colorScheme.primary;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
@@ -380,7 +463,9 @@ class _ResetCodeCard extends StatelessWidget {
         color: isDark ? PlanoraTheme.darkElevatedSurface : PlanoraTheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: isVerified ? PlanoraTheme.success.withValues(alpha: .55) : authBorderColor(context),
+          color: isVerified
+              ? PlanoraTheme.success.withValues(alpha: .55)
+              : authBorderColor(context),
           width: isVerified ? 1.4 : 1,
         ),
         boxShadow: PlanoraTheme.softCardShadowFor(context),
@@ -394,26 +479,43 @@ class _ResetCodeCard extends StatelessWidget {
                 child: Text(
                   'Reset Code',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+                    color: isDark
+                        ? PlanoraTheme.darkTextPrimary
+                        : PlanoraTheme.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
               _CodeStatusPill(
-                label: isVerified ? 'Verified' : isVerifying ? 'Checking' : 'Required',
-                icon: isVerified ? Icons.verified_rounded : isVerifying ? Icons.sync_rounded : Icons.lock_outline_rounded,
+                label: isVerified
+                    ? 'Verified'
+                    : isVerifying
+                    ? 'Checking'
+                    : 'Required',
+                icon: isVerified
+                    ? Icons.verified_rounded
+                    : isVerifying
+                    ? Icons.sync_rounded
+                    : Icons.lock_outline_rounded,
                 color: statusColor,
               ),
             ],
           ),
           const SizedBox(height: 14),
-          _CodeBoxesInput(controller: controller, focusNode: focusNode, isVerified: isVerified, onSubmitted: onVerifyPressed),
+          _CodeBoxesInput(
+            controller: controller,
+            focusNode: focusNode,
+            isVerified: isVerified,
+            onSubmitted: onVerifyPressed,
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  isVerified ? 'Code confirmed. You can now set a new password.' : 'Paste or type the code from your email.',
+                  isVerified
+                      ? 'Code confirmed. You can now set a new password.'
+                      : 'Paste or type the code from your email.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: authBodyColor(context),
                     fontWeight: FontWeight.w600,
@@ -436,13 +538,24 @@ class _ResetCodeCard extends StatelessWidget {
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: onVerifyPressed,
-              icon: Icon(isVerifying ? Icons.sync_rounded : Icons.check_rounded, size: 18),
+              icon: Icon(
+                isVerifying ? Icons.sync_rounded : Icons.check_rounded,
+                size: 18,
+              ),
               label: Text(isVerifying ? 'Verifying...' : 'Verify Code'),
               style: OutlinedButton.styleFrom(
-                backgroundColor: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.lavenderCard,
+                backgroundColor: isDark
+                    ? PlanoraTheme.darkSurface
+                    : PlanoraTheme.lavenderCard,
                 foregroundColor: Theme.of(context).colorScheme.primary,
-                side: BorderSide(color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.lavenderBorder),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                side: BorderSide(
+                  color: isDark
+                      ? PlanoraTheme.darkBorder
+                      : PlanoraTheme.lavenderBorder,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ],
@@ -457,7 +570,12 @@ class _CodeBoxesInput extends StatelessWidget {
   final FocusNode focusNode;
   final bool isVerified;
   final VoidCallback? onSubmitted;
-  const _CodeBoxesInput({required this.controller, required this.focusNode, required this.isVerified, required this.onSubmitted});
+  const _CodeBoxesInput({
+    required this.controller,
+    required this.focusNode,
+    required this.isVerified,
+    required this.onSubmitted,
+  });
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -475,7 +593,10 @@ class _CodeBoxesInput extends StatelessWidget {
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => onSubmitted?.call(),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
                 enableSuggestions: false,
                 autocorrect: false,
                 showCursor: false,
@@ -499,11 +620,18 @@ class _CodeBoxesInput extends StatelessWidget {
                   return Row(
                     children: List.generate(6, (index) {
                       final value = index < code.length ? code[index] : '';
-                      final isActive = focusNode.hasFocus && !isVerified && index == activeIndex;
+                      final isActive =
+                          focusNode.hasFocus &&
+                          !isVerified &&
+                          index == activeIndex;
                       return Expanded(
                         child: Padding(
                           padding: EdgeInsets.only(right: index == 5 ? 0 : 8),
-                          child: _CodeDigitBox(value: value, isActive: isActive, isVerified: isVerified),
+                          child: _CodeDigitBox(
+                            value: value,
+                            isActive: isActive,
+                            isVerified: isVerified,
+                          ),
                         ),
                       );
                     }),
@@ -522,19 +650,27 @@ class _CodeDigitBox extends StatelessWidget {
   final String value;
   final bool isActive;
   final bool isVerified;
-  const _CodeDigitBox({required this.value, required this.isActive, required this.isVerified});
+  const _CodeDigitBox({
+    required this.value,
+    required this.isActive,
+    required this.isVerified,
+  });
   @override
   Widget build(BuildContext context) {
     final isDark = PlanoraTheme.isDark(context);
     final primary = Theme.of(context).colorScheme.primary;
-    final borderColor = isVerified ? PlanoraTheme.success : isActive ? primary : authBorderColor(context);
+    final borderColor = isVerified
+        ? PlanoraTheme.success
+        : isActive
+        ? primary
+        : authBorderColor(context);
     final fillColor = isVerified
         ? PlanoraTheme.success.withValues(alpha: isDark ? .14 : .08)
         : isActive
-            ? primary.withValues(alpha: isDark ? .16 : .08)
-            : isDark
-                ? PlanoraTheme.darkSurface
-                : Colors.white;
+        ? primary.withValues(alpha: isDark ? .16 : .08)
+        : isDark
+        ? PlanoraTheme.darkSurface
+        : Colors.white;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
@@ -543,17 +679,31 @@ class _CodeDigitBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: fillColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: isActive || isVerified ? 1.5 : 1),
+        border: Border.all(
+          color: borderColor,
+          width: isActive || isVerified ? 1.5 : 1,
+        ),
       ),
       child: value.isEmpty && isActive
-          ? Container(width: 2, height: 20, decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(999)))
+          ? Container(
+              width: 2,
+              height: 20,
+              decoration: BoxDecoration(
+                color: primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            )
           : Text(
               value,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isVerified ? PlanoraTheme.success : isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .2,
-                  ),
+                color: isVerified
+                    ? PlanoraTheme.success
+                    : isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .2,
+              ),
             ),
     );
   }
@@ -563,7 +713,11 @@ class _CodeStatusPill extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
-  const _CodeStatusPill({required this.label, required this.icon, required this.color});
+  const _CodeStatusPill({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
@@ -579,7 +733,13 @@ class _CodeStatusPill extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
-          Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w800)),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ],
       ),
     );
@@ -603,14 +763,27 @@ class _LockedPasswordNotice extends StatelessWidget {
           Container(
             width: 42,
             height: 42,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primary.withValues(alpha: .12)),
-            child: Icon(Icons.lock_outline_rounded, color: Theme.of(context).colorScheme.primary, size: 20),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .12),
+            ),
+            child: Icon(
+              Icons.lock_outline_rounded,
+              color: Theme.of(context).colorScheme.primary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               'New password fields will appear after the reset code is correct.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: authBodyColor(context), height: 1.4, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: authBodyColor(context),
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -630,9 +803,21 @@ class _PasswordRequirementRow extends StatelessWidget {
       padding: const EdgeInsets.only(top: 6),
       child: Row(
         children: [
-          Icon(isValid ? Icons.check_circle_rounded : Icons.circle_outlined, size: 16, color: color),
+          Icon(
+            isValid ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 16,
+            color: color,
+          ),
           const SizedBox(width: 8),
-          Expanded(child: Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color, fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
