@@ -106,7 +106,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     });
 
     try {
-      await ApiClient.postJson('/reports/projects/${project.projectId}/request');
+      await ApiClient.postJson(
+        '/reports/projects/${project.projectId}/request',
+      );
       if (!mounted) return;
       setState(() {
         requestingReport = false;
@@ -120,7 +122,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       if (!mounted) return;
       setState(() {
         requestingReport = false;
-        reportMessage = friendlyError(err, 'Could not send the report request.');
+        reportMessage = friendlyError(
+          err,
+          'Could not send the report request.',
+        );
       });
     }
   }
@@ -191,7 +196,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       );
       if (!mounted) return;
       setState(() {
-        tasks.removeWhere((taskItem) => taskItem.task.taskId == item.task.taskId);
+        tasks.removeWhere(
+          (taskItem) => taskItem.task.taskId == item.task.taskId,
+        );
         removingTaskId = null;
       });
       showMessage('Task deleted.');
@@ -214,7 +221,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   void showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   double get completionPercent {
@@ -272,9 +281,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         Expanded(
           child: Text(
             'Project Details',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         IconButton(
@@ -310,7 +319,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(
-                  project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded,
+                  project.isTeamProject
+                      ? Icons.groups_2_rounded
+                      : Icons.folder_rounded,
                   color: colors.primary,
                 ),
               ),
@@ -352,9 +363,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           const SizedBox(height: 16),
           Text(
             '${percent.round()}% complete',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: percent / 100, minHeight: 8),
@@ -372,10 +383,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       children: [
-        buildStatTile(context, 'Tasks', '${tasks.length}', Icons.list_alt_rounded),
-        buildStatTile(context, 'Completed', '$doneTasks', Icons.check_circle_rounded),
-        buildStatTile(context, 'Overdue', '$overdueTasks', Icons.timer_off_rounded),
-        buildStatTile(context, 'Members', '${members.length}', Icons.groups_rounded),
+        buildStatTile(
+          context,
+          'Tasks',
+          '${tasks.length}',
+          Icons.list_alt_rounded,
+        ),
+        buildStatTile(
+          context,
+          'Completed',
+          '$doneTasks',
+          Icons.check_circle_rounded,
+        ),
+        buildStatTile(
+          context,
+          'Overdue',
+          '$overdueTasks',
+          Icons.timer_off_rounded,
+        ),
+        buildStatTile(
+          context,
+          'Members',
+          '${members.length}',
+          Icons.groups_rounded,
+        ),
       ],
     );
   }
@@ -421,20 +452,26 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: requestingReport || reportRequested ? null : requestReport,
+              onPressed: requestingReport || reportRequested
+                  ? null
+                  : requestReport,
               icon: requestingReport
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(reportRequested ? Icons.check_rounded : Icons.outgoing_mail_rounded),
+                  : Icon(
+                      reportRequested
+                          ? Icons.check_rounded
+                          : Icons.outgoing_mail,
+                    ),
               label: Text(
                 requestingReport
                     ? 'Sending request...'
                     : reportRequested
-                        ? 'Request sent to admin'
-                        : 'Request report from admin',
+                    ? 'Request sent to admin'
+                    : 'Request report from admin',
               ),
             ),
           ),
@@ -523,7 +560,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withOpacity(.5),
             ),
           ),
           child: Row(
@@ -585,9 +624,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               children: [
                 Text(
                   member.displayName,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
                   member.email ?? member.roleLabel,
@@ -654,7 +693,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ],
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 14),
@@ -724,7 +763,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildMessage(BuildContext context, String message, {required bool isError}) {
+  Widget buildMessage(
+    BuildContext context,
+    String message, {
+    required bool isError,
+  }) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
@@ -769,7 +812,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      project.isTeamProject ? 'Invite member' : 'Invite collaborator',
+                      project.isTeamProject
+                          ? 'Invite member'
+                          : 'Invite collaborator',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -791,8 +836,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'member', child: Text('Member')),
-                        DropdownMenuItem(value: 'manager', child: Text('Manager')),
+                        DropdownMenuItem(
+                          value: 'member',
+                          child: Text('Member'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'manager',
+                          child: Text('Manager'),
+                        ),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
