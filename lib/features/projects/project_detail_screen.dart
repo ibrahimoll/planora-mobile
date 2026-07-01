@@ -113,7 +113,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       setState(() {
         requestingReport = false;
         reportRequested = true;
-        reportMessage = 'Request sent. An admin was notified by email.';
+        reportMessage =
+            'Request sent. An admin was notified by email, please give it some time and you will receive the report.';
       });
       showMessage('Report request sent to admin.');
     } catch (err, stackTrace) {
