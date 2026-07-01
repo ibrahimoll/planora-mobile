@@ -33,26 +33,27 @@ class ProjectDetailScreen extends StatefulWidget {
 }
 
 class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
-  late final ProjectsApi _projectsApi = widget.projectsApi;
-  late final TasksApi _tasksApi = widget.tasksApi;
-  late final ProjectInsightsApi _insightsApi = widget.insightsApi;
+  late final ProjectsApi projectsApi = widget.projectsApi;
+  late final TasksApi tasksApi = widget.tasksApi;
+  late final ProjectInsightsApi insightsApi = widget.insightsApi;
   late ProjectModel project = widget.project;
 
   bool loading = true;
   bool requestingReport = false;
   bool openingReport = false;
-  bool analyzingRisk = false;
+  bool savingRisk = false;
   bool inviting = false;
-  int? removingTaskId;
+  int? deletingTaskId;
   String? error;
-  String? reportMessage;
   String? reportStatus;
   String? reportReason;
-  String? latestReportDate;
+  String? reportDate;
+  String? reportMessage;
 
   List<TaskListItem> tasks = [];
   List<ProjectMemberModel> members = [];
   List<ProjectActivityModel> activities = [];
+  List<Map<String, dynamic>> riskHistory = [];
   ProjectProgressModel? progress;
   RiskAnalysisPreviewModel? riskPreview;
 
@@ -68,15 +69,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return <String, dynamic>{};
   }
 
-  List<dynamic> asList(dynamic value) {
-    if (value is List) return value;
-    return const <dynamic>[];
-  }
+  List<dynamic> asList(dynamic value) => value is List ? value : const <dynamic>[];
 
   String stringValue(Map<String, dynamic> map, String key, {String fallback = ''}) {
     final value = map[key];
-    if (value == null) return fallback;
-    return value.toString();
+    return value == null ? fallback : value.toString();
   }
 
   num numValue(Map<String, dynamic> map, String key, {num fallback = 0}) {
@@ -86,6 +83,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return fallback;
   }
 
+  String friendlyError(Object err, String fallback) {
+    if (err is ApiException && err.message.trim().isNotEmpty) return err.message;
+    return fallback;
+  }
+
+  void showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<List<Map<String, dynamic>>> loadRiskHistory(int projectId) async {
+    final response = await ApiClient.get('/projects/$projectId/risk-analysis');
+    return asList(response).map(asMap).where((item) => item.isNotEmpty).toList();
+  }
+
   Future<void> refresh() async {
     setState(() {
       loading = true;
@@ -93,65 +105,75 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     });
 
     try {
-      final loadedProject = await _projectsApi.getProject(project);
-      final loadedTasks = await _tasksApi.getProjectTasks(
+      final loadedProject = await projectsApi.getProject(project);
+      final loadedTasks = await tasksApi.getProjectTasks(
         project: TaskProjectSummary.fromProject(loadedProject),
       );
-      final loadedMembers = await _projectsApi.getProjectMembers(loadedProject);
+      final loadedMembers = await projectsApi.getProjectMembers(loadedProject);
 
       ProjectProgressModel? loadedProgress;
       RiskAnalysisPreviewModel? loadedRisk;
-      List<ProjectActivityModel> loadedActivities = const [];
-      String? loadedStatus;
-      String? loadedReason;
+      List<ProjectActivityModel> loadedActivity = const [];
+      List<Map<String, dynamic>> loadedRiskHistory = const [];
+      String? loadedReportStatus;
+      String? loadedReportReason;
       String? loadedReportDate;
 
       try {
-        loadedProgress = await _insightsApi.getProjectProgress(loadedProject.projectId);
+        loadedProgress = await insightsApi.getProjectProgress(loadedProject.projectId);
       } catch (err) {
-        debugPrint('Project progress load failed: $err');
+        debugPrint('Progress load failed: $err');
       }
 
       try {
-        loadedRisk = await _insightsApi.previewRisk(loadedProject.projectId);
+        loadedRisk = await insightsApi.previewRisk(loadedProject.projectId);
       } catch (err) {
         debugPrint('Risk preview load failed: $err');
       }
 
       try {
-        loadedActivities = await _insightsApi.getProjectActivity(projectId: loadedProject.projectId, limit: 8);
+        loadedRiskHistory = await loadRiskHistory(loadedProject.projectId);
       } catch (err) {
-        debugPrint('Activity timeline load failed: $err');
+        debugPrint('Risk history load failed: $err');
       }
 
       try {
-        final requestsData = await ApiClient.get(
+        loadedActivity = await insightsApi.getProjectActivity(
+          projectId: loadedProject.projectId,
+          limit: 8,
+        );
+      } catch (err) {
+        debugPrint('Activity load failed: $err');
+      }
+
+      try {
+        final data = await ApiClient.get(
           '/reports/requests/me',
           queryParameters: {'project_id': loadedProject.projectId},
         );
-        final requestItems = asList(asMap(requestsData)['items']);
-        if (requestItems.isNotEmpty) {
-          final latest = asMap(requestItems.first);
-          loadedStatus = stringValue(latest, 'status');
-          loadedReason = stringValue(latest, 'rejection_reason');
+        final items = asList(asMap(data)['items']);
+        if (items.isNotEmpty) {
+          final latest = asMap(items.first);
+          loadedReportStatus = stringValue(latest, 'status');
+          loadedReportReason = stringValue(latest, 'rejection_reason');
           loadedReportDate = stringValue(latest, 'resolved_at');
         }
       } catch (err) {
-        debugPrint('Report request status check failed: $err');
+        debugPrint('Report status load failed: $err');
       }
 
       try {
-        final exportsData = await ApiClient.get(
+        final exports = await ApiClient.get(
           '/reports/projects/${loadedProject.projectId}/exports',
           queryParameters: {'limit': 1, 'offset': 0},
         );
-        final items = asList(asMap(exportsData)['items']);
-        if (items.isNotEmpty && loadedStatus != 'pending' && loadedStatus != 'rejected') {
-          loadedStatus = 'ready';
+        final items = asList(asMap(exports)['items']);
+        if (items.isNotEmpty && loadedReportStatus != 'pending' && loadedReportStatus != 'rejected') {
+          loadedReportStatus = 'ready';
           loadedReportDate ??= stringValue(asMap(items.first), 'created_at');
         }
       } catch (err) {
-        debugPrint('Report ready check failed: $err');
+        debugPrint('Report export load failed: $err');
       }
 
       if (!mounted) return;
@@ -161,14 +183,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         members = loadedMembers;
         progress = loadedProgress;
         riskPreview = loadedRisk;
-        activities = loadedActivities;
-        reportStatus = loadedStatus;
-        reportReason = loadedReason;
-        latestReportDate = loadedReportDate;
+        riskHistory = loadedRiskHistory;
+        activities = loadedActivity;
+        reportStatus = loadedReportStatus;
+        reportReason = loadedReportReason;
+        reportDate = loadedReportDate;
         loading = false;
       });
     } catch (err, stackTrace) {
-      debugPrint('Project detail refresh failed: $err');
+      debugPrint('Project details refresh failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
@@ -178,31 +201,32 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
-  Future<void> analyzeRisk() async {
-    if (analyzingRisk) return;
-
-    setState(() => analyzingRisk = true);
+  Future<void> saveRiskAnalysis() async {
+    if (savingRisk) return;
+    setState(() => savingRisk = true);
 
     try {
-      final loadedRisk = await _insightsApi.previewRisk(project.projectId);
+      await ApiClient.postJson('/projects/${project.projectId}/risk-analysis');
+      final loadedRisk = await insightsApi.previewRisk(project.projectId);
+      final loadedHistory = await loadRiskHistory(project.projectId);
       if (!mounted) return;
       setState(() {
         riskPreview = loadedRisk;
-        analyzingRisk = false;
+        riskHistory = loadedHistory;
+        savingRisk = false;
       });
-      showMessage('Risk preview updated.');
+      showMessage('Risk analysis saved. High risk will notify project members.');
     } catch (err, stackTrace) {
-      debugPrint('Risk analysis failed: $err');
+      debugPrint('Risk analysis save failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      setState(() => analyzingRisk = false);
-      showMessage(friendlyError(err, 'Could not analyze risk.'));
+      setState(() => savingRisk = false);
+      showMessage(friendlyError(err, 'Could not save risk analysis.'));
     }
   }
 
   Future<void> requestReport() async {
     if (requestingReport) return;
-
     setState(() {
       requestingReport = true;
       reportMessage = null;
@@ -231,7 +255,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Future<void> openLatestReport() async {
     if (openingReport) return;
-
     setState(() => openingReport = true);
 
     try {
@@ -240,7 +263,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       setState(() => openingReport = false);
       showReportSheet(asMap(data));
     } catch (err, stackTrace) {
-      debugPrint('Latest report load failed: $err');
+      debugPrint('Open report failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => openingReport = false);
@@ -256,19 +279,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     try {
       if (!project.isTeamProject && members.length <= 1) {
-        project = await _projectsApi.invitePersonalProjectMemberAndConvert(
+        project = await projectsApi.invitePersonalProjectMemberAndConvert(
           project: project,
           emailOrUsername: value,
           role: role,
         );
       } else {
-        await _projectsApi.inviteProjectMember(
+        await projectsApi.inviteProjectMember(
           project: project,
           emailOrUsername: value,
           role: role,
         );
       }
-
       if (!mounted) return;
       setState(() => inviting = false);
       showMessage('Invitation sent.');
@@ -290,7 +312,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         title: const Text('Delete task?'),
         content: Text('Delete "${item.task.title}" from this project?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
           FilledButton.tonalIcon(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             icon: const Icon(Icons.delete_outline_rounded),
@@ -299,17 +324,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         ],
       ),
     );
-
     if (confirmed != true) return;
 
-    setState(() => removingTaskId = item.task.taskId);
-
+    setState(() => deletingTaskId = item.task.taskId);
     try {
-      await _tasksApi.deleteTask(project: item.project, taskId: item.task.taskId);
+      await tasksApi.deleteTask(project: item.project, taskId: item.task.taskId);
       if (!mounted) return;
       setState(() {
         tasks.removeWhere((taskItem) => taskItem.task.taskId == item.task.taskId);
-        removingTaskId = null;
+        deletingTaskId = null;
       });
       showMessage('Task deleted.');
       widget.onProjectChanged?.call();
@@ -317,26 +340,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       debugPrint('Task delete failed: $err');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      setState(() => removingTaskId = null);
+      setState(() => deletingTaskId = null);
       showMessage(friendlyError(err, 'Could not delete task.'));
     }
-  }
-
-  String friendlyError(Object err, String fallback) {
-    if (err is ApiException && err.message.trim().isNotEmpty) return err.message;
-    return fallback;
-  }
-
-  void showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   double get completionPercent {
     if (progress != null) return progress!.project.completionPercentage;
     if (tasks.isEmpty) return project.isCompleted ? 100 : 0;
-    final done = tasks.where((item) => item.task.isCompleted).length;
-    return (done / tasks.length) * 100;
+    return (tasks.where((item) => item.task.isCompleted).length / tasks.length) * 100;
   }
 
   int get doneTasks => tasks.where((item) => item.task.isCompleted).length;
@@ -348,7 +360,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-
     return Scaffold(
       backgroundColor: colors.surface,
       body: SafeArea(
@@ -410,7 +421,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget buildProjectCard(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final percent = completionPercent.clamp(0, 100);
-
     return buildCard(
       context,
       child: Column(
@@ -495,85 +505,160 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget buildRiskCard(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final risk = riskPreview;
-    final riskColor = colorForRisk(context, risk?.riskLevel ?? 'unknown');
-    final levelLabel = risk == null ? 'Not analyzed yet' : '${risk.riskLevel.toUpperCase()} risk';
+    final latestSaved = riskHistory.isNotEmpty ? riskHistory.first : null;
+    final riskLevel = risk?.riskLevel ?? stringValue(latestSaved ?? {}, 'risk_level', fallback: 'unknown');
+    final riskColor = colorForRisk(context, riskLevel);
+    final subtitle = risk == null && latestSaved == null ? 'Not analyzed yet' : '${riskLevel.toUpperCase()} risk';
 
     return buildSection(
       context,
-      title: 'Risk Preview',
-      subtitle: levelLabel,
+      title: 'Risk Analysis',
+      subtitle: subtitle,
       icon: Icons.warning_amber_rounded,
       trailing: TextButton.icon(
-        onPressed: analyzingRisk ? null : analyzeRisk,
-        icon: analyzingRisk
+        onPressed: savingRisk ? null : saveRiskAnalysis,
+        icon: savingRisk
             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.auto_graph_rounded, size: 18),
-        label: Text(analyzingRisk ? 'Analyzing' : 'Analyze'),
+            : const Icon(Icons.save_as_rounded, size: 18),
+        label: Text(savingRisk ? 'Saving' : 'Analyze'),
       ),
-      child: risk == null
-          ? buildEmpty(context, 'No risk preview available yet. Tap Analyze to check this project.')
+      child: risk == null && latestSaved == null
+          ? buildEmpty(context, 'No saved risk analysis yet. Tap Analyze to save one and notify members if risk is high.')
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: riskColor.withOpacity(.09),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: riskColor.withOpacity(.22)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.shield_rounded, color: riskColor),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '${risk.predictedDelayDays} predicted delay days • ${risk.daysUntilDeadline} days until deadline',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant,
-                                fontWeight: FontWeight.w800,
-                              ),
+                if (latestSaved != null) ...[
+                  buildRiskBanner(context, latestSaved, riskColor),
+                  const SizedBox(height: 12),
+                ],
+                if (risk != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: riskColor.withOpacity(.07),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: riskColor.withOpacity(.18)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.shield_rounded, color: riskColor),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${risk.predictedDelayDays} predicted delay days • ${risk.daysUntilDeadline} days until deadline',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      buildMiniPill(context, 'Overdue', '${risk.overdueTasks}'),
+                      buildMiniPill(context, 'Blocked', '${risk.blockedTasks}'),
+                      buildMiniPill(context, 'Remaining', '${risk.remainingEstimatedHours.toStringAsFixed(1)}h'),
+                      buildMiniPill(context, 'Done', '${risk.completedTasks}/${risk.totalTasks}'),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    buildMiniPill(context, 'Overdue', '${risk.overdueTasks}'),
-                    buildMiniPill(context, 'Blocked', '${risk.blockedTasks}'),
-                    buildMiniPill(context, 'Remaining', '${risk.remainingEstimatedHours.toStringAsFixed(1)}h'),
-                    buildMiniPill(context, 'Done', '${risk.completedTasks}/${risk.totalTasks}'),
+                  if (risk.reason.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      risk.reason.trim(),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                            height: 1.45,
+                          ),
+                    ),
                   ],
-                ),
-                if (risk.reason.trim().isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    risk.reason.trim(),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                          height: 1.45,
-                        ),
-                  ),
+                  if (risk.recommendation.trim().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Recommendation: ${risk.recommendation.trim()}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w900,
+                            height: 1.45,
+                          ),
+                    ),
+                  ],
                 ],
-                if (risk.recommendation.trim().isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                if (riskHistory.length > 1) ...[
+                  const SizedBox(height: 14),
                   Text(
-                    'Recommendation: ${risk.recommendation.trim()}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colors.primary,
-                          fontWeight: FontWeight.w900,
-                          height: 1.45,
-                        ),
+                    'Risk History',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                   ),
+                  const SizedBox(height: 8),
+                  for (final item in riskHistory.take(4)) buildRiskHistoryRow(context, item),
                 ],
               ],
             ),
+    );
+  }
+
+  Widget buildRiskBanner(BuildContext context, Map<String, dynamic> latestSaved, Color riskColor) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: riskColor.withOpacity(.09),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: riskColor.withOpacity(.22)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.verified_rounded, color: riskColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Latest saved analysis • ${formatDateText(stringValue(latestSaved, 'created_at'))}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildRiskHistoryRow(BuildContext context, Map<String, dynamic> item) {
+    final colors = Theme.of(context).colorScheme;
+    final level = stringValue(item, 'risk_level', fallback: 'medium');
+    final color = colorForRisk(context, level);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface.withOpacity(.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant.withOpacity(.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.insights_rounded, color: color, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${level.toUpperCase()} • ${numValue(item, 'predicted_delay_days').round()} delay day(s) • ${formatDateText(stringValue(item, 'created_at'))}',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -611,11 +696,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               child: Icon(iconForActivity(item.eventType), color: colors.primary, size: 17),
             ),
             if (!isLast)
-              Container(
-                width: 2,
-                height: 38,
-                color: colors.outlineVariant.withOpacity(.55),
-              ),
+              Container(width: 2, height: 38, color: colors.outlineVariant.withOpacity(.55)),
           ],
         ),
         const SizedBox(width: 12),
@@ -654,7 +735,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             : isReportPending
                 ? Colors.orange
                 : colors.primary;
-    final statusLabel = isReportReady
+    final subtitle = isReportReady
         ? 'Ready'
         : isReportRejected
             ? 'Rejected'
@@ -665,7 +746,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return buildSection(
       context,
       title: 'Reports',
-      subtitle: statusLabel,
+      subtitle: subtitle,
       icon: Icons.description_rounded,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -718,10 +799,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.w800),
             ),
           ],
-          if (isReportReady && latestReportDate != null) ...[
+          if (isReportReady && reportDate != null) ...[
             const SizedBox(height: 10),
             Text(
-              'Latest report: $latestReportDate',
+              'Latest report: $reportDate',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colors.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
@@ -814,8 +895,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Widget buildTaskRow(BuildContext context, TaskListItem item) {
     final task = item.task;
-    final deleting = removingTaskId == task.taskId;
-
+    final deleting = deletingTaskId == task.taskId;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
@@ -920,7 +1000,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     Widget? trailing,
   }) {
     final colors = Theme.of(context).colorScheme;
-
     return buildCard(
       context,
       child: Column(
@@ -1058,7 +1137,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Color colorForRisk(BuildContext context, String riskLevel) {
     final level = riskLevel.toLowerCase();
-    if (level.contains('high') || level.contains('critical')) return Theme.of(context).colorScheme.error;
+    if (level.contains('high')) return Theme.of(context).colorScheme.error;
     if (level.contains('medium')) return Colors.orange;
     if (level.contains('low')) return Colors.green;
     return Theme.of(context).colorScheme.primary;
@@ -1066,6 +1145,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   IconData iconForActivity(String eventType) {
     final value = eventType.toLowerCase();
+    if (value.contains('risk')) return Icons.warning_amber_rounded;
     if (value.contains('task')) return Icons.task_alt_rounded;
     if (value.contains('comment')) return Icons.chat_bubble_outline_rounded;
     if (value.contains('attachment')) return Icons.attach_file_rounded;
@@ -1080,6 +1160,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$day/$month $hour:$minute';
+  }
+
+  String formatDateText(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value.isEmpty ? 'just now' : value;
+    return formatDateTime(parsed);
   }
 
   Widget buildReportInfoPill(BuildContext context, String label, String value) {
