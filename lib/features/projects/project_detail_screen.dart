@@ -41,10 +41,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   bool loading = true;
   bool requestingReport = false;
   bool reportRequested = false;
+  bool reportReady = false;
+  bool openingReport = false;
   bool inviting = false;
   int? removingTaskId;
   String? error;
   String? reportMessage;
+  String? latestReportDate;
 
   List<TaskListItem> tasks = [];
   List<ProjectMemberModel> members = [];
@@ -69,6 +72,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       );
       final loadedMembers = await _projectsApi.getProjectMembers(loadedProject);
       ProjectProgressModel? loadedProgress;
+      var loadedReportReady = false;
+      String? loadedReportDate;
 
       try {
         loadedProgress = await _insightsApi.getProjectProgress(
@@ -78,12 +83,29 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         loadedProgress = null;
       }
 
+      try {
+        final exportsData = await ApiClient.get(
+          '/reports/projects/${loadedProject.projectId}/exports',
+          queryParameters: {'limit': 1, 'offset': 0},
+        );
+        final exportsMap = asMap(exportsData);
+        final items = asList(exportsMap['items']);
+        loadedReportReady = items.isNotEmpty;
+        if (items.isNotEmpty) {
+          loadedReportDate = stringValue(asMap(items.first), 'created_at');
+        }
+      } catch (err) {
+        debugPrint('Report ready check failed: $err');
+      }
+
       if (!mounted) return;
       setState(() {
         project = loadedProject;
         tasks = loadedTasks;
         members = loadedMembers;
         progress = loadedProgress;
+        reportReady = loadedReportReady;
+        latestReportDate = loadedReportDate;
         loading = false;
       });
     } catch (err, stackTrace) {
@@ -98,7 +120,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   Future<void> requestReport() async {
-    if (requestingReport || reportRequested) return;
+    if (requestingReport) return;
 
     setState(() {
       requestingReport = true;
@@ -114,7 +136,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         requestingReport = false;
         reportRequested = true;
         reportMessage =
-            'Request sent. An admin was notified by email, please give it some time and you will receive the report.';
+            'Request sent. You will get an email and app notification when the report is ready.';
       });
       showMessage('Report request sent to admin.');
     } catch (err, stackTrace) {
@@ -128,6 +150,27 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           'Could not send the report request.',
         );
       });
+    }
+  }
+
+  Future<void> openLatestReport() async {
+    if (openingReport) return;
+
+    setState(() => openingReport = true);
+
+    try {
+      final data = await ApiClient.get(
+        '/reports/projects/${project.projectId}/latest',
+      );
+      if (!mounted) return;
+      setState(() => openingReport = false);
+      showReportSheet(asMap(data));
+    } catch (err, stackTrace) {
+      debugPrint('Latest report load failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => openingReport = false);
+      showMessage(friendlyError(err, 'Could not open the ready report.'));
     }
   }
 
@@ -213,6 +256,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
+  Map<String, dynamic> asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
+
+  List<dynamic> asList(dynamic value) {
+    if (value is List) return value;
+    return const <dynamic>[];
+  }
+
+  String stringValue(Map<String, dynamic> map, String key, {String fallback = ''}) {
+    final value = map[key];
+    if (value == null) return fallback;
+    return value.toString();
+  }
+
+  num numValue(Map<String, dynamic> map, String key, {num fallback = 0}) {
+    final value = map[key];
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
   String friendlyError(Object err, String fallback) {
     if (err is ApiException && err.message.trim().isNotEmpty) {
       return err.message;
@@ -222,9 +289,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   void showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   double get completionPercent {
@@ -282,9 +347,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         Expanded(
           child: Text(
             'Project Details',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
         ),
         IconButton(
@@ -334,16 +399,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Text(
                       project.title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${project.statusLabel} • ${project.projectTypeLabel} • ${project.deadlineLabel}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -355,18 +420,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               project.description!.trim(),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ],
           const SizedBox(height: 16),
           Text(
             '${percent.round()}% complete',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: percent / 100, minHeight: 8),
@@ -384,30 +449,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       children: [
-        buildStatTile(
-          context,
-          'Tasks',
-          '${tasks.length}',
-          Icons.list_alt_rounded,
-        ),
-        buildStatTile(
-          context,
-          'Completed',
-          '$doneTasks',
-          Icons.check_circle_rounded,
-        ),
-        buildStatTile(
-          context,
-          'Overdue',
-          '$overdueTasks',
-          Icons.timer_off_rounded,
-        ),
-        buildStatTile(
-          context,
-          'Members',
-          '${members.length}',
-          Icons.groups_rounded,
-        ),
+        buildStatTile(context, 'Tasks', '${tasks.length}', Icons.list_alt_rounded),
+        buildStatTile(context, 'Completed', '$doneTasks', Icons.check_circle_rounded),
+        buildStatTile(context, 'Overdue', '$overdueTasks', Icons.timer_off_rounded),
+        buildStatTile(context, 'Members', '${members.length}', Icons.groups_rounded),
       ],
     );
   }
@@ -418,7 +463,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return buildSection(
       context,
       title: 'Reports',
-      subtitle: 'Request an admin-reviewed project report',
+      subtitle: reportReady
+          ? 'Admin-approved report is ready in app'
+          : 'Request an admin-reviewed project report',
       icon: Icons.description_rounded,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,63 +474,113 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: colors.primary.withOpacity(.07),
+              color: reportReady
+                  ? Colors.green.withOpacity(.10)
+                  : colors.primary.withOpacity(.07),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: colors.primary.withOpacity(.14)),
+              border: Border.all(
+                color: reportReady
+                    ? Colors.green.withOpacity(.18)
+                    : colors.primary.withOpacity(.14),
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.admin_panel_settings_rounded, color: colors.primary),
+                Icon(
+                  reportReady
+                      ? Icons.verified_rounded
+                      : Icons.admin_panel_settings_rounded,
+                  color: reportReady ? Colors.green : colors.primary,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'This will email the admins and ask them to prepare or approve the report. It will not instantly expose a generated report to users.',
+                    reportReady
+                        ? 'Your admin prepared this report. The email only notifies you; the report details stay inside Planora.'
+                        : 'This asks admins to prepare or approve the report. When it is ready, you will get an email and can view it here in the app.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      height: 1.45,
-                      fontWeight: FontWeight.w700,
-                    ),
+                          color: colors.onSurfaceVariant,
+                          height: 1.45,
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                 ),
               ],
             ),
           ),
+          if (reportReady && latestReportDate != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Latest report: $latestReportDate',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: requestingReport || reportRequested
-                  ? null
-                  : requestReport,
-              icon: requestingReport
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      reportRequested
-                          ? Icons.check_rounded
-                          : Icons.mail_outline_rounded,
-                    ),
-              label: Text(
-                requestingReport
-                    ? 'Sending request...'
-                    : reportRequested
-                    ? 'Request sent to admin'
-                    : 'Request report from admin',
+          if (reportReady) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: openingReport ? null : openLatestReport,
+                icon: openingReport
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.visibility_rounded),
+                label: Text(
+                  openingReport ? 'Opening report...' : 'View report in app',
+                ),
               ),
             ),
-          ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: requestingReport ? null : requestReport,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Request updated report'),
+              ),
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: requestingReport || reportRequested
+                    ? null
+                    : requestReport,
+                icon: requestingReport
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        reportRequested
+                            ? Icons.check_rounded
+                            : Icons.mail_outline_rounded,
+                      ),
+                label: Text(
+                  requestingReport
+                      ? 'Sending request...'
+                      : reportRequested
+                          ? 'Request sent to admin'
+                          : 'Request report from admin',
+                ),
+              ),
+            ),
           if (reportMessage != null) ...[
             const SizedBox(height: 10),
             Text(
               reportMessage!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: reportRequested ? Colors.green : colors.error,
-                fontWeight: FontWeight.w800,
-              ),
+                    color: reportRequested ? Colors.green : colors.error,
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
           ],
         ],
@@ -561,9 +658,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withOpacity(.5),
+              color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5),
             ),
           ),
           child: Row(
@@ -579,17 +674,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     Text(
                       '${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -625,16 +720,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               children: [
                 Text(
                   member.displayName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
                 Text(
                   member.email ?? member.roleLabel,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -680,21 +775,21 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ],
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing,
             ],
           ),
           const SizedBox(height: 14),
@@ -744,17 +839,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 Text(
                   value,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                        fontWeight: FontWeight.w900,
+                      ),
                 ),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -764,11 +859,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildMessage(
-    BuildContext context,
-    String message, {
-    required bool isError,
-  }) {
+  Widget buildMessage(BuildContext context, String message, {required bool isError}) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
@@ -786,8 +877,249 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return Text(
       message,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
+    );
+  }
+
+  Widget buildReportInfoPill(
+    BuildContext context,
+    String label,
+    String value,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.primary.withOpacity(.07),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showReportSheet(Map<String, dynamic> report) {
+    final projectData = asMap(report['project']);
+    final progressData = asMap(report['progress']);
+    final hoursData = asMap(report['hours']);
+    final activityData = asMap(report['activity']);
+    final tasksData = asList(report['tasks']);
+    final title = stringValue(projectData, 'title', fallback: project.title);
+    final status = stringValue(projectData, 'status', fallback: project.statusLabel)
+        .replaceAll('_', ' ');
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: .88,
+          minChildSize: .55,
+          maxChildSize: .95,
+          builder: (context, scrollController) {
+            return ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Project Report',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                buildCard(
+                  context,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: buildReportInfoPill(
+                              context,
+                              'Status',
+                              status,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: buildReportInfoPill(
+                              context,
+                              'Completion',
+                              '${numValue(progressData, 'completion_percentage').round()}%',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                buildCard(
+                  context,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: buildReportInfoPill(
+                              context,
+                              'Completed',
+                              '${numValue(progressData, 'completed_tasks').round()}/${numValue(progressData, 'total_tasks').round()}',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: buildReportInfoPill(
+                              context,
+                              'Overdue',
+                              '${numValue(progressData, 'overdue_tasks').round()}',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: buildReportInfoPill(
+                              context,
+                              'Estimated',
+                              '${numValue(hoursData, 'estimated_hours_total').toStringAsFixed(1)}h',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: buildReportInfoPill(
+                              context,
+                              'Actual',
+                              '${numValue(hoursData, 'actual_hours_total').toStringAsFixed(1)}h',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                buildCard(
+                  context,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Activity',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text('Comments: ${numValue(activityData, 'comments_count').round()}'),
+                      Text('Attachments: ${numValue(activityData, 'attachments_count').round()}'),
+                      Text('Deadline reminders: ${numValue(activityData, 'deadline_reminders_count').round()}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                buildCard(
+                  context,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tasks',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (tasksData.isEmpty)
+                        buildEmpty(context, 'No tasks included.')
+                      else
+                        for (final rawTask in tasksData.take(20))
+                          buildReportTaskRow(context, asMap(rawTask)),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget buildReportTaskRow(BuildContext context, Map<String, dynamic> task) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.task_alt_rounded, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stringValue(task, 'title', fallback: 'Untitled task'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                Text(
+                  '${stringValue(task, 'status').replaceAll('_', ' ')} • ${stringValue(task, 'priority')}',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -817,8 +1149,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                           ? 'Invite member'
                           : 'Invite collaborator',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                     const SizedBox(height: 14),
                     TextField(
@@ -837,14 +1169,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(
-                          value: 'member',
-                          child: Text('Member'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'manager',
-                          child: Text('Manager'),
-                        ),
+                        DropdownMenuItem(value: 'member', child: Text('Member')),
+                        DropdownMenuItem(value: 'manager', child: Text('Manager')),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
