@@ -44,6 +44,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   bool _applyingSchedule = false;
   bool _requestingReport = false;
   bool _openingReport = false;
+  int? _deletingTaskId;
   String? _error;
   String? _scheduleMessage;
   String? _reportStatus;
@@ -367,20 +368,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   Widget _statsGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      childAspectRatio: 1.75,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      children: [
-        _stat('Tasks', '${_tasks.length}', Icons.list_alt_rounded),
-        _stat('Completed', '$_doneTasks', Icons.check_circle_rounded),
-        _stat('Overdue', '$_overdueTasks', Icons.timer_off_rounded),
-        _stat('Members', '${_members.length}', Icons.groups_rounded),
-      ],
-    );
+    return GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, childAspectRatio: 1.75, mainAxisSpacing: 10, crossAxisSpacing: 10, children: [_stat('Tasks', '${_tasks.length}', Icons.list_alt_rounded), _stat('Completed', '$_doneTasks', Icons.check_circle_rounded), _stat('Overdue', '$_overdueTasks', Icons.timer_off_rounded), _stat('Members', '${_members.length}', Icons.groups_rounded)]);
   }
 
   Widget _riskCard() {
@@ -389,14 +377,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return _section('Risk Analysis', level == 'unknown' ? 'Not analyzed yet' : '${level.toUpperCase()} risk', Icons.warning_amber_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (_risk == null && latest == null) Text('No risk analysis yet.', style: _muted()),
       if (latest != null) _banner('Latest saved • ${_formatDateText(_text(latest, 'created_at'))}', _riskColor(level)),
-      if (_risk != null) ...[
-        const SizedBox(height: 8),
-        _banner('${_risk!.predictedDelayDays} predicted delay days • ${_risk!.daysUntilDeadline} days until deadline', _riskColor(level)),
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: [_pill('Overdue', '${_risk!.overdueTasks}'), _pill('Blocked', '${_risk!.blockedTasks}'), _pill('Remaining', '${_risk!.remainingEstimatedHours.toStringAsFixed(1)}h'), _pill('Done', '${_risk!.completedTasks}/${_risk!.totalTasks}')]),
-        if (_risk!.reason.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_risk!.reason.trim(), style: _muted())),
-        if (_risk!.recommendation.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Recommendation: ${_risk!.recommendation.trim()}', style: _primarySmall())),
-      ],
+      if (_risk != null) ...[const SizedBox(height: 8), _banner('${_risk!.predictedDelayDays} predicted delay days • ${_risk!.daysUntilDeadline} days until deadline', _riskColor(level)), const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 8, children: [_pill('Overdue', '${_risk!.overdueTasks}'), _pill('Blocked', '${_risk!.blockedTasks}'), _pill('Remaining', '${_risk!.remainingEstimatedHours.toStringAsFixed(1)}h'), _pill('Done', '${_risk!.completedTasks}/${_risk!.totalTasks}')]), if (_risk!.reason.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_risk!.reason.trim(), style: _muted())), if (_risk!.recommendation.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Recommendation: ${_risk!.recommendation.trim()}', style: _primarySmall()))],
       const SizedBox(height: 10),
       SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _savingRisk ? null : _saveRiskAnalysis, icon: _savingRisk ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_as_rounded), label: Text(_savingRisk ? 'Saving...' : 'Analyze and save'))),
     ]));
@@ -405,19 +386,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget _scheduleCard() {
     final preview = _schedule;
     return _section('Smart Schedule', preview == null ? 'Preview better due dates' : '${preview.schedulableTaskCount} schedulable task(s)', Icons.event_available_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(child: OutlinedButton.icon(onPressed: _previewingSchedule ? null : _previewSchedule, icon: _previewingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_motion_rounded), label: Text(_previewingSchedule ? 'Previewing...' : 'Preview'))),
-        const SizedBox(width: 10),
-        Expanded(child: ElevatedButton.icon(onPressed: _applyingSchedule || preview == null ? null : _applySchedule, icon: _applyingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.done_all_rounded), label: Text(_applyingSchedule ? 'Applying...' : 'Apply'))),
-      ]),
+      Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _previewingSchedule ? null : _previewSchedule, icon: _previewingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_motion_rounded), label: Text(_previewingSchedule ? 'Previewing...' : 'Preview'))), const SizedBox(width: 10), Expanded(child: ElevatedButton.icon(onPressed: _applyingSchedule || preview == null ? null : _applySchedule, icon: _applyingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.done_all_rounded), label: Text(_applyingSchedule ? 'Applying...' : 'Apply')))]),
       if (_scheduleMessage != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_scheduleMessage!, style: _muted())),
-      if (preview != null) ...[
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: [_pill('Capacity', '${preview.dailyCapacityHours.toStringAsFixed(1)}h/day'), _pill('Tasks', '${preview.schedulableTaskCount}/${preview.totalTasks}'), _pill('Done', '${preview.completedTaskCount}')]),
-        const SizedBox(height: 10),
-        for (final item in preview.tasks.take(5)) _line(item.title, '${item.priority} • ${item.estimatedHours.toStringAsFixed(1)}h • ${_formatDateTime(item.suggestedDueDate)}', item.isAfterProjectDeadline ? Icons.warning_amber_rounded : Icons.event_rounded),
-      ] else
-        Padding(padding: const EdgeInsets.only(top: 10), child: Text('Preview first, then apply the suggested due dates.', style: _muted())),
+      if (preview != null) ...[const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 8, children: [_pill('Capacity', '${preview.dailyCapacityHours.toStringAsFixed(1)}h/day'), _pill('Tasks', '${preview.schedulableTaskCount}/${preview.totalTasks}'), _pill('Done', '${preview.completedTaskCount}')]), const SizedBox(height: 10), for (final item in preview.tasks.take(5)) _line(item.title, '${item.priority} • ${item.estimatedHours.toStringAsFixed(1)}h • ${_formatDateTime(item.suggestedDueDate)}', item.isAfterProjectDeadline ? Icons.warning_amber_rounded : Icons.event_rounded)] else Padding(padding: const EdgeInsets.only(top: 10), child: Text('Preview first, then apply the suggested due dates.', style: _muted())),
     ]));
   }
 
@@ -433,18 +404,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final ready = _reportStatus == 'ready';
     final pending = _reportStatus == 'pending';
     final rejected = _reportStatus == 'rejected';
-    return _section('Reports', ready ? 'Ready' : rejected ? 'Rejected' : pending ? 'Pending admin review' : 'No request yet', Icons.description_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _banner(ready ? 'Report ready. Open it inside Planora.' : rejected ? 'Request rejected. You can request again.' : pending ? 'Waiting for admin review.' : 'Ask admins to prepare a report.', ready ? Colors.green : rejected ? Theme.of(context).colorScheme.error : pending ? Colors.orange : Theme.of(context).colorScheme.primary),
-      if (rejected && (_reportReason ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Reason: $_reportReason', style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w800))),
-      if (ready && _reportDate != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Latest report: $_reportDate', style: _muted())),
-      const SizedBox(height: 12),
-      if (ready) ...[
-        SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _openingReport ? null : _openReport, icon: const Icon(Icons.visibility_rounded), label: Text(_openingReport ? 'Opening...' : 'View report in app'))),
-        const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _requestingReport ? null : _requestReport, icon: const Icon(Icons.refresh_rounded), label: const Text('Request updated report'))),
-      ] else
-        SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _requestingReport || pending ? null : _requestReport, icon: Icon(pending ? Icons.hourglass_top_rounded : Icons.mail_outline_rounded), label: Text(_requestingReport ? 'Sending...' : pending ? 'Waiting for admin' : 'Request report from admin'))),
-    ]));
+    return _section('Reports', ready ? 'Ready' : rejected ? 'Rejected' : pending ? 'Pending admin review' : 'No request yet', Icons.description_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_banner(ready ? 'Report ready. Open it inside Planora.' : rejected ? 'Request rejected. You can request again.' : pending ? 'Waiting for admin review.' : 'Ask admins to prepare a report.', ready ? Colors.green : rejected ? Theme.of(context).colorScheme.error : pending ? Colors.orange : Theme.of(context).colorScheme.primary), if (rejected && (_reportReason ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Reason: $_reportReason', style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w800))), if (ready && _reportDate != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Latest report: $_reportDate', style: _muted())), const SizedBox(height: 12), if (ready) ...[SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _openingReport ? null : _openReport, icon: const Icon(Icons.visibility_rounded), label: Text(_openingReport ? 'Opening...' : 'View report in app'))), const SizedBox(height: 8), SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _requestingReport ? null : _requestReport, icon: const Icon(Icons.refresh_rounded), label: const Text('Request updated report')))] else SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _requestingReport || pending ? null : _requestReport, icon: Icon(pending ? Icons.hourglass_top_rounded : Icons.mail_outline_rounded), label: Text(_requestingReport ? 'Sending...' : pending ? 'Waiting for admin' : 'Request report from admin')))]));
   }
 
   Widget _activityCard() {
@@ -452,9 +412,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   Widget _membersCard() {
-    return _section('Members', '${_members.length} connected', Icons.groups_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (_members.isEmpty) Text('No members found.', style: _muted()) else for (final member in _members) Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [CircleAvatar(child: Text(member.initials)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, style: _bold()), Text(member.email ?? member.roleLabel, style: _muted())])), Chip(label: Text(member.roleLabel))])),
-    ]));
+    return _section('Members', '${_members.length} connected', Icons.groups_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [if (_members.isEmpty) Text('No members found.', style: _muted()) else for (final member in _members) Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [CircleAvatar(child: Text(member.initials)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, style: _bold()), Text(member.email ?? member.roleLabel, style: _muted())])), Chip(label: Text(member.roleLabel))]))]));
   }
 
   Widget _taskLine(TaskListItem item) {
