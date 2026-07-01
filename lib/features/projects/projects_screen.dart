@@ -48,6 +48,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   bool isCreatingProject = false;
   String? errorMessage;
   String? taskSummaryWarning;
+  String? deletingProjectKey;
   List<ProjectModel> projects = [];
   Map<String, List<TaskListItem>> projectTasks = {};
 
@@ -313,6 +314,67 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     if (!mounted) return;
     loadProjects();
+  }
+
+  Future<void> deleteProjectFromList(ProjectModel project) async {
+    final key = projectKey(project);
+    if (deletingProjectKey != null) return;
+
+    setState(() => deletingProjectKey = key);
+
+    try {
+      await _projectsApi.deleteProject(project);
+
+      if (!mounted) return;
+      setState(() {
+        projects.removeWhere((item) => projectKey(item) == key);
+        projectTasks.remove(key);
+        deletingProjectKey = null;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Deleted ${project.title}.')));
+    } catch (error, stackTrace) {
+      debugPrint('Project delete failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => deletingProjectKey = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is ApiException ? error.message : 'Could not delete this plan.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<bool> confirmDeleteProject(ProjectModel project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete plan?'),
+          content: Text(
+            'This will permanently delete "${project.title}" and its tasks. This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
   }
 
   Future<void> showProjectFilterSheet() async {
@@ -764,11 +826,64 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         for (var index = 0; index < visibleProjects.length; index++) ...[
           PlanoraAnimatedIn(
             index: index,
-            child: buildProjectCard(context, visibleProjects[index]),
+            child: buildDismissibleProjectCard(context, visibleProjects[index]),
           ),
           if (index != visibleProjects.length - 1) const SizedBox(height: 14),
         ],
       ],
+    );
+  }
+
+  Widget buildDismissibleProjectCard(BuildContext context, ProjectModel project) {
+    final key = projectKey(project);
+    final isDeleting = deletingProjectKey == key;
+
+    return Dismissible(
+      key: ValueKey('project-$key'),
+      direction: isDeleting ? DismissDirection.none : DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        final confirmed = await confirmDeleteProject(project);
+        if (!confirmed) return false;
+        await deleteProjectFromList(project);
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        decoration: BoxDecoration(
+          color: PlanoraTheme.error,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(width: 10),
+            Icon(Icons.delete_outline_rounded, color: Colors.white),
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          buildProjectCard(context, project),
+          if (isDeleting)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: .58),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -782,19 +897,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return PlanoraCard(
       radius: 24,
       padding: const EdgeInsets.all(16),
-      onTap: () async {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => ProjectDetailScreen(
-              project: project,
-              onProjectChanged: loadProjects,
-            ),
-          ),
-        );
+      onTap: deletingProjectKey == projectKey(project)
+          ? null
+          : () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProjectDetailScreen(
+                    project: project,
+                    onProjectChanged: loadProjects,
+                  ),
+                ),
+              );
 
-        if (!mounted) return;
-        loadProjects();
-      },
+              if (!mounted) return;
+              loadProjects();
+            },
       child: Column(
         children: [
           Row(
@@ -910,6 +1027,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ),
               ),
               const SizedBox(width: 10),
+              Icon(
+                Icons.swipe_left_rounded,
+                size: 16,
+                color: mutedColor(context),
+              ),
+              const SizedBox(width: 8),
               buildTypeChip(context, project),
             ],
           ),
