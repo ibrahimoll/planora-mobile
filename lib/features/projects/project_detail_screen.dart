@@ -72,8 +72,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return <String, dynamic>{};
   }
 
-  List<dynamic> _list(dynamic value) =>
-      value is List ? value : const <dynamic>[];
+  List<dynamic> _list(dynamic value) => value is List ? value : const <dynamic>[];
 
   String _text(Map<String, dynamic> map, String key, {String fallback = ''}) {
     final value = map[key];
@@ -88,9 +87,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   String _friendly(Object err, String fallback) {
-    if (err is ApiException && err.message.trim().isNotEmpty) {
-      return err.message;
-    }
+    if (err is ApiException && err.message.trim().isNotEmpty) return err.message;
     return fallback;
   }
 
@@ -112,9 +109,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     try {
       final project = await _projectsApi.getProject(_project);
-      final tasks = await _tasksApi.getProjectTasks(
-        project: TaskProjectSummary.fromProject(project),
-      );
+      final tasks = await _tasksApi.getProjectTasks(project: TaskProjectSummary.fromProject(project));
       final members = await _projectsApi.getProjectMembers(project);
 
       ProjectProgressModel? progress;
@@ -126,30 +121,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       String? reportReason;
       String? reportDate;
 
+      try { progress = await _insightsApi.getProjectProgress(project.projectId); } catch (_) {}
+      try { risk = await _insightsApi.previewRisk(project.projectId); } catch (_) {}
+      try { riskHistory = await _loadRiskHistory(project.projectId); } catch (_) {}
+      try { activity = await _insightsApi.getProjectActivity(projectId: project.projectId, limit: 8); } catch (_) {}
+      try { aiPlans = await _insightsApi.getAiPlanHistory(project); } catch (_) {}
       try {
-        progress = await _insightsApi.getProjectProgress(project.projectId);
-      } catch (_) {}
-      try {
-        risk = await _insightsApi.previewRisk(project.projectId);
-      } catch (_) {}
-      try {
-        riskHistory = await _loadRiskHistory(project.projectId);
-      } catch (_) {}
-      try {
-        activity = await _insightsApi.getProjectActivity(
-          projectId: project.projectId,
-          limit: 8,
-        );
-      } catch (_) {}
-      try {
-        aiPlans = await _insightsApi.getAiPlanHistory(project);
-      } catch (_) {}
-
-      try {
-        final data = await ApiClient.get(
-          '/reports/requests/me',
-          queryParameters: {'project_id': project.projectId},
-        );
+        final data = await ApiClient.get('/reports/requests/me', queryParameters: {'project_id': project.projectId});
         final items = _list(_map(data)['items']);
         if (items.isNotEmpty) {
           final latest = _map(items.first);
@@ -158,16 +136,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           reportDate = _text(latest, 'resolved_at');
         }
       } catch (_) {}
-
       try {
-        final data = await ApiClient.get(
-          '/reports/projects/${project.projectId}/exports',
-          queryParameters: {'limit': 1, 'offset': 0},
-        );
+        final data = await ApiClient.get('/reports/projects/${project.projectId}/exports', queryParameters: {'limit': 1, 'offset': 0});
         final items = _list(_map(data)['items']);
-        if (items.isNotEmpty &&
-            reportStatus != 'pending' &&
-            reportStatus != 'rejected') {
+        if (items.isNotEmpty && reportStatus != 'pending' && reportStatus != 'rejected') {
           reportStatus = 'ready';
           reportDate ??= _text(_map(items.first), 'created_at');
         }
@@ -225,16 +197,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       _scheduleMessage = null;
     });
     try {
-      final schedule = await _insightsApi.previewSmartSchedule(
-        project: _project,
-      );
+      final schedule = await _insightsApi.previewSmartSchedule(project: _project);
       if (!mounted) return;
       setState(() {
         _schedule = schedule;
         _previewingSchedule = false;
-        _scheduleMessage = schedule.tasks.isEmpty
-            ? 'No schedulable tasks found.'
-            : 'Preview ready for ${schedule.schedulableTaskCount} task(s).';
+        _scheduleMessage = schedule.tasks.isEmpty ? 'No schedulable tasks found.' : 'Preview ready for ${schedule.schedulableTaskCount} task(s).';
       });
     } catch (err) {
       if (!mounted) return;
@@ -247,25 +215,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Future<void> _applySchedule() async {
     if (_applyingSchedule || _schedule == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Apply smart schedule?'),
-        content: const Text('This will update task due dates.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
     setState(() => _applyingSchedule = true);
     try {
       await _insightsApi.applySmartSchedule(project: _project);
@@ -288,9 +237,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     if (_requestingReport) return;
     setState(() => _requestingReport = true);
     try {
-      await ApiClient.postJson(
-        '/reports/projects/${_project.projectId}/request',
-      );
+      await ApiClient.postJson('/reports/projects/${_project.projectId}/request');
       if (!mounted) return;
       setState(() {
         _requestingReport = false;
@@ -308,9 +255,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     if (_openingReport) return;
     setState(() => _openingReport = true);
     try {
-      final data = await ApiClient.get(
-        '/reports/projects/${_project.projectId}/latest',
-      );
+      final data = await ApiClient.get('/reports/projects/${_project.projectId}/latest');
       if (!mounted) return;
       setState(() => _openingReport = false);
       _showReportSheet(_map(data));
@@ -324,9 +269,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   double get _completion {
     if (_progress != null) return _progress!.project.completionPercentage;
     if (_tasks.isEmpty) return _project.isCompleted ? 100 : 0;
-    return (_tasks.where((item) => item.task.isCompleted).length /
-            _tasks.length) *
-        100;
+    return (_tasks.where((item) => item.task.isCompleted).length / _tasks.length) * 100;
   }
 
   int get _doneTasks => _tasks.where((item) => item.task.isCompleted).length;
@@ -342,68 +285,36 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-                child: Row(
-                  children: [
-                    IconButton.filledTonal(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_rounded),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Project Details',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _loading ? null : _refresh,
-                      icon: _loading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
-                ),
-              ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-                  child: _message(_error!, true),
-                ),
+              Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 8), child: Row(children: [
+                IconButton.filledTonal(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.arrow_back_rounded)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Project Details', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900))),
+                IconButton(onPressed: _loading ? null : _refresh, icon: const Icon(Icons.refresh_rounded)),
+              ])),
+              if (_loading) Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: LinearProgressIndicator(minHeight: 2, borderRadius: BorderRadius.circular(999))),
+              if (_error != null) Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 8), child: _message(_error!, true)),
               Container(
-                margin: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-                decoration: BoxDecoration(
-                  color: colors.surfaceVariant.withOpacity(.35),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const TabBar(
+                height: 46,
+                margin: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: colors.surfaceVariant.withOpacity(.45), borderRadius: BorderRadius.circular(18)),
+                child: TabBar(
                   isScrollable: true,
                   dividerColor: Colors.transparent,
-                  tabs: [
-                    Tab(text: 'Overview'),
-                    Tab(text: 'Tasks'),
-                    Tab(text: 'AI Tools'),
-                    Tab(text: 'Reports'),
-                  ],
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  labelColor: colors.onPrimary,
+                  unselectedLabelColor: colors.onSurfaceVariant,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                  indicator: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(14)),
+                  tabs: const [Tab(text: 'Overview'), Tab(text: 'Tasks'), Tab(text: 'AI Tools'), Tab(text: 'Reports')],
                 ),
               ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _tab([_projectCard(), _statsGrid(), _membersCard()]),
-                    _tab([_tasksCard()]),
-                    _tab([_riskCard(), _scheduleCard(), _aiHistoryCard()]),
-                    _tab([_reportCard(), _activityCard()]),
-                  ],
-                ),
-              ),
+              Expanded(child: TabBarView(children: [
+                _tab([_projectCard(), _statsGrid(), if (_members.isNotEmpty) _membersCard()]),
+                _tab([_tasksCard()]),
+                _tab([_riskCard(), _scheduleCard(), _aiHistoryCard()]),
+                _tab([_reportCard(), _activityCard()]),
+              ])),
             ],
           ),
         ),
@@ -411,756 +322,103 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget _tab(List<Widget> children) {
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
-        itemBuilder: (_, index) => children[index],
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemCount: children.length,
-      ),
-    );
-  }
+  Widget _tab(List<Widget> children) => RefreshIndicator(onRefresh: _refresh, child: ListView.separated(padding: const EdgeInsets.fromLTRB(18, 6, 18, 28), itemBuilder: (_, i) => children[i], separatorBuilder: (_, __) => const SizedBox(height: 10), itemCount: children.length));
 
   Widget _projectCard() {
     final colors = Theme.of(context).colorScheme;
     final percent = _completion.clamp(0, 100);
-    return _card(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: colors.primary.withOpacity(.12),
-                child: Icon(
-                  _project.isTeamProject
-                      ? Icons.groups_2_rounded
-                      : Icons.folder_rounded,
-                  color: colors.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _project.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(
-                      '${_project.statusLabel} • ${_project.projectTypeLabel} • ${_project.deadlineLabel}',
-                      style: _muted(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if ((_project.description ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(_project.description!.trim(), style: _muted()),
-          ],
-          const SizedBox(height: 14),
-          Text(
-            '${percent.round()}% complete',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(value: percent / 100, minHeight: 8),
-        ],
-      ),
-    );
+    final description = (_project.description ?? '').trim();
+    return _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 44, height: 44, decoration: BoxDecoration(color: colors.primary.withOpacity(.12), borderRadius: BorderRadius.circular(16)), child: Icon(_project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded, color: colors.primary)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_project.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, height: 1.15)), const SizedBox(height: 4), Text('${_project.statusLabel} • ${_project.projectTypeLabel} • ${_project.deadlineLabel}', style: _muted())])),
+      ]),
+      if (description.isNotEmpty) ...[const SizedBox(height: 14), _brief(description)],
+      const SizedBox(height: 14),
+      Row(children: [Text('${percent.round()}% complete', style: _bold()), const Spacer(), Text('${_doneTasks}/${_tasks.length} tasks', style: _muted())]),
+      const SizedBox(height: 8),
+      ClipRRect(borderRadius: BorderRadius.circular(999), child: LinearProgressIndicator(value: percent / 100, minHeight: 8)),
+    ]));
   }
 
-  Widget _statsGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      childAspectRatio: 1.75,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      children: [
-        _stat('Tasks', '${_tasks.length}', Icons.list_alt_rounded),
-        _stat('Completed', '$_doneTasks', Icons.check_circle_rounded),
-        _stat('Overdue', '$_overdueTasks', Icons.timer_off_rounded),
-        _stat('Members', '${_members.length}', Icons.groups_rounded),
-      ],
-    );
+  Widget _brief(String value) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: colors.primary.withOpacity(.05), borderRadius: BorderRadius.circular(16), border: Border.all(color: colors.primary.withOpacity(.10))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Icon(Icons.auto_awesome_rounded, size: 16, color: colors.primary), const SizedBox(width: 6), Text('AI planning brief', style: _bold())]), const SizedBox(height: 8), Text(value.replaceFirst('AI planning brief', '').trim(), style: _muted())]));
   }
+
+  Widget _statsGrid() => GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, childAspectRatio: 2.35, mainAxisSpacing: 10, crossAxisSpacing: 10, children: [_stat('Tasks', '${_tasks.length}', Icons.list_alt_rounded), _stat('Completed', '$_doneTasks', Icons.check_circle_rounded), _stat('Overdue', '$_overdueTasks', Icons.timer_off_rounded), _stat('Members', '${_members.length}', Icons.groups_rounded)]);
 
   Widget _riskCard() {
     final latest = _riskHistory.isNotEmpty ? _riskHistory.first : null;
-    final level =
-        _risk?.riskLevel ??
-        _text(
-          latest ?? const <String, dynamic>{},
-          'risk_level',
-          fallback: 'unknown',
-        );
-    return _section(
-      'Risk Analysis',
-      level == 'unknown' ? 'Not analyzed yet' : '${level.toUpperCase()} risk',
-      Icons.warning_amber_rounded,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_risk == null && latest == null)
-            Text('No risk analysis yet.', style: _muted()),
-          if (latest != null)
-            _banner(
-              'Latest saved • ${_formatDateText(_text(latest, 'created_at'))}',
-              _riskColor(level),
-            ),
-          if (_risk != null) ...[
-            const SizedBox(height: 8),
-            _banner(
-              '${_risk!.predictedDelayDays} predicted delay days • ${_risk!.daysUntilDeadline} days until deadline',
-              _riskColor(level),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _pill('Overdue', '${_risk!.overdueTasks}'),
-                _pill('Blocked', '${_risk!.blockedTasks}'),
-                _pill(
-                  'Remaining',
-                  '${_risk!.remainingEstimatedHours.toStringAsFixed(1)}h',
-                ),
-                _pill('Done', '${_risk!.completedTasks}/${_risk!.totalTasks}'),
-              ],
-            ),
-            if (_risk!.reason.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(_risk!.reason.trim(), style: _muted()),
-              ),
-            if (_risk!.recommendation.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Recommendation: ${_risk!.recommendation.trim()}',
-                  style: _primarySmall(),
-                ),
-              ),
-          ],
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _savingRisk ? null : _saveRiskAnalysis,
-              icon: _savingRisk
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_as_rounded),
-              label: Text(_savingRisk ? 'Saving...' : 'Analyze and save'),
-            ),
-          ),
-        ],
-      ),
-    );
+    final level = _risk?.riskLevel ?? _text(latest ?? const <String, dynamic>{}, 'risk_level', fallback: 'unknown');
+    return _section('Risk Analysis', level == 'unknown' ? 'Not analyzed yet' : '${level.toUpperCase()} risk', Icons.warning_amber_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (_risk == null && latest == null) Text('No risk analysis yet.', style: _muted()),
+      if (latest != null) _banner('Latest saved • ${_formatDateText(_text(latest, 'created_at'))}', _riskColor(level)),
+      if (_risk != null) ...[const SizedBox(height: 8), _banner('${_risk!.predictedDelayDays} predicted delay days • ${_risk!.daysUntilDeadline} days until deadline', _riskColor(level)), const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 8, children: [_pill('Overdue', '${_risk!.overdueTasks}'), _pill('Blocked', '${_risk!.blockedTasks}'), _pill('Remaining', '${_risk!.remainingEstimatedHours.toStringAsFixed(1)}h'), _pill('Done', '${_risk!.completedTasks}/${_risk!.totalTasks}')]), if (_risk!.reason.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_risk!.reason.trim(), style: _muted())), if (_risk!.recommendation.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Recommendation: ${_risk!.recommendation.trim()}', style: _primarySmall()))],
+      const SizedBox(height: 10),
+      SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _savingRisk ? null : _saveRiskAnalysis, icon: _savingRisk ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_as_rounded), label: Text(_savingRisk ? 'Saving...' : 'Analyze and save'))),
+    ]));
   }
 
   Widget _scheduleCard() {
-    final preview = _schedule;
-    return _section(
-      'Smart Schedule',
-      preview == null
-          ? 'Preview better due dates'
-          : '${preview.schedulableTaskCount} schedulable task(s)',
-      Icons.event_available_rounded,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _previewingSchedule ? null : _previewSchedule,
-                  icon: _previewingSchedule
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.auto_awesome_motion_rounded),
-                  label: Text(
-                    _previewingSchedule ? 'Previewing...' : 'Preview',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _applyingSchedule || preview == null
-                      ? null
-                      : _applySchedule,
-                  icon: _applyingSchedule
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.done_all_rounded),
-                  label: Text(_applyingSchedule ? 'Applying...' : 'Apply'),
-                ),
-              ),
-            ],
-          ),
-          if (_scheduleMessage != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text(_scheduleMessage!, style: _muted()),
-            ),
-          if (preview != null) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _pill(
-                  'Capacity',
-                  '${preview.dailyCapacityHours.toStringAsFixed(1)}h/day',
-                ),
-                _pill(
-                  'Tasks',
-                  '${preview.schedulableTaskCount}/${preview.totalTasks}',
-                ),
-                _pill('Done', '${preview.completedTaskCount}'),
-              ],
-            ),
-            const SizedBox(height: 10),
-            for (final item in preview.tasks.take(5))
-              _line(
-                item.title,
-                '${item.priority} • ${item.estimatedHours.toStringAsFixed(1)}h • ${_formatDateTime(item.suggestedDueDate)}',
-                item.isAfterProjectDeadline
-                    ? Icons.warning_amber_rounded
-                    : Icons.event_rounded,
-              ),
-          ] else
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text(
-                'Preview first, then apply the suggested due dates.',
-                style: _muted(),
-              ),
-            ),
-        ],
-      ),
-    );
+    final p = _schedule;
+    return _section('Smart Schedule', p == null ? 'Preview better due dates' : '${p.schedulableTaskCount} schedulable task(s)', Icons.event_available_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Expanded(child: OutlinedButton.icon(onPressed: _previewingSchedule ? null : _previewSchedule, icon: _previewingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome_motion_rounded), label: Text(_previewingSchedule ? 'Previewing...' : 'Preview'))), const SizedBox(width: 10), Expanded(child: ElevatedButton.icon(onPressed: _applyingSchedule || p == null ? null : _applySchedule, icon: _applyingSchedule ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.done_all_rounded), label: Text(_applyingSchedule ? 'Applying...' : 'Apply')))]),
+      if (_scheduleMessage != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(_scheduleMessage!, style: _muted())),
+      if (p != null) ...[const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 8, children: [_pill('Capacity', '${p.dailyCapacityHours.toStringAsFixed(1)}h/day'), _pill('Tasks', '${p.schedulableTaskCount}/${p.totalTasks}'), _pill('Done', '${p.completedTaskCount}')]), const SizedBox(height: 10), for (final item in p.tasks.take(5)) _line(item.title, '${item.priority} • ${item.estimatedHours.toStringAsFixed(1)}h • ${_formatDateTime(item.suggestedDueDate)}', item.isAfterProjectDeadline ? Icons.warning_amber_rounded : Icons.event_rounded)] else Padding(padding: const EdgeInsets.only(top: 10), child: Text('Preview first, then apply the suggested due dates.', style: _muted())),
+    ]));
   }
 
-  Widget _aiHistoryCard() {
-    return _section(
-      'AI Plan History',
-      _aiPlans.isEmpty
-          ? 'No AI plans yet'
-          : '${_aiPlans.length} saved AI plan(s)',
-      Icons.auto_awesome_rounded,
-      _aiPlans.isEmpty
-          ? Text(
-              'Generated AI plans for this project will appear here.',
-              style: _muted(),
-            )
-          : Column(
-              children: [
-                for (final plan in _aiPlans.take(4))
-                  _tapLine(
-                    plan.summary,
-                    '${plan.generatedTaskCount} generated task(s) • ${_formatDateTime(plan.createdAt)}',
-                    Icons.psychology_alt_rounded,
-                    () => _showAiPlan(plan),
-                  ),
-              ],
-            ),
-    );
-  }
-
-  Widget _tasksCard() {
-    return _section(
-      'Project Tasks',
-      'Open or delete project tasks',
-      Icons.task_alt_rounded,
-      _tasks.isEmpty
-          ? Text('No tasks in this project yet.', style: _muted())
-          : Column(children: [for (final item in _tasks) _taskLine(item)]),
-    );
-  }
+  Widget _aiHistoryCard() => _section('AI Plan History', _aiPlans.isEmpty ? 'No AI plans yet' : '${_aiPlans.length} saved AI plan(s)', Icons.auto_awesome_rounded, _aiPlans.isEmpty ? Text('Generated AI plans for this project will appear here.', style: _muted()) : Column(children: [for (final plan in _aiPlans.take(4)) _tapLine(plan.summary, '${plan.generatedTaskCount} generated task(s) • ${_formatDateTime(plan.createdAt)}', Icons.psychology_alt_rounded, () => _showAiPlan(plan))]));
+  Widget _tasksCard() => _section('Project Tasks', 'Open or delete project tasks', Icons.task_alt_rounded, _tasks.isEmpty ? Text('No tasks in this project yet.', style: _muted()) : Column(children: [for (final item in _tasks) _taskLine(item)]));
 
   Widget _reportCard() {
     final ready = _reportStatus == 'ready';
     final pending = _reportStatus == 'pending';
     final rejected = _reportStatus == 'rejected';
-    return _section(
-      'Reports',
-      ready
-          ? 'Ready'
-          : rejected
-          ? 'Rejected'
-          : pending
-          ? 'Pending admin review'
-          : 'No request yet',
-      Icons.description_rounded,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _banner(
-            ready
-                ? 'Report ready. Open it inside Planora.'
-                : rejected
-                ? 'Request rejected. You can request again.'
-                : pending
-                ? 'Waiting for admin review.'
-                : 'Ask admins to prepare a report.',
-            ready
-                ? Colors.green
-                : rejected
-                ? Theme.of(context).colorScheme.error
-                : pending
-                ? Colors.orange
-                : Theme.of(context).colorScheme.primary,
-          ),
-          if (rejected && (_reportReason ?? '').isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Reason: $_reportReason',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          if (ready && _reportDate != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text('Latest report: $_reportDate', style: _muted()),
-            ),
-          const SizedBox(height: 12),
-          if (ready) ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _openingReport ? null : _openReport,
-                icon: const Icon(Icons.visibility_rounded),
-                label: Text(
-                  _openingReport ? 'Opening...' : 'View report in app',
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _requestingReport ? null : _requestReport,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Request updated report'),
-              ),
-            ),
-          ] else
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _requestingReport || pending ? null : _requestReport,
-                icon: Icon(
-                  pending
-                      ? Icons.hourglass_top_rounded
-                      : Icons.mail_outline_rounded,
-                ),
-                label: Text(
-                  _requestingReport
-                      ? 'Sending...'
-                      : pending
-                      ? 'Waiting for admin'
-                      : 'Request report from admin',
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
+    return _section('Reports', ready ? 'Ready' : rejected ? 'Rejected' : pending ? 'Pending admin review' : 'No request yet', Icons.description_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_banner(ready ? 'Report ready. Open it inside Planora.' : rejected ? 'Request rejected. You can request again.' : pending ? 'Waiting for admin review.' : 'Ask admins to prepare a report.', ready ? Colors.green : rejected ? Theme.of(context).colorScheme.error : pending ? Colors.orange : Theme.of(context).colorScheme.primary), if (rejected && (_reportReason ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Reason: $_reportReason', style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.w800))), if (ready && _reportDate != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Latest report: $_reportDate', style: _muted())), const SizedBox(height: 12), if (ready) ...[SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _openingReport ? null : _openReport, icon: const Icon(Icons.visibility_rounded), label: Text(_openingReport ? 'Opening...' : 'View report in app'))), const SizedBox(height: 8), SizedBox(width: double.infinity, child: OutlinedButton.icon(onPressed: _requestingReport ? null : _requestReport, icon: const Icon(Icons.refresh_rounded), label: const Text('Request updated report')))] else SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: _requestingReport || pending ? null : _requestReport, icon: Icon(pending ? Icons.hourglass_top_rounded : Icons.mail_outline_rounded), label: Text(_requestingReport ? 'Sending...' : pending ? 'Waiting for admin' : 'Request report from admin')))]));
   }
 
-  Widget _activityCard() {
-    return _section(
-      'Activity Timeline',
-      _activity.isEmpty
-          ? 'No recent activity'
-          : '${_activity.length} latest event(s)',
-      Icons.timeline_rounded,
-      _activity.isEmpty
-          ? Text('Project activity will appear here.', style: _muted())
-          : Column(
-              children: [
-                for (final item in _activity)
-                  _line(
-                    item.message.trim().isEmpty
-                        ? item.eventType.replaceAll('_', ' ')
-                        : item.message.trim(),
-                    '${item.actorLabel} • ${_formatDateTime(item.createdAt)}',
-                    _activityIcon(item.eventType),
-                  ),
-              ],
-            ),
-    );
-  }
-
-  Widget _membersCard() {
-    return _section(
-      'Members',
-      '${_members.length} connected',
-      Icons.groups_rounded,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_members.isEmpty)
-            Text('No members found.', style: _muted())
-          else
-            for (final member in _members)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    CircleAvatar(child: Text(member.initials)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(member.displayName, style: _bold()),
-                          Text(
-                            member.email ?? member.roleLabel,
-                            style: _muted(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Chip(label: Text(member.roleLabel)),
-                  ],
-                ),
-              ),
-        ],
-      ),
-    );
-  }
+  Widget _activityCard() => _section('Activity Timeline', _activity.isEmpty ? 'No recent activity' : '${_activity.length} latest event(s)', Icons.timeline_rounded, _activity.isEmpty ? Text('Project activity will appear here.', style: _muted()) : Column(children: [for (final item in _activity) _line(item.message.trim().isEmpty ? item.eventType.replaceAll('_', ' ') : item.message.trim(), '${item.actorLabel} • ${_formatDateTime(item.createdAt)}', _activityIcon(item.eventType))]));
+  Widget _membersCard() => _section('Members', '${_members.length} connected', Icons.groups_rounded, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [for (final member in _members) Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [CircleAvatar(child: Text(member.initials)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(member.displayName, style: _bold()), Text(member.email ?? member.roleLabel, style: _muted())])), Chip(label: Text(member.roleLabel))]))]));
 
   Widget _taskLine(TaskListItem item) {
     final task = item.task;
     final deleting = _deletingTaskId == task.taskId;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => TaskDetailScreen(
-                initialTask: item,
-                onTaskChanged: () {
-                  _refresh();
-                  widget.onProjectChanged?.call();
-                },
-              ),
-            ),
-          );
-          await _refresh();
-        },
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withOpacity(.5),
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.circle, size: 10),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: _bold(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}',
-                      style: _muted(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              deleting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton(
-                      onPressed: () => _deleteTask(item),
-                      icon: const Icon(Icons.delete_outline_rounded),
-                    ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return Padding(padding: const EdgeInsets.only(bottom: 10), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: () async { await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TaskDetailScreen(initialTask: item, onTaskChanged: () { _refresh(); widget.onProjectChanged?.call(); }))); await _refresh(); }, child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5))), child: Row(children: [const Icon(Icons.circle, size: 10), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(task.title, style: _bold(), maxLines: 1, overflow: TextOverflow.ellipsis), Text('${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}', style: _muted(), maxLines: 1, overflow: TextOverflow.ellipsis)])), deleting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : IconButton(onPressed: () => _deleteTask(item), icon: const Icon(Icons.delete_outline_rounded))]))));
   }
 
   Future<void> _deleteTask(TaskListItem item) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete task?'),
-        content: Text('Delete "${item.task.title}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete task?'), content: Text('Delete "${item.task.title}"?'), actions: [TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')), FilledButton.tonal(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete'))]));
     if (confirmed != true) return;
     setState(() => _deletingTaskId = item.task.taskId);
-    try {
-      await _tasksApi.deleteTask(
-        project: item.project,
-        taskId: item.task.taskId,
-      );
-      if (!mounted) return;
-      setState(() {
-        _tasks.removeWhere((task) => task.task.taskId == item.task.taskId);
-        _deletingTaskId = null;
-      });
-      widget.onProjectChanged?.call();
-    } catch (err) {
-      if (!mounted) return;
-      setState(() => _deletingTaskId = null);
-      _snack(_friendly(err, 'Could not delete task.'));
-    }
+    try { await _tasksApi.deleteTask(project: item.project, taskId: item.task.taskId); if (!mounted) return; setState(() { _tasks.removeWhere((task) => task.task.taskId == item.task.taskId); _deletingTaskId = null; }); widget.onProjectChanged?.call(); } catch (err) { if (!mounted) return; setState(() => _deletingTaskId = null); _snack(_friendly(err, 'Could not delete task.')); }
   }
 
   Widget _section(String title, String subtitle, IconData icon, Widget child) {
     final colors = Theme.of(context).colorScheme;
-    return _card(
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: colors.primary.withOpacity(.10),
-                child: Icon(icon, color: colors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    Text(subtitle, style: _muted()),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
+    return _card(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: colors.primary.withOpacity(.10), borderRadius: BorderRadius.circular(14)), child: Icon(icon, color: colors.primary, size: 20)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)), Text(subtitle, style: _muted())]))]), const SizedBox(height: 14), child]));
   }
 
   Widget _card(Widget child) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant.withOpacity(.45),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant.withOpacity(.55)),
-      ),
-      child: child,
-    );
+    return Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(24), border: Border.all(color: colors.outlineVariant.withOpacity(.55)), boxShadow: [BoxShadow(color: colors.shadow.withOpacity(.04), blurRadius: 18, offset: const Offset(0, 8))]), child: child);
   }
 
   Widget _stat(String label, String value, IconData icon) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant.withOpacity(.28),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colors.outlineVariant.withOpacity(.45)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: colors.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: _muted(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+    return Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: colors.outlineVariant.withOpacity(.50))), child: Row(children: [Icon(icon, color: colors.primary, size: 21), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, height: 1)), Text(label, style: _muted(), maxLines: 1, overflow: TextOverflow.ellipsis)]))]));
   }
 
-  Widget _banner(String text, Color color) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: color.withOpacity(.08),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: color.withOpacity(.18)),
-    ),
-    child: Text(text, style: _muted()?.copyWith(fontWeight: FontWeight.w800)),
-  );
-  Widget _pill(String label, String value) =>
-      Chip(label: Text('$label: $value'));
-  Widget _line(String title, String subtitle, IconData icon) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 19),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: _bold(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                subtitle,
-                style: _muted(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-  Widget _tapLine(
-    String title,
-    String subtitle,
-    IconData icon,
-    VoidCallback onTap,
-  ) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: _bold(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    subtitle,
-                    style: _muted(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded),
-          ],
-        ),
-      ),
-    ),
-  );
-  Widget _message(String value, bool isError) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color:
-          (isError
-                  ? Theme.of(context).colorScheme.errorContainer
-                  : Theme.of(context).colorScheme.primaryContainer)
-              .withOpacity(.35),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: Text(value),
-  );
-  TextStyle? _muted() => Theme.of(context).textTheme.bodySmall?.copyWith(
-    color: Theme.of(context).colorScheme.onSurfaceVariant,
-    fontWeight: FontWeight.w700,
-    height: 1.35,
-  );
-  TextStyle? _primarySmall() => Theme.of(context).textTheme.bodySmall?.copyWith(
-    color: Theme.of(context).colorScheme.primary,
-    fontWeight: FontWeight.w900,
-    height: 1.35,
-  );
-  TextStyle? _bold() => Theme.of(
-    context,
-  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900);
+  Widget _banner(String text, Color color) => Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: color.withOpacity(.08), borderRadius: BorderRadius.circular(18), border: Border.all(color: color.withOpacity(.18))), child: Text(text, style: _muted()?.copyWith(fontWeight: FontWeight.w800)));
+  Widget _pill(String label, String value) => Chip(label: Text('$label: $value'));
+  Widget _line(String title, String subtitle, IconData icon) => Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(children: [Icon(icon, color: Theme.of(context).colorScheme.primary, size: 19), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: _bold(), maxLines: 1, overflow: TextOverflow.ellipsis), Text(subtitle, style: _muted(), maxLines: 1, overflow: TextOverflow.ellipsis)]))]));
+  Widget _tapLine(String title, String subtitle, IconData icon, VoidCallback onTap) => Padding(padding: const EdgeInsets.only(bottom: 10), child: InkWell(borderRadius: BorderRadius.circular(16), onTap: onTap, child: Padding(padding: const EdgeInsets.all(10), child: Row(children: [Icon(icon, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: _bold(), maxLines: 2, overflow: TextOverflow.ellipsis), Text(subtitle, style: _muted(), maxLines: 1, overflow: TextOverflow.ellipsis)])), const Icon(Icons.chevron_right_rounded)]))));
+  Widget _message(String value, bool isError) => Container(width: double.infinity, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: (isError ? Theme.of(context).colorScheme.errorContainer : Theme.of(context).colorScheme.primaryContainer).withOpacity(.35), borderRadius: BorderRadius.circular(18)), child: Text(value));
+  TextStyle? _muted() => Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w700, height: 1.35);
+  TextStyle? _primarySmall() => Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900, height: 1.35);
+  TextStyle? _bold() => Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900);
 
   Color _riskColor(String level) {
     final value = level.toLowerCase();
@@ -1195,91 +453,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   void _showAiPlan(AiPlanHistoryModel plan) {
     final generatedTasks = plan.generatedPlan['tasks'];
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: .75,
-        builder: (context, controller) => ListView(
-          controller: controller,
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              'AI Plan Details',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 12),
-            Text(plan.summary),
-            const SizedBox(height: 8),
-            Text('Generated ${_formatDateTime(plan.createdAt)}'),
-            if (plan.inputPrompt.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text('Prompt: ${plan.inputPrompt.trim()}'),
-              ),
-            if (generatedTasks is List && generatedTasks.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Generated tasks', style: _bold()),
-              for (final raw in generatedTasks.take(20))
-                _line(
-                  _text(_map(raw), 'title', fallback: 'Untitled task'),
-                  _text(_map(raw), 'description'),
-                  Icons.task_alt_rounded,
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (context) => DraggableScrollableSheet(expand: false, initialChildSize: .75, builder: (context, controller) => ListView(controller: controller, padding: const EdgeInsets.all(20), children: [Text('AI Plan Details', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 12), Text(plan.summary), const SizedBox(height: 8), Text('Generated ${_formatDateTime(plan.createdAt)}'), if (plan.inputPrompt.trim().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('Prompt: ${plan.inputPrompt.trim()}')), if (generatedTasks is List && generatedTasks.isNotEmpty) ...[const SizedBox(height: 16), Text('Generated tasks', style: _bold()), for (final raw in generatedTasks.take(20)) _line(_text(_map(raw), 'title', fallback: 'Untitled task'), _text(_map(raw), 'description'), Icons.task_alt_rounded)]])));
   }
 
   void _showReportSheet(Map<String, dynamic> report) {
     final projectData = _map(report['project']);
     final progressData = _map(report['progress']);
     final title = _text(projectData, 'title', fallback: _project.title);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: .70,
-        builder: (context, controller) => ListView(
-          controller: controller,
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(
-              'Project Report',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 12),
-            Text(title, style: _bold()),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _pill(
-                  'Completion',
-                  '${_num(progressData, "completion_percentage").round()}%',
-                ),
-                _pill(
-                  'Completed',
-                  '${_num(progressData, "completed_tasks").round()}',
-                ),
-                _pill(
-                  'Overdue',
-                  '${_num(progressData, "overdue_tasks").round()}',
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
+    showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (context) => DraggableScrollableSheet(expand: false, initialChildSize: .70, builder: (context, controller) => ListView(controller: controller, padding: const EdgeInsets.all(20), children: [Text('Project Report', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)), const SizedBox(height: 12), Text(title, style: _bold()), const SizedBox(height: 10), Wrap(spacing: 8, runSpacing: 8, children: [_pill('Completion', '${_num(progressData, "completion_percentage").round()}%'), _pill('Completed', '${_num(progressData, "completed_tasks").round()}'), _pill('Overdue', '${_num(progressData, "overdue_tasks").round()}')])])));
   }
 }
