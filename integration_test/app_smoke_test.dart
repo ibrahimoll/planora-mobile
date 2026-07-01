@@ -104,6 +104,7 @@ void main() {
     await tester.tap(find.byKey(const Key('home_tab')));
     await _waitFor(tester, find.byKey(const Key('home_screen')));
     await tester.tap(find.byKey(const Key('home_profile_button')));
+    await tester.pumpAndSettle();
     await _waitFor(tester, find.byKey(const Key('logout_button')));
     await _scrollToAndTap(
       tester,
@@ -173,15 +174,22 @@ Future<void> _scrollToAndTap(
   if (scrollable.evaluate().isNotEmpty) {
     await tester.scrollUntilVisible(
       target,
-      320,
+      240,
       scrollable: scrollable,
-      maxScrolls: 20,
+      maxScrolls: 24,
     );
     await tester.pumpAndSettle();
   }
 
-  await tester.ensureVisible(target);
+  final element = tester.element(target);
+  await Scrollable.ensureVisible(
+    element,
+    alignment: 0.45,
+    duration: const Duration(milliseconds: 300),
+    curve: Curves.easeOutCubic,
+  );
   await tester.pumpAndSettle();
-  await tester.tap(target);
+
+  await tester.tapAt(tester.getCenter(target));
   await tester.pumpAndSettle();
 }
