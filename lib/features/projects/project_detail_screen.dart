@@ -41,6 +41,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   bool loading = true;
   bool requestingReport = false;
   bool openingReport = false;
+  bool analyzingRisk = false;
   bool inviting = false;
   int? removingTaskId;
   String? error;
@@ -51,7 +52,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   List<TaskListItem> tasks = [];
   List<ProjectMemberModel> members = [];
+  List<ProjectActivityModel> activities = [];
   ProjectProgressModel? progress;
+  RiskAnalysisPreviewModel? riskPreview;
 
   @override
   void initState() {
@@ -70,11 +73,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return const <dynamic>[];
   }
 
-  String stringValue(
-    Map<String, dynamic> map,
-    String key, {
-    String fallback = '',
-  }) {
+  String stringValue(Map<String, dynamic> map, String key, {String fallback = ''}) {
     final value = map[key];
     if (value == null) return fallback;
     return value.toString();
@@ -99,17 +98,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         project: TaskProjectSummary.fromProject(loadedProject),
       );
       final loadedMembers = await _projectsApi.getProjectMembers(loadedProject);
+
       ProjectProgressModel? loadedProgress;
+      RiskAnalysisPreviewModel? loadedRisk;
+      List<ProjectActivityModel> loadedActivities = const [];
       String? loadedStatus;
       String? loadedReason;
       String? loadedReportDate;
 
       try {
-        loadedProgress = await _insightsApi.getProjectProgress(
-          loadedProject.projectId,
-        );
-      } catch (_) {
-        loadedProgress = null;
+        loadedProgress = await _insightsApi.getProjectProgress(loadedProject.projectId);
+      } catch (err) {
+        debugPrint('Project progress load failed: $err');
+      }
+
+      try {
+        loadedRisk = await _insightsApi.previewRisk(loadedProject.projectId);
+      } catch (err) {
+        debugPrint('Risk preview load failed: $err');
+      }
+
+      try {
+        loadedActivities = await _insightsApi.getProjectActivity(projectId: loadedProject.projectId, limit: 8);
+      } catch (err) {
+        debugPrint('Activity timeline load failed: $err');
       }
 
       try {
@@ -134,9 +146,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           queryParameters: {'limit': 1, 'offset': 0},
         );
         final items = asList(asMap(exportsData)['items']);
-        if (items.isNotEmpty &&
-            loadedStatus != 'pending' &&
-            loadedStatus != 'rejected') {
+        if (items.isNotEmpty && loadedStatus != 'pending' && loadedStatus != 'rejected') {
           loadedStatus = 'ready';
           loadedReportDate ??= stringValue(asMap(items.first), 'created_at');
         }
@@ -150,6 +160,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         tasks = loadedTasks;
         members = loadedMembers;
         progress = loadedProgress;
+        riskPreview = loadedRisk;
+        activities = loadedActivities;
         reportStatus = loadedStatus;
         reportReason = loadedReason;
         latestReportDate = loadedReportDate;
@@ -166,6 +178,28 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
+  Future<void> analyzeRisk() async {
+    if (analyzingRisk) return;
+
+    setState(() => analyzingRisk = true);
+
+    try {
+      final loadedRisk = await _insightsApi.previewRisk(project.projectId);
+      if (!mounted) return;
+      setState(() {
+        riskPreview = loadedRisk;
+        analyzingRisk = false;
+      });
+      showMessage('Risk preview updated.');
+    } catch (err, stackTrace) {
+      debugPrint('Risk analysis failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => analyzingRisk = false);
+      showMessage(friendlyError(err, 'Could not analyze risk.'));
+    }
+  }
+
   Future<void> requestReport() async {
     if (requestingReport) return;
 
@@ -175,9 +209,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     });
 
     try {
-      await ApiClient.postJson(
-        '/reports/projects/${project.projectId}/request',
-      );
+      await ApiClient.postJson('/reports/projects/${project.projectId}/request');
       if (!mounted) return;
       setState(() {
         requestingReport = false;
@@ -192,10 +224,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       if (!mounted) return;
       setState(() {
         requestingReport = false;
-        reportMessage = friendlyError(
-          err,
-          'Could not send the report request.',
-        );
+        reportMessage = friendlyError(err, 'Could not send the report request.');
       });
     }
   }
@@ -206,9 +235,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     setState(() => openingReport = true);
 
     try {
-      final data = await ApiClient.get(
-        '/reports/projects/${project.projectId}/latest',
-      );
+      final data = await ApiClient.get('/reports/projects/${project.projectId}/latest');
       if (!mounted) return;
       setState(() => openingReport = false);
       showReportSheet(asMap(data));
@@ -263,10 +290,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         title: const Text('Delete task?'),
         content: Text('Delete "${item.task.title}" from this project?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton.tonalIcon(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             icon: const Icon(Icons.delete_outline_rounded),
@@ -281,15 +305,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     setState(() => removingTaskId = item.task.taskId);
 
     try {
-      await _tasksApi.deleteTask(
-        project: item.project,
-        taskId: item.task.taskId,
-      );
+      await _tasksApi.deleteTask(project: item.project, taskId: item.task.taskId);
       if (!mounted) return;
       setState(() {
-        tasks.removeWhere(
-          (taskItem) => taskItem.task.taskId == item.task.taskId,
-        );
+        tasks.removeWhere((taskItem) => taskItem.task.taskId == item.task.taskId);
         removingTaskId = null;
       });
       showMessage('Task deleted.');
@@ -304,17 +323,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   String friendlyError(Object err, String fallback) {
-    if (err is ApiException && err.message.trim().isNotEmpty) {
-      return err.message;
-    }
+    if (err is ApiException && err.message.trim().isNotEmpty) return err.message;
     return fallback;
   }
 
   void showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   double get completionPercent {
@@ -352,6 +367,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               const SizedBox(height: 12),
               buildStatsGrid(context),
               const SizedBox(height: 12),
+              buildRiskCard(context),
+              const SizedBox(height: 12),
+              buildActivityCard(context),
+              const SizedBox(height: 12),
               buildReportCard(context),
               const SizedBox(height: 12),
               buildTasksCard(context),
@@ -375,19 +394,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         Expanded(
           child: Text(
             'Project Details',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         IconButton(
           onPressed: loading ? null : refresh,
           icon: loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.refresh_rounded),
         ),
       ],
@@ -413,9 +426,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(
-                  project.isTeamProject
-                      ? Icons.groups_2_rounded
-                      : Icons.folder_rounded,
+                  project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded,
                   color: colors.primary,
                 ),
               ),
@@ -426,17 +437,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   children: [
                     Text(
                       project.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${project.statusLabel} • ${project.projectTypeLabel} • ${project.deadlineLabel}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -448,18 +457,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               project.description!.trim(),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ],
           const SizedBox(height: 16),
           Text(
             '${percent.round()}% complete',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(value: percent / 100, minHeight: 8),
@@ -477,29 +484,162 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       children: [
-        buildStatTile(
-          context,
-          'Tasks',
-          '${tasks.length}',
-          Icons.list_alt_rounded,
+        buildStatTile(context, 'Tasks', '${tasks.length}', Icons.list_alt_rounded),
+        buildStatTile(context, 'Completed', '$doneTasks', Icons.check_circle_rounded),
+        buildStatTile(context, 'Overdue', '$overdueTasks', Icons.timer_off_rounded),
+        buildStatTile(context, 'Members', '${members.length}', Icons.groups_rounded),
+      ],
+    );
+  }
+
+  Widget buildRiskCard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final risk = riskPreview;
+    final riskColor = colorForRisk(context, risk?.riskLevel ?? 'unknown');
+    final levelLabel = risk == null ? 'Not analyzed yet' : '${risk.riskLevel.toUpperCase()} risk';
+
+    return buildSection(
+      context,
+      title: 'Risk Preview',
+      subtitle: levelLabel,
+      icon: Icons.warning_amber_rounded,
+      trailing: TextButton.icon(
+        onPressed: analyzingRisk ? null : analyzeRisk,
+        icon: analyzingRisk
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.auto_graph_rounded, size: 18),
+        label: Text(analyzingRisk ? 'Analyzing' : 'Analyze'),
+      ),
+      child: risk == null
+          ? buildEmpty(context, 'No risk preview available yet. Tap Analyze to check this project.')
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: riskColor.withOpacity(.09),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: riskColor.withOpacity(.22)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.shield_rounded, color: riskColor),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${risk.predictedDelayDays} predicted delay days • ${risk.daysUntilDeadline} days until deadline',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    buildMiniPill(context, 'Overdue', '${risk.overdueTasks}'),
+                    buildMiniPill(context, 'Blocked', '${risk.blockedTasks}'),
+                    buildMiniPill(context, 'Remaining', '${risk.remainingEstimatedHours.toStringAsFixed(1)}h'),
+                    buildMiniPill(context, 'Done', '${risk.completedTasks}/${risk.totalTasks}'),
+                  ],
+                ),
+                if (risk.reason.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    risk.reason.trim(),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                          height: 1.45,
+                        ),
+                  ),
+                ],
+                if (risk.recommendation.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Recommendation: ${risk.recommendation.trim()}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w900,
+                          height: 1.45,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget buildActivityCard(BuildContext context) {
+    return buildSection(
+      context,
+      title: 'Activity Timeline',
+      subtitle: activities.isEmpty ? 'No recent project activity' : '${activities.length} latest events',
+      icon: Icons.timeline_rounded,
+      child: activities.isEmpty
+          ? buildEmpty(context, 'Project activity will appear here when tasks, comments, attachments, or reports change.')
+          : Column(
+              children: [
+                for (var index = 0; index < activities.length; index++)
+                  buildActivityRow(context, activities[index], isLast: index == activities.length - 1),
+              ],
+            ),
+    );
+  }
+
+  Widget buildActivityRow(BuildContext context, ProjectActivityModel item, {required bool isLast}) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: colors.primary.withOpacity(.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(iconForActivity(item.eventType), color: colors.primary, size: 17),
+            ),
+            if (!isLast)
+              Container(
+                width: 2,
+                height: 38,
+                color: colors.outlineVariant.withOpacity(.55),
+              ),
+          ],
         ),
-        buildStatTile(
-          context,
-          'Completed',
-          '$doneTasks',
-          Icons.check_circle_rounded,
-        ),
-        buildStatTile(
-          context,
-          'Overdue',
-          '$overdueTasks',
-          Icons.timer_off_rounded,
-        ),
-        buildStatTile(
-          context,
-          'Members',
-          '${members.length}',
-          Icons.groups_rounded,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.message.trim().isEmpty ? item.eventType.replaceAll('_', ' ') : item.message.trim(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${item.actorLabel} • ${formatDateTime(item.createdAt)}',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -510,17 +650,17 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final tone = isReportReady
         ? Colors.green
         : isReportRejected
-        ? colors.error
-        : isReportPending
-        ? Colors.orange
-        : colors.primary;
+            ? colors.error
+            : isReportPending
+                ? Colors.orange
+                : colors.primary;
     final statusLabel = isReportReady
         ? 'Ready'
         : isReportRejected
-        ? 'Rejected'
-        : isReportPending
-        ? 'Pending admin review'
-        : 'No request yet';
+            ? 'Rejected'
+            : isReportPending
+                ? 'Pending admin review'
+                : 'No request yet';
 
     return buildSection(
       context,
@@ -545,10 +685,10 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   isReportReady
                       ? Icons.verified_rounded
                       : isReportRejected
-                      ? Icons.cancel_rounded
-                      : isReportPending
-                      ? Icons.hourglass_top_rounded
-                      : Icons.admin_panel_settings_rounded,
+                          ? Icons.cancel_rounded
+                          : isReportPending
+                              ? Icons.hourglass_top_rounded
+                              : Icons.admin_panel_settings_rounded,
                   color: tone,
                 ),
                 const SizedBox(width: 10),
@@ -557,15 +697,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     isReportReady
                         ? 'Your admin prepared this report. The email only notifies you; the report details stay inside Planora.'
                         : isReportRejected
-                        ? 'The admin rejected this report request. You can request again when needed.'
-                        : isReportPending
-                        ? 'Your report request is waiting for admin review.'
-                        : 'Ask admins to prepare or approve a report. You can track the status here.',
+                            ? 'The admin rejected this report request. You can request again when needed.'
+                            : isReportPending
+                                ? 'Your report request is waiting for admin review.'
+                                : 'Ask admins to prepare or approve a report. You can track the status here.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      height: 1.45,
-                      fontWeight: FontWeight.w700,
-                    ),
+                          color: colors.onSurfaceVariant,
+                          height: 1.45,
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                 ),
               ],
@@ -575,10 +715,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             const SizedBox(height: 10),
             Text(
               'Reason: $reportReason',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.error,
-                fontWeight: FontWeight.w800,
-              ),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.error, fontWeight: FontWeight.w800),
             ),
           ],
           if (isReportReady && latestReportDate != null) ...[
@@ -586,9 +723,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               'Latest report: $latestReportDate',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
           ],
           const SizedBox(height: 12),
@@ -598,15 +735,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               child: ElevatedButton.icon(
                 onPressed: openingReport ? null : openLatestReport,
                 icon: openingReport
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.visibility_rounded),
-                label: Text(
-                  openingReport ? 'Opening report...' : 'View report in app',
-                ),
+                label: Text(openingReport ? 'Opening report...' : 'View report in app'),
               ),
             ),
             const SizedBox(height: 10),
@@ -622,26 +753,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: requestingReport || isReportPending
-                    ? null
-                    : requestReport,
+                onPressed: requestingReport || isReportPending ? null : requestReport,
                 icon: requestingReport
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        isReportPending
-                            ? Icons.hourglass_top_rounded
-                            : Icons.mail_outline_rounded,
-                      ),
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(isReportPending ? Icons.hourglass_top_rounded : Icons.mail_outline_rounded),
                 label: Text(
                   requestingReport
                       ? 'Sending request...'
                       : isReportPending
-                      ? 'Waiting for admin'
-                      : 'Request report from admin',
+                          ? 'Waiting for admin'
+                          : 'Request report from admin',
                 ),
               ),
             ),
@@ -650,9 +771,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
             Text(
               reportMessage!,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceVariant,
-                fontWeight: FontWeight.w800,
-              ),
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
           ],
         ],
@@ -668,11 +789,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       icon: Icons.task_alt_rounded,
       child: tasks.isEmpty
           ? buildEmpty(context, 'No tasks in this project yet.')
-          : Column(
-              children: [
-                for (final item in tasks.take(8)) buildTaskRow(context, item),
-              ],
-            ),
+          : Column(children: [for (final item in tasks.take(8)) buildTaskRow(context, item)]),
     );
   }
 
@@ -685,21 +802,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       trailing: TextButton.icon(
         onPressed: inviting ? null : showInviteSheet,
         icon: inviting
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.person_add_alt_1_rounded, size: 18),
         label: Text(inviting ? 'Inviting' : 'Invite'),
       ),
       child: members.isEmpty
           ? buildEmpty(context, 'No members found.')
-          : Column(
-              children: [
-                for (final member in members) buildMemberRow(context, member),
-              ],
-            ),
+          : Column(children: [for (final member in members) buildMemberRow(context, member)]),
     );
   }
 
@@ -729,11 +838,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withOpacity(.5),
-            ),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(.5)),
           ),
           child: Row(
             children: [
@@ -747,28 +852,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       task.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     Text(
                       '${task.status.label} • ${task.priority.label} • ${task.dueDateLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
               ),
               deleting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : IconButton(
                       tooltip: 'Delete task',
                       onPressed: () => removeTask(item),
@@ -794,16 +893,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               children: [
                 Text(
                   member.displayName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
                   member.email ?? member.roleLabel,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -848,22 +945,20 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            color: colors.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ],
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing,
             ],
           ),
           const SizedBox(height: 14),
@@ -887,12 +982,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildStatTile(
-    BuildContext context,
-    String label,
-    String value,
-    IconData icon,
-  ) {
+  Widget buildStatTile(BuildContext context, String label, String value, IconData icon) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(13),
@@ -910,20 +1000,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -933,18 +1018,28 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     );
   }
 
-  Widget buildMessage(
-    BuildContext context,
-    String message, {
-    required bool isError,
-  }) {
+  Widget buildMiniPill(BuildContext context, String label, String value) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surface.withOpacity(.55),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.outlineVariant.withOpacity(.55)),
+      ),
+      child: Text(
+        '$label: $value',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+
+  Widget buildMessage(BuildContext context, String message, {required bool isError}) {
     final colors = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isError
-            ? colors.errorContainer.withOpacity(.35)
-            : colors.primaryContainer.withOpacity(.35),
+        color: isError ? colors.errorContainer.withOpacity(.35) : colors.primaryContainer.withOpacity(.35),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Text(message),
@@ -955,10 +1050,36 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return Text(
       message,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.w700,
-      ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+          ),
     );
+  }
+
+  Color colorForRisk(BuildContext context, String riskLevel) {
+    final level = riskLevel.toLowerCase();
+    if (level.contains('high') || level.contains('critical')) return Theme.of(context).colorScheme.error;
+    if (level.contains('medium')) return Colors.orange;
+    if (level.contains('low')) return Colors.green;
+    return Theme.of(context).colorScheme.primary;
+  }
+
+  IconData iconForActivity(String eventType) {
+    final value = eventType.toLowerCase();
+    if (value.contains('task')) return Icons.task_alt_rounded;
+    if (value.contains('comment')) return Icons.chat_bubble_outline_rounded;
+    if (value.contains('attachment')) return Icons.attach_file_rounded;
+    if (value.contains('report')) return Icons.description_rounded;
+    if (value.contains('member') || value.contains('invite')) return Icons.group_add_rounded;
+    return Icons.bolt_rounded;
+  }
+
+  String formatDateTime(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$day/$month $hour:$minute';
   }
 
   Widget buildReportInfoPill(BuildContext context, String label, String value) {
@@ -975,18 +1096,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-              fontWeight: FontWeight.w800,
-            ),
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           const SizedBox(height: 5),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -1000,11 +1119,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final activityData = asMap(report['activity']);
     final tasksData = asList(report['tasks']);
     final title = stringValue(projectData, 'title', fallback: project.title);
-    final status = stringValue(
-      projectData,
-      'status',
-      fallback: project.statusLabel,
-    ).replaceAll('_', ' ');
+    final status = stringValue(projectData, 'status', fallback: project.statusLabel).replaceAll('_', ' ');
 
     showModalBottomSheet<void>(
       context: context,
@@ -1026,9 +1141,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     Expanded(
                       child: Text(
                         'Project Report',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                       ),
                     ),
                     IconButton(
@@ -1043,21 +1156,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
+                      Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(
-                            child: buildReportInfoPill(
-                              context,
-                              'Status',
-                              status,
-                            ),
-                          ),
+                          Expanded(child: buildReportInfoPill(context, 'Status', status)),
                           const SizedBox(width: 10),
                           Expanded(
                             child: buildReportInfoPill(
@@ -1086,33 +1189,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: buildReportInfoPill(
-                              context,
-                              'Overdue',
-                              '${numValue(progressData, "overdue_tasks").round()}',
-                            ),
-                          ),
+                          Expanded(child: buildReportInfoPill(context, 'Overdue', '${numValue(progressData, "overdue_tasks").round()}')),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(
-                            child: buildReportInfoPill(
-                              context,
-                              'Estimated',
-                              '${numValue(hoursData, "estimated_hours_total").toStringAsFixed(1)}h',
-                            ),
-                          ),
+                          Expanded(child: buildReportInfoPill(context, 'Estimated', '${numValue(hoursData, "estimated_hours_total").toStringAsFixed(1)}h')),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: buildReportInfoPill(
-                              context,
-                              'Actual',
-                              '${numValue(hoursData, "actual_hours_total").toStringAsFixed(1)}h',
-                            ),
-                          ),
+                          Expanded(child: buildReportInfoPill(context, 'Actual', '${numValue(hoursData, "actual_hours_total").toStringAsFixed(1)}h')),
                         ],
                       ),
                     ],
@@ -1124,22 +1209,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Activity',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                      Text('Activity', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                       const SizedBox(height: 10),
-                      Text(
-                        'Comments: ${numValue(activityData, "comments_count").round()}',
-                      ),
-                      Text(
-                        'Attachments: ${numValue(activityData, "attachments_count").round()}',
-                      ),
-                      Text(
-                        'Deadline reminders: ${numValue(activityData, "deadline_reminders_count").round()}',
-                      ),
+                      Text('Comments: ${numValue(activityData, "comments_count").round()}'),
+                      Text('Attachments: ${numValue(activityData, "attachments_count").round()}'),
+                      Text('Deadline reminders: ${numValue(activityData, "deadline_reminders_count").round()}'),
                     ],
                   ),
                 ),
@@ -1149,18 +1223,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Tasks',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                      Text('Tasks', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                       const SizedBox(height: 10),
                       if (tasksData.isEmpty)
                         buildEmpty(context, 'No tasks included.')
                       else
-                        for (final rawTask in tasksData.take(20))
-                          buildReportTaskRow(context, asMap(rawTask)),
+                        for (final rawTask in tasksData.take(20)) buildReportTaskRow(context, asMap(rawTask)),
                     ],
                   ),
                 ),
@@ -1187,16 +1255,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   stringValue(task, 'title', fallback: 'Untitled task'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
                   '${stringValue(task, "status").replaceAll("_", " ")} • ${stringValue(task, "priority")}',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ],
             ),
@@ -1227,38 +1293,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      project.isTeamProject
-                          ? 'Invite member'
-                          : 'Invite collaborator',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      project.isTeamProject ? 'Invite member' : 'Invite collaborator',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: controller,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email or username',
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Email or username', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: role,
-                      decoration: const InputDecoration(
-                        labelText: 'Role',
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: const InputDecoration(labelText: 'Role', border: OutlineInputBorder()),
                       items: const [
-                        DropdownMenuItem(
-                          value: 'member',
-                          child: Text('Member'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'manager',
-                          child: Text('Manager'),
-                        ),
+                        DropdownMenuItem(value: 'member', child: Text('Member')),
+                        DropdownMenuItem(value: 'manager', child: Text('Manager')),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
