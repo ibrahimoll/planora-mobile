@@ -465,7 +465,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   : Icon(
                       reportRequested
                           ? Icons.check_rounded
-                          : Icons.outgoing_mail,
+                          : Icons.mail_outline_rounded,
                     ),
               label: Text(
                 requestingReport
@@ -561,9 +561,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withOpacity(.5),
+              color: Theme.of(context).colorScheme.outlineVariant.withOpacity(
+                .5,
+              ),
             ),
           ),
           child: Row(
@@ -625,9 +625,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               children: [
                 Text(
                   member.displayName,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 Text(
                   member.email ?? member.roleLabel,
@@ -694,7 +694,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   ],
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing,
             ],
           ),
           const SizedBox(height: 14),
@@ -837,14 +837,8 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem(
-                          value: 'member',
-                          child: Text('Member'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'manager',
-                          child: Text('Manager'),
-                        ),
+                        DropdownMenuItem(value: 'member', child: Text('Member')),
+                        DropdownMenuItem(value: 'manager', child: Text('Manager')),
                         DropdownMenuItem(value: 'admin', child: Text('Admin')),
                       ],
                       onChanged: (value) {
