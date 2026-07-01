@@ -88,8 +88,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   String _friendly(Object err, String fallback) {
-    if (err is ApiException && err.message.trim().isNotEmpty)
+    if (err is ApiException && err.message.trim().isNotEmpty) {
       return err.message;
+    }
     return fallback;
   }
 
