@@ -58,7 +58,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       final loadedTasks = await widget.tasksApi.getProjectTasks(
         project: TaskProjectSummary.fromProject(loadedProject),
       );
-      final loadedMembers = await widget.projectsApi.getProjectMembers(loadedProject);
+      final loadedMembers = await widget.projectsApi.getProjectMembers(
+        loadedProject,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -142,10 +144,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    page([overviewCard(), statsGrid(), if (members.isNotEmpty) membersCard()]),
+                    page([
+                      overviewCard(),
+                      statsGrid(),
+                      if (members.isNotEmpty) membersCard(),
+                    ]),
                     page([tasksCard()]),
-                    page([placeholderCard('AI Tools', 'Risk analysis, smart schedule, and AI plan history will stay here.')]),
-                    page([placeholderCard('Reports', 'Reports and activity timeline will stay here.')]),
+                    page([
+                      placeholderCard(
+                        'AI Tools',
+                        'Risk analysis, smart schedule, and AI plan history will stay here.',
+                      ),
+                    ]),
+                    page([
+                      placeholderCard(
+                        'Reports',
+                        'Reports and activity timeline will stay here.',
+                      ),
+                    ]),
                   ],
                 ),
               ),
@@ -169,7 +185,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           Expanded(
             child: Text(
               'Project Details',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
           IconButton(
@@ -198,8 +216,14 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         labelColor: colors.onPrimary,
         unselectedLabelColor: colors.onSurfaceVariant,
         labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-        indicator: BoxDecoration(color: colors.primary, borderRadius: BorderRadius.circular(14)),
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 13,
+        ),
+        indicator: BoxDecoration(
+          color: colors.primary,
+          borderRadius: BorderRadius.circular(14),
+        ),
         tabs: const [
           Tab(text: 'Overview'),
           Tab(text: 'Tasks'),
@@ -216,7 +240,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(pageX, 4, pageX, 24),
         itemBuilder: (_, index) => children[index],
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemCount: children.length,
       ),
     );
@@ -225,7 +249,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   Widget overviewCard() {
     final colors = Theme.of(context).colorScheme;
     final progress = completionPercent.clamp(0, 100).toDouble();
-    final description = (project.description ?? '').replaceFirst('AI planning brief', '').trim();
+    final description = (project.description ?? '')
+        .replaceFirst('AI planning brief', '')
+        .trim();
 
     return card(
       Column(
@@ -242,7 +268,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
-                  project.isTeamProject ? Icons.groups_2_rounded : Icons.folder_rounded,
+                  project.isTeamProject
+                      ? Icons.groups_2_rounded
+                      : Icons.folder_rounded,
                   color: colors.primary,
                 ),
               ),
@@ -253,7 +281,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                   children: [
                     Text(
                       project.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -306,10 +336,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   Widget tasksCard() {
     final visible = visibleTasks;
-    final todo = visible.where((item) => item.task.status == TaskStatus.todo).toList();
-    final inProgress = visible.where((item) => item.task.status == TaskStatus.inProgress).toList();
-    final blocked = visible.where((item) => item.task.status == TaskStatus.blocked).toList();
-    final completed = visible.where((item) => item.task.status == TaskStatus.completed).toList();
+    final todo = visible
+        .where((item) => item.task.status == TaskStatus.todo)
+        .toList();
+    final inProgress = visible
+        .where((item) => item.task.status == TaskStatus.inProgress)
+        .toList();
+    final blocked = visible
+        .where((item) => item.task.status == TaskStatus.blocked)
+        .toList();
+    final completed = visible
+        .where((item) => item.task.status == TaskStatus.completed)
+        .toList();
 
     return sectionCard(
       'Project Tasks',
@@ -323,14 +361,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           taskFilters(),
           const SizedBox(height: 14),
           if (tasks.isEmpty)
-            emptyState('No tasks in this project yet.', 'Generate a plan or add tasks from the main Tasks screen.')
+            emptyState(
+              'No tasks in this project yet.',
+              'Generate a plan or add tasks from the main Tasks screen.',
+            )
           else if (visible.isEmpty)
-            emptyState('No tasks match this filter.', 'Try another filter above.')
+            emptyState(
+              'No tasks match this filter.',
+              'Try another filter above.',
+            )
           else ...[
-            if (todo.isNotEmpty) taskGroup('To Do', todo, Icons.radio_button_unchecked_rounded),
-            if (inProgress.isNotEmpty) taskGroup('In Progress', inProgress, Icons.timelapse_rounded),
-            if (blocked.isNotEmpty) taskGroup('Blocked', blocked, Icons.block_rounded),
-            if (completed.isNotEmpty) taskGroup('Completed', completed, Icons.check_circle_rounded),
+            if (todo.isNotEmpty)
+              taskGroup('To Do', todo, Icons.radio_button_unchecked_rounded),
+            if (inProgress.isNotEmpty)
+              taskGroup('In Progress', inProgress, Icons.timelapse_rounded),
+            if (blocked.isNotEmpty)
+              taskGroup('Blocked', blocked, Icons.block_rounded),
+            if (completed.isNotEmpty)
+              taskGroup('Completed', completed, Icons.check_circle_rounded),
           ],
         ],
       ),
@@ -365,7 +413,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               backgroundColor: colors.surfaceVariant.withOpacity(.45),
               labelStyle: TextStyle(
                 fontWeight: FontWeight.w900,
-                color: taskFilter == index ? colors.onPrimary : colors.onSurfaceVariant,
+                color: taskFilter == index
+                    ? colors.onPrimary
+                    : colors.onSurfaceVariant,
               ),
               onSelected: (_) => setState(() => taskFilter = index),
             ),
@@ -384,9 +434,18 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 6),
-              Text(title, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
               const SizedBox(width: 6),
               Text('${items.length}', style: muted()),
             ],
@@ -405,7 +464,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final deleting = deletingTaskId == task.taskId;
     final double? progress = task.subtaskCount == 0
         ? null
-        : (task.completedSubtaskCount / task.subtaskCount).clamp(0.0, 1.0).toDouble();
+        : (task.completedSubtaskCount / task.subtaskCount)
+              .clamp(0.0, 1.0)
+              .toDouble();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -428,12 +489,16 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(.20),
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceVariant.withOpacity(.20),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: task.isOverdue
                   ? Theme.of(context).colorScheme.error.withOpacity(.30)
-                  : Theme.of(context).colorScheme.outlineVariant.withOpacity(.45),
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outlineVariant.withOpacity(.45),
             ),
           ),
           child: Column(
@@ -446,14 +511,22 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     width: 10,
                     height: 10,
                     margin: const EdgeInsets.only(top: 5),
-                    decoration: BoxDecoration(color: status, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: status,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(task.title, style: bold(), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        Text(
+                          task.title,
+                          style: bold(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 4),
                         Wrap(
                           spacing: 6,
@@ -498,7 +571,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(value: progress, minHeight: 5, color: status),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 5,
+                    color: status,
+                  ),
                 ),
               ],
             ],
@@ -530,19 +607,24 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     setState(() => deletingTaskId = item.task.taskId);
     try {
-      await widget.tasksApi.deleteTask(project: item.project, taskId: item.task.taskId);
+      await widget.tasksApi.deleteTask(
+        project: item.project,
+        taskId: item.task.taskId,
+      );
       if (!mounted) return;
       setState(() {
-        tasks.removeWhere((taskItem) => taskItem.task.taskId == item.task.taskId);
+        tasks.removeWhere(
+          (taskItem) => taskItem.task.taskId == item.task.taskId,
+        );
         deletingTaskId = null;
       });
       widget.onProjectChanged?.call();
     } catch (_) {
       if (!mounted) return;
       setState(() => deletingTaskId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not delete task.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not delete task.')));
     }
   }
 
@@ -580,10 +662,20 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   }
 
   Widget placeholderCard(String title, String subtitle) {
-    return sectionCard(title, subtitle, Icons.auto_awesome_rounded, Text(subtitle, style: muted()));
+    return sectionCard(
+      title,
+      subtitle,
+      Icons.auto_awesome_rounded,
+      Text(subtitle, style: muted()),
+    );
   }
 
-  Widget sectionCard(String title, String subtitle, IconData icon, Widget child) {
+  Widget sectionCard(
+    String title,
+    String subtitle,
+    IconData icon,
+    Widget child,
+  ) {
     final colors = Theme.of(context).colorScheme;
     return card(
       Column(
@@ -605,7 +697,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     Text(subtitle, style: muted()),
                   ],
                 ),
@@ -628,7 +725,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         color: colors.surface,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: colors.outlineVariant.withOpacity(.55)),
-        boxShadow: [BoxShadow(color: colors.shadow.withOpacity(.04), blurRadius: 18, offset: const Offset(0, 8))],
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withOpacity(.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: child,
     );
@@ -652,8 +755,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(value, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, height: 1)),
-                Text(label, style: muted(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: muted(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -674,8 +788,19 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, height: 1)),
-          Text(label, style: muted(), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
+          ),
+          Text(
+            label,
+            style: muted(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
@@ -689,7 +814,13 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withOpacity(.18)),
       ),
-      child: Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w900)),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 
@@ -726,13 +857,15 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
   TextStyle? muted() {
     return Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w700,
-          height: 1.35,
-        );
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w700,
+      height: 1.35,
+    );
   }
 
-  TextStyle? bold() => Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900);
+  TextStyle? bold() => Theme.of(
+    context,
+  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w900);
 
   Color statusColor(TaskStatus status) {
     switch (status) {
