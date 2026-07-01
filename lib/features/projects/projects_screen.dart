@@ -5,6 +5,8 @@ import '../../core/theme/planora_theme.dart';
 import '../../core/ui/planora_ui.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
+import '../tasks/data/tasks_api.dart';
+import '../tasks/models/task_models.dart';
 import 'ai_project_wizard_screen.dart';
 import 'project_detail_screen.dart';
 
@@ -32,6 +34,7 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final ProjectsApi _projectsApi = const ProjectsApi();
+  final TasksApi _tasksApi = const TasksApi();
   final TextEditingController searchController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -44,7 +47,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   bool isSearchVisible = false;
   bool isCreatingProject = false;
   String? errorMessage;
+  String? taskSummaryWarning;
   List<ProjectModel> projects = [];
+  Map<String, List<TaskListItem>> projectTasks = {};
 
   @override
   void initState() {
@@ -92,13 +97,40 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     setState(() {
       isLoading = true;
       errorMessage = null;
+      taskSummaryWarning = null;
     });
 
     try {
       final loadedProjects = await _projectsApi.getProjects();
+      final loadedProjectTasks = <String, List<TaskListItem>>{};
+      var hadTaskLoadError = false;
+
+      await Future.wait(
+        loadedProjects.map((project) async {
+          final key = projectKey(project);
+
+          try {
+            loadedProjectTasks[key] = await _tasksApi.getProjectTasks(
+              project: TaskProjectSummary.fromProject(project),
+            );
+          } catch (error, stackTrace) {
+            hadTaskLoadError = true;
+            loadedProjectTasks[key] = const <TaskListItem>[];
+            debugPrint(
+              'Project task summary load failed for ${project.projectId}: $error',
+            );
+            debugPrintStack(stackTrace: stackTrace);
+          }
+        }),
+      );
+
       if (!mounted) return;
       setState(() {
         projects = loadedProjects;
+        projectTasks = loadedProjectTasks;
+        taskSummaryWarning = hadTaskLoadError
+            ? 'Some plan progress summaries could not be loaded.'
+            : null;
         isLoading = false;
       });
     } catch (error, stackTrace) {
@@ -120,9 +152,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final query = searchController.text.trim().toLowerCase();
 
     return projects.where((project) {
+      final progress = getProjectProgress(project);
       final matchesFilter = switch (selectedFilterIndex) {
-        1 => project.isActive,
-        2 => project.isCompleted,
+        1 => project.isActive && progress < 1,
+        2 => project.isCompleted || progress >= 1,
         _ => true,
       };
 
@@ -132,7 +165,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       final searchable = [
         project.title,
         project.description ?? '',
-        project.statusLabel,
+        displayStatusLabel(project),
         project.projectTypeLabel,
         project.deadlineLabel,
       ].join(' ').toLowerCase();
@@ -141,16 +174,82 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }).toList();
   }
 
+  String projectKey(ProjectModel project) {
+    return '${project.projectType}-${project.teamId ?? 0}-${project.projectId}';
+  }
+
+  List<TaskListItem> tasksForProject(ProjectModel project) {
+    return projectTasks[projectKey(project)] ?? const <TaskListItem>[];
+  }
+
+  int completedTasksForProject(ProjectModel project) {
+    return tasksForProject(project).where((item) => item.task.isCompleted).length;
+  }
+
   double getProjectProgress(ProjectModel project) {
     if (project.isCompleted) return 1;
-    if (project.status == 'in_progress') return 0.55;
-    if (project.status == 'on_hold') return 0.35;
     if (project.status == 'cancelled') return 0;
-    if (project.status == 'not_started') return 0;
+
+    final tasks = tasksForProject(project);
+    if (tasks.isEmpty) return 0;
+
+    final total = tasks.fold<double>(
+      0,
+      (sum, item) => sum + getTaskProgress(item.task),
+    );
+
+    return (total / tasks.length).clamp(0.0, 1.0).toDouble();
+  }
+
+  double getTaskProgress(TaskModel task) {
+    if (task.isCompleted) return 1;
+
+    if (task.subtaskCount > 0) {
+      return (task.completedSubtaskCount / task.subtaskCount)
+          .clamp(0.0, 1.0)
+          .toDouble();
+    }
+
+    if (task.subtasks.isNotEmpty) {
+      final completed = task.subtasks.where((subtask) => subtask.isCompleted).length;
+      return (completed / task.subtasks.length).clamp(0.0, 1.0).toDouble();
+    }
+
+    if (task.progressPercentage > 0) {
+      final normalized = task.progressPercentage > 1
+          ? task.progressPercentage / 100
+          : task.progressPercentage;
+      return normalized.clamp(0.0, 1.0).toDouble();
+    }
+
     return 0;
   }
 
+  String displayStatusLabel(ProjectModel project) {
+    final progress = getProjectProgress(project);
+
+    if (project.isCompleted || progress >= 1) {
+      return 'Completed';
+    }
+
+    if (project.status == 'not_started' && progress > 0) {
+      return 'In Progress';
+    }
+
+    return project.statusLabel;
+  }
+
   Color getStatusColor(ProjectModel project) {
+    final progress = getProjectProgress(project);
+
+    if (project.isCompleted || progress >= 1) {
+      return PlanoraTheme.primaryPurple;
+    }
+
+    if (project.status == 'not_started' && progress > 0) {
+      return PlanoraTheme.success;
+    }
+
     switch (project.status) {
       case 'completed':
         return PlanoraTheme.primaryPurple;
@@ -178,7 +277,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       case 'cancelled':
         return PlanoraTheme.error;
       case 'not_started':
-        return PlanoraTheme.info;
+        return getProjectProgress(project) > 0
+            ? PlanoraTheme.secondaryPurple
+            : PlanoraTheme.info;
       default:
         return PlanoraTheme.secondaryPurple;
     }
@@ -568,7 +669,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         prefixIcon: const Icon(Icons.search_rounded),
         suffixIcon: hasActiveSearch
             ? IconButton(
-                onPressed: () => setState(searchController.clear),
+                onPressed: () => setState(() => searchController.clear()),
                 icon: const Icon(Icons.close_rounded),
               )
             : null,
@@ -649,6 +750,16 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             context,
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
+        if (taskSummaryWarning != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            taskSummaryWarning!,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: PlanoraTheme.warning,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         for (var index = 0; index < visibleProjects.length; index++) ...[
           PlanoraAnimatedIn(
@@ -665,6 +776,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final statusColor = getStatusColor(project);
     final iconColor = getProjectIconColor(project);
     final progress = getProjectProgress(project);
+    final tasks = tasksForProject(project);
+    final completedTasks = completedTasksForProject(project);
 
     return PlanoraCard(
       radius: 24,
@@ -730,7 +843,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              buildChip(context, project.statusLabel, statusColor),
+              buildChip(context, displayStatusLabel(project), statusColor),
             ],
           ),
           const SizedBox(height: 14),
@@ -746,7 +859,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       context,
                     ).colorScheme.primary.withValues(alpha: .10),
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      project.isCompleted
+                      progress >= 1
                           ? PlanoraTheme.primaryPurple
                           : Theme.of(context).colorScheme.primary,
                     ),
@@ -763,6 +876,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               ),
             ],
           ),
+          if (tasks.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '$completedTasks/${tasks.length} tasks completed',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [
