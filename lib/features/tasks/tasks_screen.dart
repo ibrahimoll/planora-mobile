@@ -6,6 +6,8 @@ import '../auth/data/project_api.dart';
 import 'data/tasks_api.dart';
 import 'models/task_models.dart';
 import 'task_detail_screen.dart';
+import '../ai/data/ai_plan_api.dart';
+import '../auth/models/project_models.dart';
 
 class TasksScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -18,6 +20,7 @@ class TasksScreen extends StatefulWidget {
   final VoidCallback? onCreateAiPlan;
   final TasksApi tasksApi;
   final ProjectsApi projectsApi;
+  final AiPlanApi aiPlanApi;
 
   const TasksScreen({
     super.key,
@@ -31,6 +34,7 @@ class TasksScreen extends StatefulWidget {
     this.onCreateAiPlan,
     this.tasksApi = const TasksApi(),
     this.projectsApi = const ProjectsApi(),
+    this.aiPlanApi = const AiPlanApi(),
   });
 
   @override
@@ -39,6 +43,7 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   late final TasksApi _tasksApi;
+  late final AiPlanApi _aiPlanApi;
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -55,16 +60,19 @@ class _TasksScreenState extends State<TasksScreen> {
   int? selectedProjectId;
   int? selectedCreateProjectId;
   int? completingTaskId;
+
   bool isLoading = true;
-  bool isCreatingTask = false;
   bool isSearchVisible = false;
   bool openCreateAfterLoad = false;
   bool isCreateSheetOpen = false;
   bool isShowingCachedData = false;
+
   String? errorMessage;
   String searchQuery = '';
   DateTime? selectedDueDate;
+
   TaskPriority selectedPriority = TaskPriority.medium;
+
   List<TaskProjectSummary> projects = [];
   List<TaskListItem> tasks = [];
 
@@ -72,6 +80,7 @@ class _TasksScreenState extends State<TasksScreen> {
   void initState() {
     super.initState();
     _tasksApi = widget.tasksApi;
+    _aiPlanApi = widget.aiPlanApi;
     openCreateAfterLoad = widget.openCreateOnStart;
     loadTasks();
   }
@@ -794,7 +803,10 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> showCreateTaskSheet() async {
-    if (isCreateSheetOpen) return;
+    if (isCreateSheetOpen) {
+      return;
+    }
+
     if (projects.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -803,132 +815,820 @@ class _TasksScreenState extends State<TasksScreen> {
     }
 
     isCreateSheetOpen = true;
+
     titleController.clear();
     descriptionController.clear();
+
     selectedPriority = TaskPriority.medium;
     selectedDueDate = null;
     selectedCreateProjectId = selectedProjectId ?? projects.first.projectId;
 
-    await showModalBottomSheet<void>(
+    var useAi = false;
+    var isWorking = false;
+    var aiPrompt = '';
+    var aiTaskCount = 6;
+
+    final resultMessage = await showModalBottomSheet<String>(
       context: context,
-      isScrollControlled: true,
       useSafeArea: true,
-      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.48),
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setSheetState) {
-            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-            return Padding(
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: SingleChildScrollView(
-                padding: PlanoraSpacing.sheetPadding,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Create Task',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+          builder: (modalContext, setSheetState) {
+            final isDark = PlanoraTheme.isDark(modalContext);
+            final primary = Theme.of(modalContext).colorScheme.primary;
+            final bottomInset = MediaQuery.of(modalContext).viewInsets.bottom;
+
+            TaskProjectSummary selectedSummary() {
+              return projects.firstWhere(
+                (project) => project.projectId == selectedCreateProjectId,
+                orElse: () => projects.first,
+              );
+            }
+
+            Future<void> createManualTask() async {
+              if (isWorking) {
+                return;
+              }
+
+              final title = titleController.text.trim();
+              final description = descriptionController.text.trim();
+
+              if (title.length < 2) {
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Task title must be at least 2 letters.'),
+                  ),
+                );
+                return;
+              }
+
+              FocusManager.instance.primaryFocus?.unfocus();
+
+              setSheetState(() {
+                isWorking = true;
+              });
+
+              try {
+                final project = selectedSummary();
+
+                await _tasksApi.createTask(
+                  project: project,
+                  request: TaskCreateRequest(
+                    projectId: project.projectId,
+                    title: title,
+                    description: description.isEmpty ? null : description,
+                    priority: selectedPriority,
+                    dueDate: selectedDueDate,
+                  ),
+                );
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(
+                  sheetContext,
+                ).pop('Task created in ${project.title}.');
+              } catch (error, stackTrace) {
+                debugPrint('Task creation failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                setSheetState(() {
+                  isWorking = false;
+                });
+
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(content: Text('Could not create task.')),
+                );
+              }
+            }
+
+            Future<void> generateAiTasks() async {
+              if (isWorking) {
+                return;
+              }
+
+              final projectSummary = selectedSummary();
+
+              final prompt = aiPrompt.trim().isEmpty
+                  ? 'Create a practical and detailed task list for '
+                        '"${projectSummary.title}". Consider the project '
+                        'goal, deadline, logical order, and important '
+                        'deliverables.'
+                  : aiPrompt.trim();
+
+              FocusManager.instance.primaryFocus?.unfocus();
+
+              setSheetState(() {
+                isWorking = true;
+              });
+
+              try {
+                final availableProjects = await widget.projectsApi
+                    .getProjects();
+
+                ProjectModel? selectedProject;
+
+                for (final project in availableProjects) {
+                  final sameProject =
+                      project.projectId == projectSummary.projectId;
+
+                  final sameTeam = project.teamId == projectSummary.teamId;
+
+                  if (sameProject && sameTeam) {
+                    selectedProject = project;
+                    break;
+                  }
+                }
+
+                if (selectedProject == null) {
+                  throw StateError('The selected project could not be loaded.');
+                }
+
+                final response = await _aiPlanApi.generatePlan(
+                  project: selectedProject,
+                  prompt: prompt,
+                  generateTasks: true,
+
+                  // Existing tasks will not be deleted.
+                  overwriteExistingTasks: false,
+
+                  preferredTaskCount: aiTaskCount,
+                  includeMilestones: false,
+                );
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                final created = response.tasksCreated;
+
+                final message = created > 0
+                    ? '$created AI-generated '
+                          '${created == 1 ? 'task' : 'tasks'} added '
+                          'to ${selectedProject.title}.'
+                    : response.message.trim().isNotEmpty
+                    ? response.message
+                    : 'No new tasks were added.';
+
+                Navigator.of(sheetContext).pop(message);
+              } catch (error, stackTrace) {
+                debugPrint('AI task generation failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                setSheetState(() {
+                  isWorking = false;
+                });
+
+                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Planora could not generate tasks right now.',
                     ),
-                    const SizedBox(height: PlanoraSpacing.md),
-                    DropdownButtonFormField<int>(
-                      value: selectedCreateProjectId,
-                      isExpanded: true,
-                      menuMaxHeight: 360,
-                      decoration: const InputDecoration(
-                        labelText: 'Plan',
-                        prefixIcon: Icon(Icons.folder_outlined),
+                  ),
+                );
+              }
+            }
+
+            Widget modeButton({
+              required bool aiMode,
+              required IconData icon,
+              required String label,
+            }) {
+              final selected = useAi == aiMode;
+
+              return Expanded(
+                child: InkWell(
+                  onTap: isWorking
+                      ? null
+                      : () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+
+                          setSheetState(() {
+                            useAi = aiMode;
+                          });
+                        },
+                  borderRadius: BorderRadius.circular(16),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: selected
+                          ? PlanoraTheme.primaryGradientFor(modalContext)
+                          : null,
+                      color: selected ? null : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: selected
+                          ? PlanoraTheme.floatingShadowFor(modalContext)
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          icon,
+                          size: 18,
+                          color: selected
+                              ? Colors.white
+                              : mutedColor(modalContext),
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          label,
+                          style: Theme.of(modalContext).textTheme.labelLarge
+                              ?.copyWith(
+                                color: selected
+                                    ? Colors.white
+                                    : mutedColor(modalContext),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            Widget planDropdown() {
+              return DropdownButtonFormField<int>(
+                value: selectedCreateProjectId,
+                isExpanded: true,
+                menuMaxHeight: 360,
+                decoration: InputDecoration(
+                  labelText: 'Choose plan',
+                  prefixIcon: const Icon(Icons.folder_outlined),
+                  filled: true,
+                  fillColor: isDark
+                      ? PlanoraTheme.darkSurfaceVariant
+                      : PlanoraTheme.surfaceVariant,
+                ),
+                selectedItemBuilder: (context) {
+                  return projects.map((project) {
+                    return Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        project.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                      selectedItemBuilder: (context) {
-                        return projects.map((project) {
-                          return Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              project.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList();
-                      },
-                      items: projects.map((project) {
-                        return DropdownMenuItem<int>(
-                          value: project.projectId,
+                    );
+                  }).toList();
+                },
+                items: projects.map((project) {
+                  return DropdownMenuItem<int>(
+                    value: project.projectId,
+                    child: Row(
+                      children: [
+                        Icon(
+                          project.isTeamProject
+                              ? Icons.groups_2_outlined
+                              : Icons.folder_outlined,
+                          size: 18,
+                          color: primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: Text(
                             project.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        );
-                      }).toList(),
-                      onChanged: isCreatingTask
-                          ? null
-                          : (value) {
-                              if (value == null) {
-                                return;
-                              }
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: isWorking
+                    ? null
+                    : (value) {
+                        if (value == null) {
+                          return;
+                        }
 
-                              setSheetState(() {
-                                selectedCreateProjectId = value;
-                              });
-                            },
+                        setSheetState(() {
+                          selectedCreateProjectId = value;
+                        });
+                      },
+              );
+            }
+
+            Widget priorityOption(TaskPriority priority) {
+              final selected = selectedPriority == priority;
+              final color = priorityColor(priority);
+
+              return Expanded(
+                child: InkWell(
+                  onTap: isWorking
+                      ? null
+                      : () {
+                          setSheetState(() {
+                            selectedPriority = priority;
+                          });
+                        },
+                  borderRadius: BorderRadius.circular(16),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 12,
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        prefixIcon: Icon(Icons.task_alt_rounded),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? color.withValues(alpha: 0.14)
+                          : isDark
+                          ? PlanoraTheme.darkSurfaceVariant
+                          : PlanoraTheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: selected
+                            ? color
+                            : isDark
+                            ? PlanoraTheme.darkBorder
+                            : PlanoraTheme.border,
+                        width: selected ? 1.5 : 1,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descriptionController,
-                      minLines: 3,
-                      maxLines: 5,
-                      decoration: const InputDecoration(
-                        labelText: 'Description optional',
-                        prefixIcon: Icon(Icons.notes_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      children: TaskPriority.values.map((priority) {
-                        return ChoiceChip(
-                          selected: selectedPriority == priority,
-                          label: Text(priority.label),
-                          onSelected: isCreatingTask
-                              ? null
-                              : (_) => setSheetState(
-                                  () => selectedPriority = priority,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 19,
+                          height: 19,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: selected ? color : Colors.transparent,
+                            border: Border.all(
+                              color: selected
+                                  ? color
+                                  : mutedColor(modalContext),
+                            ),
+                          ),
+                          child: selected
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 13,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            priority.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(modalContext).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: selected
+                                      ? color
+                                      : mutedColor(modalContext),
+                                  fontWeight: FontWeight.w900,
                                 ),
-                        );
-                      }).toList(),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    PlanoraSecondaryButton(
-                      icon: Icons.calendar_month_rounded,
-                      label: selectedDueDate == null
-                          ? 'Choose due date'
-                          : formatInputDate(selectedDueDate!),
-                      onPressed: isCreatingTask
-                          ? null
-                          : () async {
-                              final picked = await pickDueDate();
-                              if (picked == null) return;
-                              setSheetState(() => selectedDueDate = picked);
-                            },
+                  ),
+                ),
+              );
+            }
+
+            return AnimatedPadding(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(modalContext).height * 0.92,
+                ),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? PlanoraTheme.darkSurface
+                      : PlanoraTheme.surface,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: isDark
+                        ? PlanoraTheme.darkBorder
+                        : PlanoraTheme.border,
+                  ),
+                  boxShadow: PlanoraTheme.softCardShadowFor(modalContext),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(20, 12, 14, 18),
+                      decoration: BoxDecoration(
+                        gradient: PlanoraTheme.primaryGradientFor(modalContext),
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.48),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(17),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.18),
+                                  ),
+                                ),
+                                child: Icon(
+                                  useAi
+                                      ? Icons.auto_awesome_rounded
+                                      : Icons.add_task_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 13),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      useAi
+                                          ? 'Generate with AI'
+                                          : 'Create a task',
+                                      style: Theme.of(modalContext)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w900,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      useAi
+                                          ? 'Let Planora build a useful task list.'
+                                          : 'Add a clear next step to your plan.',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(modalContext)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.76,
+                                            ),
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: isWorking
+                                    ? null
+                                    : () {
+                                        Navigator.of(sheetContext).pop();
+                                      },
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.14,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 18),
-                    PlanoraGradientButton(
-                      label: 'Create Task',
-                      icon: Icons.add_rounded,
-                      isLoading: isCreatingTask,
-                      onTap: () =>
-                          createTaskFromSheet(sheetContext, setSheetState),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? PlanoraTheme.darkSurfaceVariant
+                                    : PlanoraTheme.surfaceVariant,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                children: [
+                                  modeButton(
+                                    aiMode: false,
+                                    icon: Icons.edit_note_rounded,
+                                    label: 'Manual',
+                                  ),
+                                  const SizedBox(width: 4),
+                                  modeButton(
+                                    aiMode: true,
+                                    icon: Icons.auto_awesome_rounded,
+                                    label: 'AI Generate',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            planDropdown(),
+                            const SizedBox(height: 16),
+
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 260),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              child: useAi
+                                  ? Column(
+                                      key: const ValueKey('ai-task-mode'),
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                primary.withValues(
+                                                  alpha: isDark ? 0.24 : 0.12,
+                                                ),
+                                                PlanoraTheme.secondaryPurple
+                                                    .withValues(
+                                                      alpha: isDark
+                                                          ? 0.18
+                                                          : 0.08,
+                                                    ),
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              22,
+                                            ),
+                                            border: Border.all(
+                                              color: primary.withValues(
+                                                alpha: 0.20,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 46,
+                                                height: 46,
+                                                decoration: BoxDecoration(
+                                                  gradient:
+                                                      PlanoraTheme.primaryGradientFor(
+                                                        modalContext,
+                                                      ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.psychology_alt_rounded,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 13),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      'AI task builder',
+                                                      style:
+                                                          Theme.of(modalContext)
+                                                              .textTheme
+                                                              .titleSmall
+                                                              ?.copyWith(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w900,
+                                                              ),
+                                                    ),
+                                                    const SizedBox(height: 3),
+                                                    Text(
+                                                      'Existing tasks stay safe. AI only adds useful new tasks.',
+                                                      style:
+                                                          Theme.of(modalContext)
+                                                              .textTheme
+                                                              .bodySmall
+                                                              ?.copyWith(
+                                                                color: mutedColor(
+                                                                  modalContext,
+                                                                ),
+                                                                height: 1.35,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                              ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        TextFormField(
+                                          initialValue: aiPrompt,
+                                          enabled: !isWorking,
+                                          minLines: 3,
+                                          maxLines: 6,
+                                          onChanged: (value) {
+                                            aiPrompt = value;
+                                          },
+                                          decoration: const InputDecoration(
+                                            labelText:
+                                                'What should AI focus on?',
+                                            hintText:
+                                                'Example: Focus on setup, testing, deployment, and documentation.',
+                                            alignLabelWithHint: true,
+                                            prefixIcon: Padding(
+                                              padding: EdgeInsets.only(
+                                                bottom: 66,
+                                              ),
+                                              child: Icon(
+                                                Icons.auto_awesome_rounded,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 17),
+                                        Text(
+                                          'Number of tasks',
+                                          style: Theme.of(modalContext)
+                                              .textTheme
+                                              .labelLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Wrap(
+                                          spacing: 9,
+                                          runSpacing: 9,
+                                          children: [4, 6, 8, 10].map((count) {
+                                            final selected =
+                                                aiTaskCount == count;
+
+                                            return ChoiceChip(
+                                              selected: selected,
+                                              label: Text('$count tasks'),
+                                              avatar: selected
+                                                  ? const Icon(
+                                                      Icons.check_rounded,
+                                                      size: 16,
+                                                    )
+                                                  : null,
+                                              onSelected: isWorking
+                                                  ? null
+                                                  : (_) {
+                                                      setSheetState(() {
+                                                        aiTaskCount = count;
+                                                      });
+                                                    },
+                                            );
+                                          }).toList(),
+                                        ),
+                                        const SizedBox(height: 22),
+                                        PlanoraGradientButton(
+                                          label: isWorking
+                                              ? 'Planora is thinking...'
+                                              : 'Generate $aiTaskCount tasks',
+                                          icon: Icons.auto_awesome_rounded,
+                                          isLoading: isWorking,
+                                          onTap: isWorking
+                                              ? null
+                                              : generateAiTasks,
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      key: const ValueKey('manual-task-mode'),
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        TextField(
+                                          controller: titleController,
+                                          enabled: !isWorking,
+                                          textInputAction: TextInputAction.next,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Task title',
+                                            hintText: 'What needs to be done?',
+                                            prefixIcon: Icon(
+                                              Icons.task_alt_rounded,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        TextField(
+                                          controller: descriptionController,
+                                          enabled: !isWorking,
+                                          minLines: 3,
+                                          maxLines: 5,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Description',
+                                            hintText:
+                                                'Add useful details or instructions',
+                                            alignLabelWithHint: true,
+                                            prefixIcon: Padding(
+                                              padding: EdgeInsets.only(
+                                                bottom: 58,
+                                              ),
+                                              child: Icon(Icons.notes_rounded),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 17),
+                                        Text(
+                                          'Priority',
+                                          style: Theme.of(modalContext)
+                                              .textTheme
+                                              .labelLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          children: [
+                                            priorityOption(TaskPriority.low),
+                                            const SizedBox(width: 8),
+                                            priorityOption(TaskPriority.medium),
+                                            const SizedBox(width: 8),
+                                            priorityOption(TaskPriority.high),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        PlanoraSecondaryButton(
+                                          icon: Icons.calendar_month_rounded,
+                                          label: selectedDueDate == null
+                                              ? 'Choose due date'
+                                              : formatInputDate(
+                                                  selectedDueDate!,
+                                                ),
+                                          onPressed: isWorking
+                                              ? null
+                                              : () async {
+                                                  final picked =
+                                                      await pickDueDate();
+
+                                                  if (picked == null) {
+                                                    return;
+                                                  }
+
+                                                  setSheetState(() {
+                                                    selectedDueDate = picked;
+                                                  });
+                                                },
+                                        ),
+                                        const SizedBox(height: 22),
+                                        PlanoraGradientButton(
+                                          label: isWorking
+                                              ? 'Creating task...'
+                                              : 'Create Task',
+                                          icon: Icons.add_rounded,
+                                          isLoading: isWorking,
+                                          onTap: isWorking
+                                              ? null
+                                              : createManualTask,
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -940,7 +1640,29 @@ class _TasksScreenState extends State<TasksScreen> {
     );
 
     isCreateSheetOpen = false;
-    if (mounted) setState(() => isCreatingTask = false);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (resultMessage != null) {
+      await Future<void>.delayed(const Duration(milliseconds: 320));
+
+      if (!mounted) {
+        return;
+      }
+
+      await loadTasks();
+      widget.onTasksChanged?.call();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(resultMessage)));
+    }
   }
 
   Future<DateTime?> pickDueDate() async {
@@ -953,59 +1675,6 @@ class _TasksScreenState extends State<TasksScreen> {
     );
     if (picked == null) return null;
     return DateTime(picked.year, picked.month, picked.day, 12);
-  }
-
-  Future<void> createTaskFromSheet(
-    BuildContext sheetContext,
-    void Function(VoidCallback fn) setSheetState,
-  ) async {
-    final project = projects.firstWhere(
-      (item) => item.projectId == selectedCreateProjectId,
-      orElse: () => projects.first,
-    );
-    final title = titleController.text.trim();
-    final description = descriptionController.text.trim();
-
-    if (title.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Task title must be at least 2 letters.')),
-      );
-      return;
-    }
-
-    setState(() => isCreatingTask = true);
-    setSheetState(() {});
-
-    try {
-      await _tasksApi.createTask(
-        project: project,
-        request: TaskCreateRequest(
-          projectId: project.projectId,
-          title: title,
-          description: description.isEmpty ? null : description,
-          priority: selectedPriority,
-          dueDate: selectedDueDate,
-        ),
-      );
-      if (!mounted) return;
-      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-      setState(() => isCreatingTask = false);
-      await loadTasks();
-      widget.onTasksChanged?.call();
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Task created.')));
-    } catch (error, stackTrace) {
-      debugPrint('Task creation failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      if (!mounted) return;
-      setState(() => isCreatingTask = false);
-      setSheetState(() {});
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Could not create task.')));
-    }
   }
 
   Future<void> openTaskDetail(TaskListItem item) async {
