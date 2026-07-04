@@ -91,11 +91,17 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }
 
   int get totalMembers {
-    return statsByTeamId.values.fold(0, (sum, stats) => sum + stats.memberCount);
+    return statsByTeamId.values.fold(
+      0,
+      (sum, stats) => sum + stats.memberCount,
+    );
   }
 
   int get totalPlans {
-    return statsByTeamId.values.fold(0, (sum, stats) => sum + stats.projectCount);
+    return statsByTeamId.values.fold(
+      0,
+      (sum, stats) => sum + stats.projectCount,
+    );
   }
 
   int get totalTasks {
@@ -163,7 +169,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
             );
 
             taskCount += tasks.length;
-            completedTaskCount += tasks.where((item) => item.task.isCompleted).length;
+            completedTaskCount += tasks
+                .where((item) => item.task.isCompleted)
+                .length;
           } catch (error, stackTrace) {
             debugPrint('Team task load failed: $error');
             debugPrintStack(stackTrace: stackTrace);
@@ -219,14 +227,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _TeamsTopBar(
+                  _TeamsHero(
                     showBackButton: widget.showBackButton,
                     onBackPressed: () => Navigator.of(context).maybePop(),
                     onCreatePressed: openCreateTeamSheet,
                     inviteCount: pendingInvitations.length,
-                  ),
-                  const SizedBox(height: 18),
-                  _TeamsOverviewRow(
                     teamCount: teams.length,
                     memberCount: totalMembers,
                     planCount: totalPlans,
@@ -275,7 +280,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
     return Scaffold(
       backgroundColor: _pageBackground(context),
       body: DecoratedBox(
-        decoration: BoxDecoration(gradient: PlanoraTheme.onboardingBackgroundFor(context)),
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.onboardingBackgroundFor(context),
+        ),
         child: SafeArea(bottom: false, child: content),
       ),
     );
@@ -330,7 +337,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
           team: visibleTeams[index],
           members: membersByTeamId[visibleTeams[index].teamId] ?? const [],
           projects: projectsByTeamId[visibleTeams[index].teamId] ?? const [],
-          stats: statsByTeamId[visibleTeams[index].teamId] ?? const _TeamStats(),
+          stats:
+              statsByTeamId[visibleTeams[index].teamId] ?? const _TeamStats(),
           currentMember: currentMemberForTeam(visibleTeams[index]),
           canManage: canManageTeam(visibleTeams[index]),
           onTap: () => openTeamDetailsSheet(visibleTeams[index]),
@@ -354,7 +362,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
         _EmptyStateCard(
           icon: Icons.mail_outline_rounded,
           title: 'No invitations',
-          message: 'Team invitations will appear here when someone invites you.',
+          message:
+              'Team invitations will appear here when someone invites you.',
         ),
       ];
     }
@@ -389,7 +398,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
       return null;
     }
 
-    for (final member in membersByTeamId[team.teamId] ?? const <TeamMemberModel>[]) {
+    for (final member
+        in membersByTeamId[team.teamId] ?? const <TeamMemberModel>[]) {
       if (member.userId == currentUserId) {
         return member;
       }
@@ -424,7 +434,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
           builder: (sheetContext, setSheetState) {
             return _ModalContainer(
               title: 'Create team',
-              subtitle: 'Start a simple workspace for plans, tasks, and people.',
+              subtitle:
+                  'Start a simple workspace for plans, tasks, and people.',
               child: Column(
                 children: [
                   _PlanoraTextField(
@@ -577,7 +588,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
                               setSheetState(() => isSaving = false);
                               showSnack(
-                                _apiMessage(error, fallback: 'Could not update team.'),
+                                _apiMessage(
+                                  error,
+                                  fallback: 'Could not update team.',
+                                ),
                               );
                             }
                           },
@@ -674,7 +688,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
                               setSheetState(() => isSaving = false);
                               showSnack(
-                                _apiMessage(error, fallback: 'Could not send invite.'),
+                                _apiMessage(
+                                  error,
+                                  fallback: 'Could not send invite.',
+                                ),
                               );
                             }
                           },
@@ -868,7 +885,351 @@ class _TeamsScreenState extends State<TeamsScreen> {
   }
 
   void showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _TeamsHero extends StatefulWidget {
+  final bool showBackButton;
+  final VoidCallback onBackPressed;
+  final VoidCallback onCreatePressed;
+  final int inviteCount;
+  final int teamCount;
+  final int memberCount;
+  final int planCount;
+  final int taskCount;
+
+  const _TeamsHero({
+    required this.showBackButton,
+    required this.onBackPressed,
+    required this.onCreatePressed,
+    required this.inviteCount,
+    required this.teamCount,
+    required this.memberCount,
+    required this.planCount,
+    required this.taskCount,
+  });
+
+  @override
+  State<_TeamsHero> createState() => _TeamsHeroState();
+}
+
+class _TeamsHeroState extends State<_TeamsHero>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController animationController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animationController,
+      builder: (context, child) {
+        final animationValue = Curves.easeInOut.transform(
+          animationController.value,
+        );
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            gradient: PlanoraTheme.primaryGradientFor(context),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: PlanoraTheme.floatingShadowFor(context),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -45,
+                top: -50 + (animationValue * 12),
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -60,
+                bottom: -85 - (animationValue * 10),
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 80,
+                bottom: 55 + (animationValue * 6),
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 30,
+                    color: Colors.white.withOpacity(0.12),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _HeroIconButton(
+                          icon: widget.showBackButton
+                              ? Icons.arrow_back_rounded
+                              : Icons.groups_2_rounded,
+                          onTap: widget.showBackButton
+                              ? widget.onBackPressed
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Your teams',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Build together. Deliver with clarity.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Colors.white.withOpacity(0.76),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        _HeroCreateButton(onTap: widget.onCreatePressed),
+                      ],
+                    ),
+                    if (widget.inviteCount > 0) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.13),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.18),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.auto_awesome_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                '${widget.inviteCount} special invitation'
+                                '${widget.inviteCount == 1 ? '' : 's'} waiting',
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _HeroMetric(
+                            icon: Icons.groups_2_outlined,
+                            value: widget.teamCount,
+                            label: 'Teams',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _HeroMetric(
+                            icon: Icons.person_outline_rounded,
+                            value: widget.memberCount,
+                            label: 'People',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _HeroMetric(
+                            icon: Icons.folder_copy_outlined,
+                            value: widget.planCount,
+                            label: 'Plans',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _HeroMetric(
+                            icon: Icons.check_box_outlined,
+                            value: widget.taskCount,
+                            label: 'Tasks',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HeroIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _HeroIconButton({required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withOpacity(0.14),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 46,
+          height: 46,
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroCreateButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _HeroCreateButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_rounded,
+                size: 19,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'New',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroMetric extends StatelessWidget {
+  final IconData icon;
+  final int value;
+  final String label;
+
+  const _HeroMetric({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.11),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white.withOpacity(0.82), size: 17),
+          const SizedBox(height: 5),
+          Text(
+            value.toString(),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Colors.white.withOpacity(0.70),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1027,11 +1388,7 @@ class _OverviewChip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 6),
           Text(
             value,
@@ -1082,7 +1439,11 @@ class _RoundIconButton extends StatelessWidget {
           ),
           boxShadow: PlanoraTheme.cardShadowFor(context),
         ),
-        child: Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+        child: Icon(
+          icon,
+          size: 22,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -1110,12 +1471,17 @@ class _SearchField extends StatelessWidget {
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
         style: TextStyle(
-          color: isDark ? PlanoraTheme.darkTextPrimary : PlanoraTheme.textPrimary,
+          color: isDark
+              ? PlanoraTheme.darkTextPrimary
+              : PlanoraTheme.textPrimary,
           fontWeight: FontWeight.w700,
         ),
         decoration: InputDecoration(
           hintText: 'Search teams, people, roles, or plans...',
-          hintStyle: TextStyle(color: _mutedColor(context), fontWeight: FontWeight.w600),
+          hintStyle: TextStyle(
+            color: _mutedColor(context),
+            fontWeight: FontWeight.w600,
+          ),
           prefixIcon: Icon(Icons.search_rounded, color: _mutedColor(context)),
           suffixIcon: controller.text.isEmpty
               ? null
@@ -1124,7 +1490,10 @@ class _SearchField extends StatelessWidget {
                   icon: Icon(Icons.close_rounded, color: _mutedColor(context)),
                 ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
         ),
       ),
     );
@@ -1146,7 +1515,10 @@ class _SegmentedTabs extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(5),
-      decoration: _cardDecoration(context, radius: 22).copyWith(boxShadow: const []),
+      decoration: _cardDecoration(
+        context,
+        radius: 22,
+      ).copyWith(boxShadow: const []),
       child: Row(
         children: [
           Expanded(
@@ -1161,7 +1533,9 @@ class _SegmentedTabs extends StatelessWidget {
           Expanded(
             child: _SegmentedTabButton(
               icon: Icons.mail_outline_rounded,
-              label: invitationCount == 0 ? 'Invites' : 'Invites $invitationCount',
+              label: invitationCount == 0
+                  ? 'Invites'
+                  : 'Invites $invitationCount',
               isSelected: selectedIndex == 1,
               onTap: () => onChanged(1),
             ),
@@ -1197,10 +1571,14 @@ class _SegmentedTabButton extends StatelessWidget {
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
         decoration: BoxDecoration(
-          gradient: isSelected ? PlanoraTheme.primaryGradientFor(context) : null,
+          gradient: isSelected
+              ? PlanoraTheme.primaryGradientFor(context)
+              : null,
           color: isSelected
               ? null
-              : (isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.surface),
+              : (isDark
+                    ? PlanoraTheme.darkSurfaceVariant
+                    : PlanoraTheme.surface),
           borderRadius: BorderRadius.circular(17),
         ),
         child: Row(
@@ -1209,7 +1587,9 @@ class _SegmentedTabButton extends StatelessWidget {
             Icon(
               icon,
               size: 17,
-              color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+              color: isSelected
+                  ? Colors.white
+                  : Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(width: 8),
             Flexible(
@@ -1221,8 +1601,8 @@ class _SegmentedTabButton extends StatelessWidget {
                   color: isSelected
                       ? Colors.white
                       : (isDark
-                          ? PlanoraTheme.darkTextSecondary
-                          : PlanoraTheme.textSecondary),
+                            ? PlanoraTheme.darkTextSecondary
+                            : PlanoraTheme.textSecondary),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1337,7 +1717,8 @@ class _TeamCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = stats.completionRatio;
     final activePlans = projects.where((project) => project.isActive).length;
-    final roleLabel = currentMember?.roleLabel ?? (canManage ? 'Admin' : 'Team');
+    final roleLabel =
+        currentMember?.roleLabel ?? (canManage ? 'Admin' : 'Team');
 
     return InkWell(
       onTap: onTap,
@@ -1367,20 +1748,22 @@ class _TeamCard extends StatelessWidget {
                           team.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: PlanoraTheme.isDark(context)
-                                ? PlanoraTheme.darkTextPrimary
-                                : PlanoraTheme.textPrimary,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: PlanoraTheme.isDark(context)
+                                    ? PlanoraTheme.darkTextPrimary
+                                    : PlanoraTheme.textPrimary,
+                              ),
                         ),
                         const SizedBox(height: 5),
                         Text(
                           '$activePlans active plans • ${stats.completionPercent}% complete',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: _mutedColor(context),
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: _mutedColor(context),
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                       ],
                     ),
@@ -1388,7 +1771,10 @@ class _TeamCard extends StatelessWidget {
                 ),
                 IconButton(
                   onPressed: onMenuPressed,
-                  icon: Icon(Icons.more_horiz_rounded, color: _mutedColor(context)),
+                  icon: Icon(
+                    Icons.more_horiz_rounded,
+                    color: _mutedColor(context),
+                  ),
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -1399,7 +1785,9 @@ class _TeamCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 6,
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.10),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withOpacity(0.10),
                 valueColor: AlwaysStoppedAnimation<Color>(
                   Theme.of(context).colorScheme.primary,
                 ),
@@ -1414,7 +1802,10 @@ class _TeamCard extends StatelessWidget {
                   child: Text(
                     members.isEmpty
                         ? 'No members loaded'
-                        : members.take(2).map((member) => member.displayName).join(', '),
+                        : members
+                              .take(2)
+                              .map((member) => member.displayName)
+                              .join(', '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -1577,7 +1968,9 @@ class _MetricPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
       decoration: BoxDecoration(
-        color: isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.lavenderCard,
+        color: isDark
+            ? PlanoraTheme.darkSurfaceVariant
+            : PlanoraTheme.lavenderCard,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.lavenderBorder,
@@ -1705,7 +2098,9 @@ class _LoadingTeamTile extends StatelessWidget {
             width: double.infinity,
             height: 42,
             radius: 16,
-            color: isDark ? PlanoraTheme.darkSurfaceVariant : PlanoraTheme.lavenderCard,
+            color: isDark
+                ? PlanoraTheme.darkSurfaceVariant
+                : PlanoraTheme.lavenderCard,
           ),
         ],
       ),
@@ -1732,7 +2127,8 @@ class _SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: color ??
+        color:
+            color ??
             (PlanoraTheme.isDark(context)
                 ? PlanoraTheme.darkSurfaceVariant
                 : PlanoraTheme.surfaceVariant),
@@ -1777,9 +2173,9 @@ class _EmptyStateCard extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
           Text(
@@ -1838,7 +2234,9 @@ class _ModalContainer extends StatelessWidget {
                   width: 42,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: isDark ? PlanoraTheme.darkBorder : PlanoraTheme.border,
+                    color: isDark
+                        ? PlanoraTheme.darkBorder
+                        : PlanoraTheme.border,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -1925,7 +2323,10 @@ class _PrimarySheetButton extends StatelessWidget {
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : Text(label),
       ),
@@ -1950,7 +2351,9 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? PlanoraTheme.error : Theme.of(context).colorScheme.primary;
+    final color = isDestructive
+        ? PlanoraTheme.error
+        : Theme.of(context).colorScheme.primary;
 
     return ListTile(
       onTap: onTap,
@@ -2022,9 +2425,9 @@ class _DetailTitle extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(width: 8),
         _CountBadge(value: count),
@@ -2090,7 +2493,10 @@ class _ProjectLine extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.folder_copy_outlined, color: Theme.of(context).colorScheme.primary),
+          Icon(
+            Icons.folder_copy_outlined,
+            color: Theme.of(context).colorScheme.primary,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -2209,7 +2615,9 @@ Color _pageBackground(BuildContext context) {
 }
 
 Color _surfaceColor(BuildContext context) {
-  return PlanoraTheme.isDark(context) ? PlanoraTheme.darkSurface : PlanoraTheme.surface;
+  return PlanoraTheme.isDark(context)
+      ? PlanoraTheme.darkSurface
+      : PlanoraTheme.surface;
 }
 
 Color _mutedColor(BuildContext context) {

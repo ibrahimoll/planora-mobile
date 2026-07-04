@@ -33,7 +33,7 @@ class AiChatApi {
     return [];
   }
 
-  Future<AiChatMessageModel> sendMessage({
+  Future<AiChatSendResult> sendMessage({
     required TaskProjectSummary project,
     required String message,
   }) async {
@@ -43,20 +43,44 @@ class AiChatApi {
     );
 
     if (response is! Map<String, dynamic>) {
-      return AiChatMessageModel.localAssistant(
-        projectId: project.projectId,
-        message:
-            'Planora AI received your message, but the server response was incomplete.',
+      return AiChatSendResult(
+        message: AiChatMessageModel.localAssistant(
+          projectId: project.projectId,
+          message:
+              'Planora AI received your message, but the server response was incomplete.',
+        ),
+        suggestions: const [],
       );
     }
 
-    final aiMessage = response['ai_message'] ?? response['message'];
+    final aiMessageData = response['ai_message'] ?? response['message'];
 
-    if (aiMessage is Map<String, dynamic>) {
-      return AiChatMessageModel.fromJson(aiMessage);
+    final aiMessage = aiMessageData is Map<String, dynamic>
+        ? AiChatMessageModel.fromJson(aiMessageData)
+        : AiChatMessageModel.fromJson(response);
+
+    return AiChatSendResult(
+      message: aiMessage,
+      suggestions: _parseSuggestions(response['assistant_context']),
+    );
+  }
+
+  List<String> _parseSuggestions(dynamic context) {
+    if (context is! Map<String, dynamic>) {
+      return const [];
     }
 
-    return AiChatMessageModel.fromJson(response);
+    final rawSuggestions = context['suggested_prompts'];
+
+    if (rawSuggestions is! List) {
+      return const [];
+    }
+
+    return rawSuggestions
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .take(4)
+        .toList();
   }
 
   Future<int> deleteHistory({required TaskProjectSummary project}) async {
@@ -79,6 +103,13 @@ class AiChatApi {
         .map(AiChatMessageModel.fromJson)
         .toList();
   }
+}
+
+class AiChatSendResult {
+  final AiChatMessageModel message;
+  final List<String> suggestions;
+
+  const AiChatSendResult({required this.message, required this.suggestions});
 }
 
 class AiChatMessageModel {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
@@ -61,7 +62,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   ProjectProgressModel? projectProgress;
   RiskAnalysisPreviewModel? projectRisk;
   SmartSchedulePreviewModel? schedulePreview;
+  String? lastFailedMessage;
 
+  List<String> smartSuggestions = [];
   List<ProjectModel> projectModels = [];
   List<TaskProjectSummary> projects = [];
   List<AiChatMessageModel> messages = [];
@@ -509,6 +512,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       workspaceTasks = [];
       planHistory = [];
 
+      smartSuggestions = [];
+      lastFailedMessage = null;
       errorMessage = null;
       workspaceTab = 0;
     });
@@ -604,6 +609,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         isMutatingChat = false;
         if (isSelected) {
           messages = [buildLocalWelcomeMessage(project)];
+          smartSuggestions = [];
+          lastFailedMessage = null;
+          errorMessage = null;
         }
       });
 
@@ -847,6 +855,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     setState(() {
       isSending = true;
       errorMessage = null;
+      lastFailedMessage = null;
+      smartSuggestions = [];
       messages = [...messages, optimisticMessage];
     });
 
@@ -854,7 +864,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     scrollMessagesToBottom();
 
     try {
-      final aiMessage = await _aiChatApi.sendMessage(
+      final result = await _aiChatApi.sendMessage(
         project: project,
         message: message,
       );
@@ -862,23 +872,52 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
 
       setState(() {
-        messages = [...messages, aiMessage];
+        messages = [...messages, result.message];
+        smartSuggestions = result.suggestions;
+        lastFailedMessage = null;
+        errorMessage = null;
         isSending = false;
       });
 
       scrollMessagesToBottom();
     } catch (error, stackTrace) {
       logAiChatError('send message', error, stackTrace);
+
       if (!mounted) return;
 
       setState(() {
+        messages = messages
+            .where((item) => item.messageId != optimisticMessage.messageId)
+            .toList();
+
         isSending = false;
+        lastFailedMessage = message;
+
         errorMessage = friendlyAiChatError(
           error,
           fallback: 'Could not send your message. Please try again.',
         );
       });
+
+      scrollMessagesToBottom();
     }
+  }
+
+  Future<void> retryLastMessage() async {
+    final message = lastFailedMessage;
+
+    if (message == null || message.trim().isEmpty || isSending) {
+      return;
+    }
+
+    messageController.text = message;
+
+    setState(() {
+      errorMessage = null;
+      lastFailedMessage = null;
+    });
+
+    await sendMessage();
   }
 
   Future<void> openAiProjectWizard() async {
@@ -928,6 +967,21 @@ class _AiChatScreenState extends State<AiChatScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  String formatChatTime(DateTime value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute';
+  }
+
+  Future<void> copyChatMessage(String message) async {
+    await Clipboard.setData(ClipboardData(text: cleanChatText(message)));
+
+    if (!mounted) return;
+
+    showFriendlySnackBar('Message copied.');
+  }
+
   void scrollMessagesToBottom({bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !messagesScrollController.hasClients) return;
@@ -946,14 +1000,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   List<String> chatSuggestions() {
-    return <String>[
-      'What should I do first?',
-      'Give me next tasks',
-      'Why is this risky?',
-      'Break it down',
-      'Explain this task',
-      'What is team workload?',
-    ];
+    if (smartSuggestions.isNotEmpty) {
+      return smartSuggestions.take(4).toList();
+    }
+
+    final suggestions = <String>[];
+    final risk = projectRisk;
+    final progress = projectProgress;
+
+    if ((risk?.blockedTasks ?? 0) > 0) {
+      suggestions.add('How can I unblock the blocked tasks?');
+    } else if ((risk?.overdueTasks ?? 0) > 0) {
+      suggestions.add('Which overdue task should I do first?');
+    } else {
+      suggestions.add('What should I focus on next?');
+    }
+
+    if (risk != null) {
+      suggestions.add('Explain why this project is ${risk.riskLevel} risk');
+    } else {
+      suggestions.add('Am I likely to miss the deadline?');
+    }
+
+    if ((progress?.taskStatusCounts.inProgress ?? 0) > 0) {
+      suggestions.add('Help me finish my active tasks');
+    } else {
+      suggestions.add('Break my next task into small steps');
+    }
+
+    suggestions.add(
+      selectedProject?.isTeamProject == true
+          ? 'How is the team workload?'
+          : 'Make me a realistic plan for this week',
+    );
+
+    return suggestions.take(4).toList();
   }
 
   Future<void> sendSuggestion(String suggestion) async {
@@ -1879,17 +1960,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        buildProjectHero(context),
-        const SizedBox(height: 12),
-        buildSuggestionChips(context),
-        const SizedBox(height: 14),
+        if (messages.length <= 1) ...[
+          buildProjectHero(context),
+          const SizedBox(height: 14),
+        ],
+
         for (var index = 0; index < messages.length; index++) ...[
           buildMessageBubble(context, messages[index], index: index),
           const SizedBox(height: 12),
         ],
-        if (errorMessage != null && !isSending)
+
+        if (errorMessage != null && !isSending) ...[
           buildInlineError(context, errorMessage!),
-        if (isSending) buildTypingIndicator(context),
+          const SizedBox(height: 12),
+        ],
+
+        if (isSending)
+          buildTypingIndicator(context)
+        else if (errorMessage == null) ...[
+          const SizedBox(height: 2),
+          buildSuggestionChips(context),
+        ],
       ],
     );
   }
@@ -2082,13 +2173,49 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       ),
                     ],
                   ),
-                  child: Text(
-                    bubbleText,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isAssistant ? null : Colors.white,
-                      height: 1.45,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SelectableText(
+                        bubbleText,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isAssistant ? null : Colors.white,
+                          height: 1.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            formatChatTime(message.createdAt),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: isAssistant
+                                      ? mutedColor(context)
+                                      : Colors.white.withValues(alpha: 0.72),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          if (isAssistant) ...[
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () => copyChatMessage(message.message),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.all(3),
+                                child: Icon(
+                                  Icons.copy_rounded,
+                                  size: 14,
+                                  color: mutedColor(context),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -2149,6 +2276,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ),
             ),
           ),
+          if (lastFailedMessage != null) ...[
+            const SizedBox(width: 6),
+            TextButton.icon(
+              onPressed: isSending ? null : retryLastMessage,
+              icon: const Icon(Icons.refresh_rounded, size: 17),
+              label: const Text('Retry'),
+            ),
+          ],
         ],
       ),
     );
