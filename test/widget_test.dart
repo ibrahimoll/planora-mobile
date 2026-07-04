@@ -614,15 +614,21 @@ class _SlowAiChatApi extends AiChatApi {
   }
 
   @override
-  Future<AiChatMessageModel> sendMessage({
+  Future<AiChatSendResult> sendMessage({
     required TaskProjectSummary project,
     required String message,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
 
-    return AiChatMessageModel.localAssistant(
-      projectId: project.projectId,
-      message: 'Start with the highest-risk task.',
+    return AiChatSendResult(
+      message: AiChatMessageModel.localAssistant(
+        projectId: project.projectId,
+        message: 'Start with the highest-risk task.',
+      ),
+      suggestions: const [
+        'What should I focus on next?',
+        'Explain the current project risk',
+      ],
     );
   }
 }
