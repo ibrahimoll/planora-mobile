@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/network/api_client.dart';
 import '../../tasks/models/task_models.dart';
 
@@ -55,32 +57,20 @@ class AiChatApi {
 
     final aiMessageData = response['ai_message'] ?? response['message'];
 
-    final aiMessage = aiMessageData is Map<String, dynamic>
+    final parsedMessage = aiMessageData is Map<String, dynamic>
         ? AiChatMessageModel.fromJson(aiMessageData)
         : AiChatMessageModel.fromJson(response);
 
+    final safeMessage = _sanitizeAssistantMessage(
+      project: project,
+      userMessage: message,
+      assistantMessage: parsedMessage,
+    );
+
     return AiChatSendResult(
-      message: aiMessage,
+      message: safeMessage,
       suggestions: _parseSuggestions(response['assistant_context']),
     );
-  }
-
-  List<String> _parseSuggestions(dynamic context) {
-    if (context is! Map<String, dynamic>) {
-      return const [];
-    }
-
-    final rawSuggestions = context['suggested_prompts'];
-
-    if (rawSuggestions is! List) {
-      return const [];
-    }
-
-    return rawSuggestions
-        .map((item) => item.toString().trim())
-        .where((item) => item.isNotEmpty)
-        .take(4)
-        .toList();
   }
 
   Future<int> deleteHistory({required TaskProjectSummary project}) async {
@@ -101,7 +91,130 @@ class AiChatApi {
     return messages
         .whereType<Map<String, dynamic>>()
         .map(AiChatMessageModel.fromJson)
+        .where(
+          (message) =>
+              !message.isAssistant ||
+              !_looksLikePlannerPayload(message.message),
+        )
         .toList();
+  }
+
+  List<String> _parseSuggestions(dynamic context) {
+    if (context is! Map<String, dynamic>) {
+      return const [];
+    }
+
+    final rawSuggestions = context['suggested_prompts'];
+
+    if (rawSuggestions is! List) {
+      return const [];
+    }
+
+    final suggestions = <String>[];
+    final seen = <String>{};
+
+    for (final item in rawSuggestions) {
+      final suggestion = item.toString().trim();
+      final normalized = suggestion.toLowerCase();
+
+      if (suggestion.isEmpty || !seen.add(normalized)) {
+        continue;
+      }
+
+      suggestions.add(suggestion);
+
+      if (suggestions.length == 4) {
+        break;
+      }
+    }
+
+    return suggestions;
+  }
+
+  AiChatMessageModel _sanitizeAssistantMessage({
+    required TaskProjectSummary project,
+    required String userMessage,
+    required AiChatMessageModel assistantMessage,
+  }) {
+    if (!_looksLikePlannerPayload(assistantMessage.message)) {
+      return assistantMessage;
+    }
+
+    final normalizedUserMessage = userMessage.trim().toLowerCase();
+    final isGreeting = <String>{
+      'hi',
+      'hello',
+      'hey',
+      'hi planora',
+      'hello planora',
+      'hey planora',
+      'good morning',
+      'good afternoon',
+      'good evening',
+      'how are you',
+    }.contains(normalizedUserMessage);
+
+    return AiChatMessageModel.localAssistant(
+      projectId: project.projectId,
+      message: isGreeting
+          ? 'Hello! I am your Planora project assistant for "${project.title}". '
+                'I can help with next tasks, progress, risks, blockers, deadlines, '
+                'and scheduling.'
+          : 'Planora AI could not prepare a normal chat response. '
+                'Please try sending the message again.',
+    );
+  }
+
+  bool _looksLikePlannerPayload(String value) {
+    var cleaned = value.trim();
+
+    if (cleaned.isEmpty) {
+      return false;
+    }
+
+    if (cleaned.startsWith('```')) {
+      final lines = cleaned.split('\n');
+
+      if (lines.isNotEmpty) {
+        lines.removeAt(0);
+      }
+
+      if (lines.isNotEmpty && lines.last.trim().startsWith('```')) {
+        lines.removeLast();
+      }
+
+      cleaned = lines.join('\n').trim();
+    }
+
+    final firstBrace = cleaned.indexOf('{');
+    final lastBrace = cleaned.lastIndexOf('}');
+
+    if (firstBrace == -1 || lastBrace <= firstBrace) {
+      return false;
+    }
+
+    final candidate = cleaned.substring(firstBrace, lastBrace + 1);
+
+    try {
+      final payload = jsonDecode(candidate);
+
+      if (payload is! Map<String, dynamic>) {
+        return false;
+      }
+
+      final matchingKeys = <String>{
+        'domain',
+        'summary',
+        'tasks',
+        'milestones',
+        'risks',
+        'recommendations',
+      }.where((key) => payload.containsKey(key)).length;
+
+      return payload['tasks'] is List && matchingKeys >= 3;
+    } on FormatException {
+      return false;
+    }
   }
 }
 
