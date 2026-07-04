@@ -303,12 +303,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       smartScheduleCard(),
                       aiPlanHistoryCard(),
                     ]),
-                    page([
-                      placeholderCard(
-                        'Reports',
-                        'Reports and activity timeline will stay here.',
-                      ),
-                    ]),
+                    page([activityTimelineCard(), reportsCard()]),
                   ],
                 ),
               ),
