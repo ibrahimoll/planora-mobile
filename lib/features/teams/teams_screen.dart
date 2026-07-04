@@ -621,37 +621,34 @@ class _TeamsScreenState extends State<TeamsScreen> {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
             return _ModalContainer(
-              title: 'Invite member',
-              subtitle: 'Send an invitation to ${team.name}.',
+              title: 'Create an invitation',
+              subtitle: 'Give someone a place inside ${team.name}.',
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _InvitePreviewCard(teamName: team.name, role: role),
+                  const SizedBox(height: 20),
                   _PlanoraTextField(
                     controller: controller,
-                    label: 'Username',
-                    hintText: 'Enter username',
+                    label: 'Planora username',
+                    hintText: 'Enter their username',
                     icon: Icons.alternate_email_rounded,
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    value: role,
-                    decoration: _fieldDecoration(
-                      context,
-                      label: 'Role',
-                      icon: Icons.admin_panel_settings_outlined,
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'member', child: Text('Member')),
-                      DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setSheetState(() => role = value);
-                    },
+                    textInputAction: TextInputAction.done,
                   ),
                   const SizedBox(height: 18),
+                  _InviteRoleSelector(
+                    selectedRole: role,
+                    onChanged: (value) {
+                      setSheetState(() {
+                        role = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 22),
                   _PrimarySheetButton(
-                    label: isSaving ? 'Sending...' : 'Send Invite',
+                    label: isSaving
+                        ? 'Sending invitation...'
+                        : 'Send special invitation',
                     isLoading: isSaving,
                     onPressed: isSaving
                         ? null
@@ -659,10 +656,13 @@ class _TeamsScreenState extends State<TeamsScreen> {
                             final username = controller.text.trim();
 
                             if (username.isEmpty) {
+                              showSnack('Enter a username first.');
                               return;
                             }
 
-                            setSheetState(() => isSaving = true);
+                            setSheetState(() {
+                              isSaving = true;
+                            });
 
                             try {
                               await widget.teamsApi.inviteUser(
@@ -676,21 +676,27 @@ class _TeamsScreenState extends State<TeamsScreen> {
                               }
 
                               Navigator.of(sheetContext).pop();
+
                               await loadTeams(showLoading: false);
 
-                              if (!mounted) return;
+                              if (!mounted) {
+                                return;
+                              }
 
-                              showSnack('Invitation sent.');
+                              showSnack('Invitation sent to @$username.');
                             } catch (error) {
                               if (!mounted || !sheetContext.mounted) {
                                 return;
                               }
 
-                              setSheetState(() => isSaving = false);
+                              setSheetState(() {
+                                isSaving = false;
+                              });
+
                               showSnack(
                                 _apiMessage(
                                   error,
-                                  fallback: 'Could not send invite.',
+                                  fallback: 'Could not send invitation.',
                                 ),
                               );
                             }
@@ -1780,6 +1786,317 @@ class _MetricPill extends StatelessWidget {
   }
 }
 
+class _InvitePreviewCard extends StatelessWidget {
+  final String teamName;
+  final String role;
+
+  const _InvitePreviewCard({required this.teamName, required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.94 + (value * 0.06),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          gradient: PlanoraTheme.primaryGradientFor(context),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: PlanoraTheme.floatingShadowFor(context),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -30,
+              top: -35,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.09),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            Positioned(
+              left: -30,
+              bottom: -55,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.white.withOpacity(0.18)),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 25,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PLANORA INVITATION',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Colors.white.withOpacity(0.72),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          teamName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'A new place to plan and collaborate.',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Colors.white.withOpacity(0.72),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _roleLabel(role),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteRoleSelector extends StatelessWidget {
+  final String selectedRole;
+  final ValueChanged<String> onChanged;
+
+  const _InviteRoleSelector({
+    required this.selectedRole,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = PlanoraTheme.isDark(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Choose their role',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: isDark
+                ? PlanoraTheme.darkTextPrimary
+                : PlanoraTheme.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          'You can change the role later.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: _mutedColor(context),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _InviteRoleOption(
+                icon: Icons.person_outline_rounded,
+                title: 'Member',
+                subtitle: 'Collaborate on plans and tasks',
+                value: 'member',
+                selectedRole: selectedRole,
+                onTap: () => onChanged('member'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _InviteRoleOption(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'Admin',
+                subtitle: 'Manage people and workspace',
+                value: 'admin',
+                selectedRole: selectedRole,
+                onTap: () => onChanged('admin'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _InviteRoleOption extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String value;
+  final String selectedRole;
+  final VoidCallback onTap;
+
+  const _InviteRoleOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.selectedRole,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = selectedRole == value;
+    final isDark = PlanoraTheme.isDark(context);
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? primaryColor.withOpacity(isDark ? 0.20 : 0.10)
+              : isDark
+              ? PlanoraTheme.darkSurfaceVariant
+              : PlanoraTheme.lavenderCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor
+                : isDark
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.lavenderBorder,
+            width: isSelected ? 1.6 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: primaryColor, size: 20),
+                ),
+                const Spacer(),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  width: 21,
+                  height: 21,
+                  decoration: BoxDecoration(
+                    color: isSelected ? primaryColor : Colors.transparent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected ? primaryColor : _mutedColor(context),
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        )
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 13),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: isDark
+                    ? PlanoraTheme.darkTextPrimary
+                    : PlanoraTheme.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: _mutedColor(context),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InvitationCard extends StatelessWidget {
   final TeamInvitationModel invitation;
   final VoidCallback onAccept;
@@ -1793,58 +2110,268 @@ class _InvitationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: _cardDecoration(context, radius: 22),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const _TeamIcon(name: 'Invite'),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Team invitation',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
+    final isDark = PlanoraTheme.isDark(context);
+
+    final expiryText = invitation.expiresAt == null
+        ? 'Respond whenever you are ready'
+        : 'Valid until ${_formatInvitationDate(invitation.expiresAt!)}';
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 18 * (1 - value)),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
+      child: Container(
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface,
+          borderRadius: BorderRadius.circular(27),
+          border: Border.all(
+            color: isDark
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.lavenderBorder,
+          ),
+          boxShadow: PlanoraTheme.softCardShadowFor(context),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 17, 18, 16),
+              decoration: BoxDecoration(
+                gradient: PlanoraTheme.primaryGradientFor(context),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    right: -22,
+                    top: -28,
+                    child: Container(
+                      width: 92,
+                      height: 92,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
-                ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(17),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.18),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_unread_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'YOU ARE INVITED',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: Colors.white.withOpacity(0.72),
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1.3,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'A team saved you a seat',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          _roleLabel(invitation.role),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              _MetricPill(
-                icon: Icons.admin_panel_settings_outlined,
-                label: _roleLabel(invitation.role),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'You were invited to join team #${invitation.teamId}.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: _mutedColor(context),
-              fontWeight: FontWeight.w700,
             ),
-          ),
-          const SizedBox(height: 14),
-          Row(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 19),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Team #${invitation.teamId}',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: isDark
+                          ? PlanoraTheme.darkTextPrimary
+                          : PlanoraTheme.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Join the workspace, meet the team, and start planning together.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: _mutedColor(context),
+                      fontWeight: FontWeight.w700,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 17),
+                  const _InvitationDashedDivider(),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule_rounded,
+                        size: 17,
+                        color: _mutedColor(context),
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          expiryText,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: _mutedColor(context),
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                      Text(
+                        '#${invitation.invitationId}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onReject,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 50),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          label: const Text('Decline'),
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(child: _InvitationAcceptButton(onTap: onAccept)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InvitationAcceptButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _InvitationAcceptButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        gradient: PlanoraTheme.primaryGradientFor(context),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: PlanoraTheme.floatingShadowFor(context),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onReject,
-                  child: const Text('Decline'),
+              Text(
+                'Accept invite',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton(
-                  onPressed: onAccept,
-                  child: const Text('Accept'),
-                ),
+              const SizedBox(width: 7),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white,
+                size: 18,
               ),
             ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _InvitationDashedDivider extends StatelessWidget {
+  const _InvitationDashedDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    final dividerColor = PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkBorder
+        : PlanoraTheme.lavenderBorder;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final count = (constraints.maxWidth / 12).floor().clamp(1, 50).toInt();
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(
+            count,
+            (_) => Container(width: 6, height: 1, color: dividerColor),
+          ),
+        );
+      },
     );
   }
 }
@@ -2421,6 +2948,25 @@ String _roleLabel(String role) {
     default:
       return role;
   }
+}
+
+String _formatInvitationDate(DateTime date) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  return '${months[date.month - 1]} ${date.day}, ${date.year}';
 }
 
 String _apiMessage(Object error, {required String fallback}) {

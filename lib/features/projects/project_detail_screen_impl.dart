@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
-import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
 import '../tasks/data/tasks_api.dart';
@@ -13,7 +12,6 @@ class ProjectDetailScreen extends StatefulWidget {
   final ProjectModel project;
   final ProjectsApi projectsApi;
   final TasksApi tasksApi;
-  final AiPlanApi aiPlanApi;
   final ProjectInsightsApi insightsApi;
   final VoidCallback? onProjectChanged;
 
@@ -22,7 +20,6 @@ class ProjectDetailScreen extends StatefulWidget {
     required this.project,
     this.projectsApi = const ProjectsApi(),
     this.tasksApi = const TasksApi(),
-    this.aiPlanApi = const AiPlanApi(),
     this.insightsApi = const ProjectInsightsApi(),
     this.onProjectChanged,
   });
@@ -41,14 +38,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   int? deletingTaskId;
   List<TaskListItem> tasks = [];
   List<ProjectMemberModel> members = [];
-
-  RiskAnalysisPreviewModel? riskPreview;
-  SmartSchedulePreviewModel? schedulePreview;
-  List<AiPlanHistoryModel> aiPlanHistory = [];
-
-  bool analyzingRisk = false;
-  bool loadingSchedule = false;
-  bool applyingSchedule = false;
 
   bool requestingReport = false;
   bool openingReport = false;
@@ -127,16 +116,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         loadedProject,
       );
 
-      final loadedRisk = await safeLoad<RiskAnalysisPreviewModel>(
-        () => widget.insightsApi.previewRisk(loadedProject.projectId),
-        'Risk analysis',
-      );
-
-      final loadedPlanHistory = await safeLoad<List<AiPlanHistoryModel>>(
-        () => widget.insightsApi.getAiPlanHistory(loadedProject),
-        'AI plan history',
-      );
-
       final loadedActivities = await safeLoad<List<ProjectActivityModel>>(
         () => widget.insightsApi.getProjectActivity(
           projectId: loadedProject.projectId,
@@ -201,9 +180,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         tasks = loadedTasks;
         members = loadedMembers;
 
-        riskPreview = loadedRisk;
-        aiPlanHistory = loadedPlanHistory ?? <AiPlanHistoryModel>[];
-
         activities = loadedActivities ?? <ProjectActivityModel>[];
 
         reportStatus = loadedReportStatus;
@@ -267,7 +243,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     final colors = Theme.of(context).colorScheme;
 
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         backgroundColor: colors.surface,
         body: SafeArea(
@@ -298,11 +274,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                       if (members.isNotEmpty) membersCard(),
                     ]),
                     page([tasksCard()]),
-                    page([
-                      riskAnalysisCard(),
-                      smartScheduleCard(),
-                      aiPlanHistoryCard(),
-                    ]),
                     page([activityTimelineCard(), reportsCard()]),
                   ],
                 ),
@@ -369,7 +340,6 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         tabs: const [
           Tab(text: 'Overview'),
           Tab(key: Key('project_tasks_tab'), text: 'Tasks'),
-          Tab(text: 'AI Tools'),
           Tab(text: 'Reports'),
         ],
       ),
@@ -505,7 +475,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
           if (tasks.isEmpty)
             emptyState(
               'No tasks in this project yet.',
-              'Generate a plan or add tasks from the main Tasks screen.',
+              'Add tasks from the main Tasks screen.',
             )
           else if (visible.isEmpty)
             emptyState(
@@ -771,345 +741,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     }
   }
 
-  Future<void> analyzeRisk() async {
-    if (analyzingRisk) return;
-
-    setState(() => analyzingRisk = true);
-
-    try {
-      final result = await widget.insightsApi.previewRisk(project.projectId);
-
-      if (!mounted) return;
-
-      setState(() {
-        riskPreview = result;
-        analyzingRisk = false;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Risk analysis failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) return;
-
-      setState(() => analyzingRisk = false);
-      showProjectMessage('Could not analyze project risk.');
-    }
-  }
-
-  Future<void> previewSmartSchedule() async {
-    if (loadingSchedule) return;
-
-    setState(() => loadingSchedule = true);
-
-    try {
-      final result = await widget.insightsApi.previewSmartSchedule(
-        project: project,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        schedulePreview = result;
-        loadingSchedule = false;
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Smart schedule preview failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) return;
-
-      setState(() => loadingSchedule = false);
-      showProjectMessage('Could not generate a schedule preview.');
-    }
-  }
-
-  Future<void> applySmartSchedule() async {
-    if (applyingSchedule || schedulePreview == null) return;
-
-    setState(() => applyingSchedule = true);
-
-    try {
-      await widget.insightsApi.applySmartSchedule(project: project);
-
-      if (!mounted) return;
-
-      setState(() => applyingSchedule = false);
-
-      showProjectMessage('Smart schedule applied successfully.');
-
-      await refresh();
-      widget.onProjectChanged?.call();
-    } catch (error, stackTrace) {
-      debugPrint('Smart schedule apply failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) return;
-
-      setState(() => applyingSchedule = false);
-      showProjectMessage('Could not apply the smart schedule.');
-    }
-  }
-
   void showProjectMessage(String message) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Widget riskAnalysisCard() {
-    final risk = riskPreview;
-    final color = riskColor(risk?.riskLevel);
-
-    return sectionCard(
-      'Risk Analysis',
-      risk == null
-          ? 'Analyze the current project status'
-          : '${risk.riskLevel.toUpperCase()} risk',
-      Icons.warning_amber_rounded,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (risk == null)
-            emptyState(
-              'No risk analysis available.',
-              'Analyze the project to check deadlines, workload, blocked tasks, and overdue work.',
-            )
-          else ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                badge('${risk.predictedDelayDays} predicted delay days', color),
-                badge('${risk.daysUntilDeadline} days remaining', color),
-                badge('${risk.overdueTasks} overdue', color),
-                badge('${risk.blockedTasks} blocked', color),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(risk.reason, style: muted()),
-            if (risk.recommendation.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                'Recommendation: ${risk.recommendation}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                  height: 1.4,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: miniStat(
-                    'Completed',
-                    '${risk.completedTasks}/${risk.totalTasks}',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: miniStat(
-                    'Remaining work',
-                    '${risk.remainingEstimatedHours.toStringAsFixed(1)}h',
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: analyzingRisk ? null : analyzeRisk,
-            icon: analyzingRisk
-                ? const SizedBox(
-                    width: 17,
-                    height: 17,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.auto_graph_rounded),
-            label: Text(analyzingRisk ? 'Analyzing...' : 'Analyze risk'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget smartScheduleCard() {
-    final preview = schedulePreview;
-
-    return sectionCard(
-      'Smart Schedule',
-      preview == null
-          ? 'Generate optimized task deadlines'
-          : '${preview.schedulableTaskCount} tasks can be scheduled',
-      Icons.calendar_month_rounded,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (preview == null)
-            emptyState(
-              'No schedule preview available.',
-              'Generate a preview before applying changes to your tasks.',
-            )
-          else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: miniStat('Tasks', '${preview.schedulableTaskCount}'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: miniStat(
-                    'Estimated work',
-                    '${preview.estimatedTotalHours.toStringAsFixed(1)}h',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: miniStat('Warnings', '${preview.warnings.length}'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            for (final task in preview.tasks.take(5))
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.surfaceVariant.withOpacity(.25),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        task.title,
-                        style: bold(),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      formatProjectDate(task.suggestedDueDate),
-                      style: muted(),
-                    ),
-                  ],
-                ),
-              ),
-            if (preview.warnings.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              for (final warning in preview.warnings.take(3))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: Text('• $warning', style: muted()),
-                ),
-            ],
-          ],
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: loadingSchedule ? null : previewSmartSchedule,
-                icon: loadingSchedule
-                    ? const SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.preview_rounded),
-                label: Text(
-                  loadingSchedule ? 'Loading...' : 'Preview schedule',
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: preview == null || applyingSchedule
-                    ? null
-                    : applySmartSchedule,
-                icon: applyingSchedule
-                    ? const SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check_rounded),
-                label: Text(
-                  applyingSchedule ? 'Applying...' : 'Apply schedule',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget aiPlanHistoryCard() {
-    return sectionCard(
-      'AI Plan History',
-      aiPlanHistory.isEmpty
-          ? 'No generated plans yet'
-          : '${aiPlanHistory.length} generated plans',
-      Icons.auto_awesome_rounded,
-      aiPlanHistory.isEmpty
-          ? emptyState(
-              'No AI plan history.',
-              'AI-generated plans for this project will appear here.',
-            )
-          : Column(
-              children: [
-                for (final plan in aiPlanHistory.take(6))
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.surfaceVariant.withOpacity(.25),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          plan.summary,
-                          style: bold(),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${plan.generatedTaskCount} generated tasks • '
-                          '${formatProjectDate(plan.createdAt)}',
-                          style: muted(),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
-
-  Color riskColor(String? level) {
-    switch (level) {
-      case 'high':
-        return Theme.of(context).colorScheme.error;
-      case 'medium':
-        return Colors.orange;
-      case 'low':
-        return Colors.green;
-      default:
-        return Theme.of(context).colorScheme.primary;
-    }
   }
 
   String formatProjectDate(DateTime date) {
