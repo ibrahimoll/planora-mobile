@@ -363,22 +363,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return score;
   }
 
-  int get daysRemaining {
-    final project = selectedProjectModel;
-
-    if (project == null) return 0;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final deadline = DateTime(
-      project.deadline.year,
-      project.deadline.month,
-      project.deadline.day,
-    );
-
-    return deadline.difference(today).inDays;
-  }
-
   Color riskTone(BuildContext context) {
     switch (projectRisk?.riskLevel.toLowerCase()) {
       case 'high':
@@ -1001,12 +985,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   Widget buildWorkspaceTabs(BuildContext context) {
     const tabs = [
-      ('Plan', Icons.dashboard_rounded),
-      ('Insights', Icons.insights_rounded),
       ('Chat', Icons.forum_rounded),
+      ('Insights', Icons.insights_rounded),
     ];
-
-    final _ = Theme.of(context).colorScheme.primary;
 
     return Container(
       padding: const EdgeInsets.all(5),
@@ -1019,7 +1000,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 onTap: () {
                   setState(() => workspaceTab = index);
 
-                  if (index == 2) {
+                  if (index == 0) {
                     scrollMessagesToBottom(animated: false);
                   }
                 },
@@ -1069,8 +1050,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
       return buildStateCard(
         context,
         icon: Icons.auto_awesome_rounded,
-        title: 'Preparing AI workspace...',
-        message: 'Loading projects, tasks, progress, and AI insights.',
+        title: 'Preparing Planora AI...',
+        message: 'Loading your projects and AI chat history.',
         showSpinner: true,
       );
     }
@@ -1092,434 +1073,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
         context,
         icon: Icons.folder_open_rounded,
         title: 'Choose a project',
-        message: 'Open the project menu to begin planning.',
+        message: 'Open the project menu to begin chatting with Planora AI.',
       );
     }
 
-    if (workspaceTab != 2 && isLoadingWorkspace) {
+    if (workspaceTab == 1 && isLoadingWorkspace) {
       return buildStateCard(
         context,
         icon: Icons.sync_rounded,
         title: 'Analyzing project...',
-        message: 'Preparing progress, priorities, risks, and schedule.',
+        message: 'Preparing progress, risks, recommendations, and schedule.',
         showSpinner: true,
       );
     }
 
-    switch (workspaceTab) {
-      case 1:
-        return buildInsightsWorkspace(context);
-      case 2:
-        return buildMessages(context);
-      default:
-        return buildPlanWorkspace(context);
+    if (workspaceTab == 1) {
+      return buildInsightsWorkspace(context);
     }
-  }
 
-  Widget buildPlanWorkspace(BuildContext context) {
-    final progress = projectProgress;
-    final risk = projectRisk;
-    final task = focusTask;
-    final completion = progress?.project.completionPercentage ?? 0;
-    final primary = Theme.of(context).colorScheme.primary;
-    final tone = riskTone(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradientFor(context),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'AI PROJECT COMMAND CENTER',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.3,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          selectedProject?.title ?? 'Project',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          risk == null
-                              ? 'Planora is ready to organize your next move.'
-                              : risk.recommendation,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.82),
-                            height: 1.4,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          value: (completion / 100).clamp(0, 1),
-                          strokeWidth: 7,
-                          backgroundColor: Colors.white24,
-                          color: Colors.white,
-                        ),
-                        Text(
-                          '${completion.round()}%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  commandBadge(
-                    Icons.schedule_rounded,
-                    daysRemaining < 0
-                        ? '${daysRemaining.abs()} days late'
-                        : '$daysRemaining days left',
-                  ),
-                  commandBadge(
-                    Icons.task_alt_rounded,
-                    '${progress?.project.pendingTasks ?? workspaceTasks.length} pending',
-                  ),
-                  commandBadge(
-                    Icons.warning_amber_rounded,
-                    '${risk?.riskLevel ?? 'unknown'} risk',
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Plan with AI',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 10),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = (constraints.maxWidth - 10) / 2;
-
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                buildAiAction(
-                  context,
-                  width: width,
-                  icon: Icons.auto_awesome_rounded,
-                  title: 'Improve plan',
-                  subtitle: 'Generate useful project tasks',
-                  color: primary,
-                  loading: isGeneratingPlan,
-                  onTap: generatePlanForSelectedProject,
-                ),
-                buildAiAction(
-                  context,
-                  width: width,
-                  icon: Icons.health_and_safety_rounded,
-                  title: 'Analyze risk',
-                  subtitle: 'Find delays and blockers',
-                  color: tone,
-                  loading: isAnalyzingRisk,
-                  onTap: analyzeSelectedProject,
-                ),
-                buildAiAction(
-                  context,
-                  width: width,
-                  icon: Icons.calendar_month_rounded,
-                  title: 'Smart schedule',
-                  subtitle: 'Optimize project deadlines',
-                  color: PlanoraTheme.info,
-                  loading: isPreviewingSchedule,
-                  onTap: previewSelectedSchedule,
-                ),
-                buildAiAction(
-                  context,
-                  width: width,
-                  icon: Icons.forum_rounded,
-                  title: 'Ask Planora',
-                  subtitle: 'Discuss your project',
-                  color: PlanoraTheme.success,
-                  onTap: () {
-                    setState(() => workspaceTab = 2);
-                    scrollMessagesToBottom(animated: false);
-                  },
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 18),
-        buildFocusCard(context, task),
-        if ((progress?.recommendations ?? []).isNotEmpty) ...[
-          const SizedBox(height: 16),
-          buildRecommendationsCard(context, progress!.recommendations),
-        ],
-      ],
-    );
-  }
-
-  Widget commandBadge(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildAiAction(
-    BuildContext context, {
-    required double width,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-    bool loading = false,
-  }) {
-    return SizedBox(
-      width: width,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: loading ? null : onTap,
-          borderRadius: BorderRadius.circular(22),
-          child: Ink(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: color.withValues(alpha: 0.18)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 43,
-                  height: 43,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.13),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: loading
-                      ? Padding(
-                          padding: const EdgeInsets.all(11),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: color,
-                          ),
-                        )
-                      : Icon(icon, color: color),
-                ),
-                const SizedBox(height: 13),
-                Text(
-                  title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: mutedColor(context),
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget buildFocusCard(BuildContext context, TaskModel? task) {
-    final primary = Theme.of(context).colorScheme.primary;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: glassCardDecoration(context, radius: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.11),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Icon(Icons.bolt_rounded, color: primary),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Text(
-                  'Best next move',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          if (task == null)
-            Text(
-              'There are no active tasks. Generate or add tasks to continue planning.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: mutedColor(context),
-                height: 1.45,
-                fontWeight: FontWeight.w700,
-              ),
-            )
-          else ...[
-            Text(
-              task.title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            if ((task.description ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 7),
-              Text(
-                task.description!,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: mutedColor(context),
-                  height: 1.4,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                Chip(label: Text(task.priority.label)),
-                Chip(label: Text(task.status.label)),
-                Chip(label: Text(task.dueDateLabel)),
-                if (task.estimatedHours != null)
-                  Chip(
-                    label: Text(
-                      '${task.estimatedHours!.toStringAsFixed(1)} hours',
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget buildRecommendationsCard(
-    BuildContext context,
-    List<String> recommendations,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: glassCardDecoration(context, radius: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Planora recommendations',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          for (final recommendation in recommendations.take(4))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      recommendation,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: mutedColor(context),
-                        height: 1.4,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
+    return buildMessages(context);
   }
 
   Widget buildInsightsWorkspace(BuildContext context) {
@@ -2676,7 +2248,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           return;
         }
 
-        if (workspaceTab == 2) {
+        if (workspaceTab == 0) {
           await loadMessages(projectSummary);
         } else {
           await loadWorkspace(projectModel);
@@ -2685,7 +2257,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       child: ListView(
         controller: messagesScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(2, 2, 2, workspaceTab == 2 ? 118 : 28),
+        padding: EdgeInsets.fromLTRB(2, 2, 2, workspaceTab == 0 ? 118 : 28),
         children: [buildWorkspaceContent(context)],
       ),
     );
@@ -2712,7 +2284,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
               ],
             ),
           ),
-          if (!isLoadingProjects && projects.isNotEmpty && workspaceTab == 2)
+          if (!isLoadingProjects && projects.isNotEmpty && workspaceTab == 0)
             Positioned(
               left: 0,
               right: 0,
