@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_client.dart';
 import '../ai/data/ai_plan_api.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
@@ -41,10 +42,72 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
   List<TaskListItem> tasks = [];
   List<ProjectMemberModel> members = [];
 
+  RiskAnalysisPreviewModel? riskPreview;
+  SmartSchedulePreviewModel? schedulePreview;
+  List<AiPlanHistoryModel> aiPlanHistory = [];
+
+  bool analyzingRisk = false;
+  bool loadingSchedule = false;
+  bool applyingSchedule = false;
+
+  bool requestingReport = false;
+  bool openingReport = false;
+
+  String? reportStatus;
+  String? reportReason;
+  String? reportMessage;
+  String? latestReportDate;
+
+  List<ProjectActivityModel> activities = [];
+
   @override
   void initState() {
     super.initState();
     refresh();
+  }
+
+  Future<T?> safeLoad<T>(Future<T> Function() loader, String name) async {
+    try {
+      return await loader();
+    } catch (error, stackTrace) {
+      debugPrint('$name load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+  Map<String, dynamic> asMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+
+    return <String, dynamic>{};
+  }
+
+  List<dynamic> asList(dynamic value) {
+    if (value is List) {
+      return value;
+    }
+
+    return const <dynamic>[];
+  }
+
+  String mapString(
+    Map<String, dynamic> map,
+    String key, {
+    String fallback = '',
+  }) {
+    final value = map[key];
+
+    if (value == null) {
+      return fallback;
+    }
+
+    return value.toString();
   }
 
   Future<void> refresh() async {
@@ -55,22 +118,106 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
 
     try {
       final loadedProject = await widget.projectsApi.getProject(project);
+
       final loadedTasks = await widget.tasksApi.getProjectTasks(
         project: TaskProjectSummary.fromProject(loadedProject),
       );
+
       final loadedMembers = await widget.projectsApi.getProjectMembers(
         loadedProject,
       );
 
+      final loadedRisk = await safeLoad<RiskAnalysisPreviewModel>(
+        () => widget.insightsApi.previewRisk(loadedProject.projectId),
+        'Risk analysis',
+      );
+
+      final loadedPlanHistory = await safeLoad<List<AiPlanHistoryModel>>(
+        () => widget.insightsApi.getAiPlanHistory(loadedProject),
+        'AI plan history',
+      );
+
+      final loadedActivities = await safeLoad<List<ProjectActivityModel>>(
+        () => widget.insightsApi.getProjectActivity(
+          projectId: loadedProject.projectId,
+          limit: 8,
+        ),
+        'Project activity',
+      );
+
+      String? loadedReportStatus;
+      String? loadedReportReason;
+      String? loadedReportDate;
+
+      try {
+        final requestsData = await ApiClient.get(
+          '/reports/requests/me',
+          queryParameters: {'project_id': loadedProject.projectId},
+        );
+
+        final requestItems = asList(asMap(requestsData)['items']);
+
+        if (requestItems.isNotEmpty) {
+          final latestRequest = asMap(requestItems.first);
+
+          loadedReportStatus = mapString(latestRequest, 'status');
+
+          loadedReportReason = mapString(latestRequest, 'rejection_reason');
+
+          loadedReportDate = mapString(latestRequest, 'resolved_at');
+        }
+      } catch (err, stackTrace) {
+        debugPrint('Report request status load failed: $err');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+
+      try {
+        final exportsData = await ApiClient.get(
+          '/reports/projects/${loadedProject.projectId}/exports',
+          queryParameters: {'limit': 1, 'offset': 0},
+        );
+
+        final exportItems = asList(asMap(exportsData)['items']);
+
+        if (exportItems.isNotEmpty &&
+            loadedReportStatus != 'pending' &&
+            loadedReportStatus != 'rejected') {
+          loadedReportStatus = 'ready';
+
+          loadedReportDate ??= mapString(
+            asMap(exportItems.first),
+            'created_at',
+          );
+        }
+      } catch (err, stackTrace) {
+        debugPrint('Report exports load failed: $err');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+
       if (!mounted) return;
+
       setState(() {
         project = loadedProject;
         tasks = loadedTasks;
         members = loadedMembers;
+
+        riskPreview = loadedRisk;
+        aiPlanHistory = loadedPlanHistory ?? <AiPlanHistoryModel>[];
+
+        activities = loadedActivities ?? <ProjectActivityModel>[];
+
+        reportStatus = loadedReportStatus;
+        reportReason = loadedReportReason;
+        latestReportDate = loadedReportDate;
+
         loading = false;
       });
-    } catch (_) {
+    } catch (err, stackTrace) {
+      debugPrint('Project details load failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) return;
+
       setState(() {
         loading = false;
         error = 'Could not load project details.';
@@ -152,10 +299,9 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                     ]),
                     page([tasksCard()]),
                     page([
-                      placeholderCard(
-                        'AI Tools',
-                        'Risk analysis, smart schedule, and AI plan history will stay here.',
-                      ),
+                      riskAnalysisCard(),
+                      smartScheduleCard(),
+                      aiPlanHistoryCard(),
                     ]),
                     page([
                       placeholderCard(
@@ -628,6 +774,815 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Could not delete task.')));
     }
+  }
+
+  Future<void> analyzeRisk() async {
+    if (analyzingRisk) return;
+
+    setState(() => analyzingRisk = true);
+
+    try {
+      final result = await widget.insightsApi.previewRisk(project.projectId);
+
+      if (!mounted) return;
+
+      setState(() {
+        riskPreview = result;
+        analyzingRisk = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Risk analysis failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() => analyzingRisk = false);
+      showProjectMessage('Could not analyze project risk.');
+    }
+  }
+
+  Future<void> previewSmartSchedule() async {
+    if (loadingSchedule) return;
+
+    setState(() => loadingSchedule = true);
+
+    try {
+      final result = await widget.insightsApi.previewSmartSchedule(
+        project: project,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        schedulePreview = result;
+        loadingSchedule = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('Smart schedule preview failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() => loadingSchedule = false);
+      showProjectMessage('Could not generate a schedule preview.');
+    }
+  }
+
+  Future<void> applySmartSchedule() async {
+    if (applyingSchedule || schedulePreview == null) return;
+
+    setState(() => applyingSchedule = true);
+
+    try {
+      await widget.insightsApi.applySmartSchedule(project: project);
+
+      if (!mounted) return;
+
+      setState(() => applyingSchedule = false);
+
+      showProjectMessage('Smart schedule applied successfully.');
+
+      await refresh();
+      widget.onProjectChanged?.call();
+    } catch (error, stackTrace) {
+      debugPrint('Smart schedule apply failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() => applyingSchedule = false);
+      showProjectMessage('Could not apply the smart schedule.');
+    }
+  }
+
+  void showProjectMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget riskAnalysisCard() {
+    final risk = riskPreview;
+    final color = riskColor(risk?.riskLevel);
+
+    return sectionCard(
+      'Risk Analysis',
+      risk == null
+          ? 'Analyze the current project status'
+          : '${risk.riskLevel.toUpperCase()} risk',
+      Icons.warning_amber_rounded,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (risk == null)
+            emptyState(
+              'No risk analysis available.',
+              'Analyze the project to check deadlines, workload, blocked tasks, and overdue work.',
+            )
+          else ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                badge('${risk.predictedDelayDays} predicted delay days', color),
+                badge('${risk.daysUntilDeadline} days remaining', color),
+                badge('${risk.overdueTasks} overdue', color),
+                badge('${risk.blockedTasks} blocked', color),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(risk.reason, style: muted()),
+            if (risk.recommendation.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Recommendation: ${risk.recommendation}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  height: 1.4,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: miniStat(
+                    'Completed',
+                    '${risk.completedTasks}/${risk.totalTasks}',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: miniStat(
+                    'Remaining work',
+                    '${risk.remainingEstimatedHours.toStringAsFixed(1)}h',
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: analyzingRisk ? null : analyzeRisk,
+            icon: analyzingRisk
+                ? const SizedBox(
+                    width: 17,
+                    height: 17,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_graph_rounded),
+            label: Text(analyzingRisk ? 'Analyzing...' : 'Analyze risk'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget smartScheduleCard() {
+    final preview = schedulePreview;
+
+    return sectionCard(
+      'Smart Schedule',
+      preview == null
+          ? 'Generate optimized task deadlines'
+          : '${preview.schedulableTaskCount} tasks can be scheduled',
+      Icons.calendar_month_rounded,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (preview == null)
+            emptyState(
+              'No schedule preview available.',
+              'Generate a preview before applying changes to your tasks.',
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: miniStat('Tasks', '${preview.schedulableTaskCount}'),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: miniStat(
+                    'Estimated work',
+                    '${preview.estimatedTotalHours.toStringAsFixed(1)}h',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: miniStat('Warnings', '${preview.warnings.length}'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final task in preview.tasks.take(5))
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.surfaceVariant.withOpacity(.25),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        style: bold(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      formatProjectDate(task.suggestedDueDate),
+                      style: muted(),
+                    ),
+                  ],
+                ),
+              ),
+            if (preview.warnings.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              for (final warning in preview.warnings.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Text('• $warning', style: muted()),
+                ),
+            ],
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: loadingSchedule ? null : previewSmartSchedule,
+                icon: loadingSchedule
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.preview_rounded),
+                label: Text(
+                  loadingSchedule ? 'Loading...' : 'Preview schedule',
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: preview == null || applyingSchedule
+                    ? null
+                    : applySmartSchedule,
+                icon: applyingSchedule
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_rounded),
+                label: Text(
+                  applyingSchedule ? 'Applying...' : 'Apply schedule',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget aiPlanHistoryCard() {
+    return sectionCard(
+      'AI Plan History',
+      aiPlanHistory.isEmpty
+          ? 'No generated plans yet'
+          : '${aiPlanHistory.length} generated plans',
+      Icons.auto_awesome_rounded,
+      aiPlanHistory.isEmpty
+          ? emptyState(
+              'No AI plan history.',
+              'AI-generated plans for this project will appear here.',
+            )
+          : Column(
+              children: [
+                for (final plan in aiPlanHistory.take(6))
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceVariant.withOpacity(.25),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.summary,
+                          style: bold(),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${plan.generatedTaskCount} generated tasks • '
+                          '${formatProjectDate(plan.createdAt)}',
+                          style: muted(),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Color riskColor(String? level) {
+    switch (level) {
+      case 'high':
+        return Theme.of(context).colorScheme.error;
+      case 'medium':
+        return Colors.orange;
+      case 'low':
+        return Colors.green;
+      default:
+        return Theme.of(context).colorScheme.primary;
+    }
+  }
+
+  String formatProjectDate(DateTime date) {
+    final value = date.toLocal();
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+
+    return '$day/$month/${value.year}';
+  }
+
+  bool get isReportReady => reportStatus == 'ready';
+
+  bool get isReportPending => reportStatus == 'pending';
+
+  bool get isReportRejected => reportStatus == 'rejected';
+
+  Future<void> requestReport() async {
+    if (requestingReport) return;
+
+    setState(() {
+      requestingReport = true;
+      reportMessage = null;
+    });
+
+    try {
+      await ApiClient.postJson(
+        '/reports/projects/${project.projectId}/request',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        requestingReport = false;
+        reportStatus = 'pending';
+        reportReason = null;
+        reportMessage = 'Your request was sent. You can track its status here.';
+      });
+
+      showProjectMessage('Report request sent to admin.');
+    } catch (err, stackTrace) {
+      debugPrint('Report request failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        requestingReport = false;
+        reportMessage = 'Could not send the report request.';
+      });
+    }
+  }
+
+  Future<void> openLatestReport() async {
+    if (openingReport) return;
+
+    setState(() => openingReport = true);
+
+    try {
+      final response = await ApiClient.get(
+        '/reports/projects/${project.projectId}/latest',
+      );
+
+      final report = ProjectReportModel.fromJson(asMap(response));
+
+      if (!mounted) return;
+
+      setState(() => openingReport = false);
+
+      showReportSheet(report);
+    } catch (err, stackTrace) {
+      debugPrint('Latest report load failed: $err');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() => openingReport = false);
+
+      showProjectMessage('Could not open the latest approved report.');
+    }
+  }
+
+  void showReportSheet(ProjectReportModel report) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.82,
+          minChildSize: 0.45,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+              children: [
+                Text(
+                  report.project.title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'Generated ${formatProjectDate(report.generatedAt)}',
+                  style: muted(),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: miniStat(
+                        'Progress',
+                        '${report.progress.completionPercentage.round()}%',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: miniStat(
+                        'Completed',
+                        '${report.progress.completedTasks}/${report.progress.totalTasks}',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: miniStat(
+                        'Overdue',
+                        '${report.progress.overdueTasks}',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Task status',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    badge(
+                      '${report.taskStatusCounts.todo} to do',
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                    badge(
+                      '${report.taskStatusCounts.inProgress} in progress',
+                      Colors.blue,
+                    ),
+                    badge(
+                      '${report.taskStatusCounts.blocked} blocked',
+                      Theme.of(context).colorScheme.error,
+                    ),
+                    badge(
+                      '${report.taskStatusCounts.completed} completed',
+                      Colors.green,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Hours',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: miniStat(
+                        'Estimated',
+                        '${report.hours.estimatedHoursTotal.toStringAsFixed(1)}h',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: miniStat(
+                        'Actual',
+                        '${report.hours.actualHoursTotal.toStringAsFixed(1)}h',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Tasks',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 10),
+                if (report.tasks.isEmpty)
+                  emptyState(
+                    'No tasks in this report.',
+                    'Tasks will appear when they are added to the project.',
+                  )
+                else
+                  for (final task in report.tasks)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceVariant.withOpacity(.25),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(task.title, style: bold()),
+                          const SizedBox(height: 5),
+                          Text(
+                            '${task.status} • ${task.priority}',
+                            style: muted(),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget activityTimelineCard() {
+    return sectionCard(
+      'Activity Timeline',
+      activities.isEmpty
+          ? 'No recent project activity'
+          : '${activities.length} recent events',
+      Icons.timeline_rounded,
+      activities.isEmpty
+          ? emptyState(
+              'No activity yet.',
+              'Task, comment, attachment, and report activity will appear here.',
+            )
+          : Column(
+              children: [
+                for (final activity in activities)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 9),
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceVariant.withOpacity(.22),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 17,
+                          child: Icon(
+                            reportActivityIcon(activity.eventType),
+                            size: 17,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                activity.message.trim().isEmpty
+                                    ? activity.eventType.replaceAll('_', ' ')
+                                    : activity.message,
+                                style: bold(),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${activity.actorLabel} • '
+                                '${formatProjectDate(activity.createdAt)}',
+                                style: muted(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Widget reportsCard() {
+    final colors = Theme.of(context).colorScheme;
+
+    final Color tone;
+
+    if (isReportReady) {
+      tone = Colors.green;
+    } else if (isReportRejected) {
+      tone = colors.error;
+    } else if (isReportPending) {
+      tone = Colors.orange;
+    } else {
+      tone = colors.primary;
+    }
+
+    final String statusText;
+
+    if (isReportReady) {
+      statusText = 'Ready';
+    } else if (isReportRejected) {
+      statusText = 'Rejected';
+    } else if (isReportPending) {
+      statusText = 'Pending admin review';
+    } else {
+      statusText = 'No request yet';
+    }
+
+    return sectionCard(
+      'Project Reports',
+      statusText,
+      Icons.description_rounded,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: tone.withOpacity(.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: tone.withOpacity(.20)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  isReportReady
+                      ? Icons.verified_rounded
+                      : isReportRejected
+                      ? Icons.cancel_rounded
+                      : isReportPending
+                      ? Icons.hourglass_top_rounded
+                      : Icons.admin_panel_settings_rounded,
+                  color: tone,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isReportReady
+                        ? 'Your approved project report is ready to view inside Planora.'
+                        : isReportRejected
+                        ? 'The admin rejected this report request.'
+                        : isReportPending
+                        ? 'Your report request is waiting for admin review.'
+                        : 'Request a project report from the Planora administrators.',
+                    style: muted(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isReportRejected && (reportReason ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Reason: $reportReason',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.error,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+          if (isReportReady && (latestReportDate ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Latest report: $latestReportDate', style: muted()),
+          ],
+          const SizedBox(height: 14),
+          if (isReportReady) ...[
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: openingReport ? null : openLatestReport,
+                icon: openingReport
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.visibility_rounded),
+                label: Text(
+                  openingReport ? 'Opening report...' : 'View report',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: requestingReport ? null : requestReport,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Request updated report'),
+              ),
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: requestingReport || isReportPending
+                    ? null
+                    : requestReport,
+                icon: requestingReport
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        isReportPending
+                            ? Icons.hourglass_top_rounded
+                            : Icons.mail_outline_rounded,
+                      ),
+                label: Text(
+                  requestingReport
+                      ? 'Sending request...'
+                      : isReportPending
+                      ? 'Waiting for admin'
+                      : 'Request report from admin',
+                ),
+              ),
+            ),
+          if (reportMessage != null) ...[
+            const SizedBox(height: 10),
+            Text(reportMessage!, style: muted()),
+          ],
+        ],
+      ),
+    );
+  }
+
+  IconData reportActivityIcon(String eventType) {
+    final value = eventType.toLowerCase();
+
+    if (value.contains('task')) {
+      return Icons.task_alt_rounded;
+    }
+
+    if (value.contains('comment')) {
+      return Icons.chat_bubble_outline_rounded;
+    }
+
+    if (value.contains('attachment')) {
+      return Icons.attach_file_rounded;
+    }
+
+    if (value.contains('report')) {
+      return Icons.description_rounded;
+    }
+
+    if (value.contains('member')) {
+      return Icons.person_add_alt_1_rounded;
+    }
+
+    return Icons.bolt_rounded;
   }
 
   Widget membersCard() {
