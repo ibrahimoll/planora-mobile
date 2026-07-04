@@ -1017,285 +1017,361 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> showEditProfileSheet() async {
-    final usernameController = TextEditingController(text: user.username);
-
-    final fullNameController = TextEditingController(text: user.fullName);
-
     var openPhotoSheetAfterClose = false;
 
-    try {
-      final updatedUser = await showModalBottomSheet<UserResponse>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) {
-          var isSaving = false;
+    final updatedUser = await showModalBottomSheet<UserResponse>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        var username = user.username;
+        var fullName = user.fullName;
+        var isSaving = false;
 
-          return StatefulBuilder(
-            builder: (modalContext, setSheetState) {
-              Future<void> saveProfile() async {
-                if (isSaving) {
-                  return;
-                }
-
-                final username = usernameController.text.trim();
-                final fullName = fullNameController.text.trim();
-
-                if (username.isEmpty || fullName.isEmpty) {
-                  showMessage('Username and full name are required.');
-                  return;
-                }
-
-                FocusScope.of(modalContext).unfocus();
-
-                setSheetState(() {
-                  isSaving = true;
-                });
-
-                try {
-                  final result = await _profileApi.updateProfile(
-                    username: username,
-                    fullName: fullName,
-                  );
-
-                  if (!sheetContext.mounted) {
-                    return;
-                  }
-
-                  // Close the sheet first and return the updated user.
-                  Navigator.of(sheetContext).pop(result);
-                } catch (error, stackTrace) {
-                  debugPrint('Profile update failed: $error');
-                  debugPrintStack(stackTrace: stackTrace);
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  showMessage(errorText(error, 'Could not update profile.'));
-
-                  if (sheetContext.mounted) {
-                    setSheetState(() {
-                      isSaving = false;
-                    });
-                  }
-                }
+        return StatefulBuilder(
+          builder: (modalContext, setSheetState) {
+            Future<void> saveProfile() async {
+              if (isSaving) {
+                return;
               }
 
-              return buildSheetScaffold(
-                modalContext,
-                title: 'Edit Profile',
-                subtitle: 'Update the details shown on your Planora account.',
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    buildSheetActionTile(
+              final cleanUsername = username.trim();
+              final cleanFullName = fullName.trim();
+
+              if (cleanUsername.isEmpty || cleanFullName.isEmpty) {
+                showMessage('Username and full name are required.');
+                return;
+              }
+
+              FocusManager.instance.primaryFocus?.unfocus();
+
+              setSheetState(() {
+                isSaving = true;
+              });
+
+              try {
+                final result = await _profileApi.updateProfile(
+                  username: cleanUsername,
+                  fullName: cleanFullName,
+                );
+
+                await Future<void>.delayed(const Duration(milliseconds: 150));
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(sheetContext).pop(result);
+              } catch (error, stackTrace) {
+                debugPrint('Profile update failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+
+                if (!mounted) {
+                  return;
+                }
+
+                showMessage(errorText(error, 'Could not update profile.'));
+
+                if (sheetContext.mounted) {
+                  setSheetState(() {
+                    isSaving = false;
+                  });
+                }
+              }
+            }
+
+            return buildSheetScaffold(
+              modalContext,
+              title: 'Edit Profile',
+              subtitle: 'Update the details shown on your Planora account.',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  buildSheetActionTile(
+                    modalContext,
+                    icon: Icons.camera_alt_outlined,
+                    title: 'Change profile picture',
+                    subtitle: profileImageUrl == null
+                        ? 'No photo yet. Add one from your gallery or camera.'
+                        : 'Update the photo shown on your account.',
+                    onTap: isSaving
+                        ? null
+                        : () {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            openPhotoSheetAfterClose = true;
+                            Navigator.of(sheetContext).pop();
+                          },
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    initialValue: fullName,
+                    enabled: !isSaving,
+                    textInputAction: TextInputAction.next,
+                    onChanged: (value) {
+                      fullName = value;
+                    },
+                    decoration: inputDecoration(
                       modalContext,
-                      icon: Icons.camera_alt_outlined,
-                      title: 'Change profile picture',
-                      subtitle: profileImageUrl == null
-                          ? 'No photo yet. Add one from your gallery or camera.'
-                          : 'Update the photo shown on your account.',
-                      onTap: isSaving
-                          ? null
-                          : () {
-                              openPhotoSheetAfterClose = true;
-                              Navigator.of(sheetContext).pop();
-                            },
+                      label: 'Full name',
+                      icon: Icons.badge_outlined,
                     ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: fullNameController,
-                      textInputAction: TextInputAction.next,
-                      enabled: !isSaving,
-                      decoration: inputDecoration(
-                        modalContext,
-                        label: 'Full name',
-                        icon: Icons.badge_outlined,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: usernameController,
-                      textInputAction: TextInputAction.done,
-                      enabled: !isSaving,
-                      decoration: inputDecoration(
-                        modalContext,
-                        label: 'Username',
-                        icon: Icons.alternate_email_rounded,
-                      ),
-                      onSubmitted: (_) {
-                        if (!isSaving) {
-                          saveProfile();
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    buildPrimarySheetButton(
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    initialValue: username,
+                    enabled: !isSaving,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (value) {
+                      username = value;
+                    },
+                    onFieldSubmitted: (_) {
+                      if (!isSaving) {
+                        saveProfile();
+                      }
+                    },
+                    decoration: inputDecoration(
                       modalContext,
-                      label: isSaving ? 'Saving...' : 'Save changes',
-                      icon: Icons.check_rounded,
-                      onPressed: isSaving ? null : saveProfile,
+                      label: 'Username',
+                      icon: Icons.alternate_email_rounded,
                     ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      );
+                  ),
+                  const SizedBox(height: 18),
+                  buildPrimarySheetButton(
+                    modalContext,
+                    label: isSaving ? 'Saving...' : 'Save changes',
+                    icon: Icons.check_rounded,
+                    onPressed: isSaving ? null : saveProfile,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
 
-      if (!mounted) {
-        return;
-      }
+    if (!mounted) {
+      return;
+    }
 
-      if (updatedUser != null) {
-        setState(() {
-          user = updatedUser;
-        });
+    await Future<void>.delayed(const Duration(milliseconds: 350));
 
-        widget.onUserUpdated?.call(updatedUser);
+    if (!mounted) {
+      return;
+    }
 
-        showMessage('Profile updated.');
-        return;
-      }
+    if (updatedUser != null) {
+      setState(() {
+        user = updatedUser;
+      });
 
-      if (openPhotoSheetAfterClose) {
-        await showProfilePhotoSheet();
-      }
-    } finally {
-      usernameController.dispose();
-      fullNameController.dispose();
+      showMessage('Profile updated.');
+      return;
+    }
+
+    if (openPhotoSheetAfterClose) {
+      await showProfilePhotoSheet();
     }
   }
 
   Future<void> showChangePasswordSheet() async {
-    final oldPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
+    final passwordChanged = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        var oldPassword = '';
+        var newPassword = '';
+        var confirmPassword = '';
 
-    try {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        backgroundColor: Colors.transparent,
-        builder: (sheetContext) {
-          bool isSaving = false;
-          bool hideOldPassword = true;
-          bool hideNewPassword = true;
-          bool hideConfirmPassword = true;
+        var isSaving = false;
+        var hideOldPassword = true;
+        var hideNewPassword = true;
+        var hideConfirmPassword = true;
 
-          return StatefulBuilder(
-            builder: (context, setSheetState) {
-              Future<void> savePassword() async {
-                final oldPassword = oldPasswordController.text;
-                final newPassword = newPasswordController.text;
-                final confirmPassword = confirmPasswordController.text;
-
-                if (oldPassword.isEmpty || newPassword.isEmpty) {
-                  showMessage('Password fields are required.');
-                  return;
-                }
-
-                if (newPassword.length < 8) {
-                  showMessage('New password must be at least 8 characters.');
-                  return;
-                }
-
-                if (newPassword != confirmPassword) {
-                  showMessage('New passwords do not match.');
-                  return;
-                }
-
-                setSheetState(() => isSaving = true);
-
-                try {
-                  await _profileApi.changePassword(
-                    oldPassword: oldPassword,
-                    newPassword: newPassword,
-                  );
-                  if (!mounted) return;
-
-                  if (sheetContext.mounted) {
-                    Navigator.of(sheetContext).pop();
-                  }
-                  showMessage('Password changed.');
-                } catch (error, stackTrace) {
-                  debugPrint('Password update failed: $error');
-                  debugPrintStack(stackTrace: stackTrace);
-                  if (!mounted) return;
-
-                  showMessage(errorText(error, 'Could not change password.'));
-                  if (sheetContext.mounted) {
-                    setSheetState(() => isSaving = false);
-                  }
-                }
+        return StatefulBuilder(
+          builder: (modalContext, setSheetState) {
+            Future<void> savePassword() async {
+              if (isSaving) {
+                return;
               }
 
-              return buildSheetScaffold(
-                context,
-                title: 'Change Password',
-                subtitle: 'Use a strong password to keep your account safe.',
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    buildPasswordField(
-                      context,
-                      controller: oldPasswordController,
-                      label: 'Current password',
-                      obscureText: hideOldPassword,
-                      onToggle: () => setSheetState(
-                        () => hideOldPassword = !hideOldPassword,
-                      ),
+              if (oldPassword.isEmpty ||
+                  newPassword.isEmpty ||
+                  confirmPassword.isEmpty) {
+                showMessage('Password fields are required.');
+                return;
+              }
+
+              if (newPassword.length < 8) {
+                showMessage('New password must be at least 8 characters.');
+                return;
+              }
+
+              if (newPassword != confirmPassword) {
+                showMessage('New passwords do not match.');
+                return;
+              }
+
+              FocusManager.instance.primaryFocus?.unfocus();
+
+              setSheetState(() {
+                isSaving = true;
+              });
+
+              try {
+                await _profileApi.changePassword(
+                  oldPassword: oldPassword,
+                  newPassword: newPassword,
+                );
+
+                // Let the keyboard begin closing before removing the route.
+                await Future<void>.delayed(const Duration(milliseconds: 150));
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(sheetContext).pop(true);
+              } catch (error, stackTrace) {
+                debugPrint('Password update failed: $error');
+                debugPrintStack(stackTrace: stackTrace);
+
+                if (!mounted) {
+                  return;
+                }
+
+                showMessage(errorText(error, 'Could not change password.'));
+
+                if (sheetContext.mounted) {
+                  setSheetState(() {
+                    isSaving = false;
+                  });
+                }
+              }
+            }
+
+            Widget passwordField({
+              required String initialValue,
+              required String label,
+              required bool obscureText,
+              required ValueChanged<String> onChanged,
+              required VoidCallback onToggle,
+              TextInputAction textInputAction = TextInputAction.next,
+              ValueChanged<String>? onSubmitted,
+            }) {
+              return TextFormField(
+                initialValue: initialValue,
+                enabled: !isSaving,
+                obscureText: obscureText,
+                enableSuggestions: false,
+                autocorrect: false,
+                textInputAction: textInputAction,
+                onChanged: onChanged,
+                onFieldSubmitted: onSubmitted,
+                decoration: inputDecoration(
+                  modalContext,
+                  label: label,
+                  icon: Icons.lock_outline_rounded,
+                  suffixIcon: IconButton(
+                    onPressed: isSaving ? null : onToggle,
+                    icon: Icon(
+                      obscureText
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
                     ),
-                    const SizedBox(height: 14),
-                    buildPasswordField(
-                      context,
-                      controller: newPasswordController,
-                      label: 'New password',
-                      obscureText: hideNewPassword,
-                      onToggle: () => setSheetState(
-                        () => hideNewPassword = !hideNewPassword,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    buildPasswordField(
-                      context,
-                      controller: confirmPasswordController,
-                      label: 'Confirm password',
-                      obscureText: hideConfirmPassword,
-                      onToggle: () => setSheetState(
-                        () => hideConfirmPassword = !hideConfirmPassword,
-                      ),
-                      onSubmitted: (_) {
-                        if (!isSaving) savePassword();
-                      },
-                    ),
-                    const SizedBox(height: 18),
-                    buildPrimarySheetButton(
-                      context,
-                      label: isSaving ? 'Updating...' : 'Update password',
-                      icon: Icons.lock_reset_rounded,
-                      onPressed: isSaving ? null : savePassword,
-                    ),
-                  ],
+                  ),
                 ),
               );
-            },
-          );
-        },
-      );
-    } finally {
-      oldPasswordController.dispose();
-      newPasswordController.dispose();
-      confirmPasswordController.dispose();
+            }
+
+            return buildSheetScaffold(
+              modalContext,
+              title: 'Change Password',
+              subtitle: 'Use a strong password to keep your account safe.',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  passwordField(
+                    initialValue: oldPassword,
+                    label: 'Current password',
+                    obscureText: hideOldPassword,
+                    onChanged: (value) {
+                      oldPassword = value;
+                    },
+                    onToggle: () {
+                      setSheetState(() {
+                        hideOldPassword = !hideOldPassword;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  passwordField(
+                    initialValue: newPassword,
+                    label: 'New password',
+                    obscureText: hideNewPassword,
+                    onChanged: (value) {
+                      newPassword = value;
+                    },
+                    onToggle: () {
+                      setSheetState(() {
+                        hideNewPassword = !hideNewPassword;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  passwordField(
+                    initialValue: confirmPassword,
+                    label: 'Confirm password',
+                    obscureText: hideConfirmPassword,
+                    textInputAction: TextInputAction.done,
+                    onChanged: (value) {
+                      confirmPassword = value;
+                    },
+                    onToggle: () {
+                      setSheetState(() {
+                        hideConfirmPassword = !hideConfirmPassword;
+                      });
+                    },
+                    onSubmitted: (_) {
+                      if (!isSaving) {
+                        savePassword();
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  buildPrimarySheetButton(
+                    modalContext,
+                    label: isSaving ? 'Updating...' : 'Update password',
+                    icon: Icons.lock_reset_rounded,
+                    onPressed: isSaving ? null : savePassword,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || passwordChanged != true) {
+      return;
     }
+
+    // Wait for the modal route and its inherited widgets to be removed.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+
+    if (!mounted) {
+      return;
+    }
+
+    showMessage('Password changed.');
   }
 
   Future<void> showSettingsSheet() async {
-    await showModalBottomSheet<void>(
+    final shouldToggleTheme = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -1314,8 +1390,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Toggle theme',
                 subtitle: 'Switch between light and dark mode',
                 onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  widget.onThemeToggle();
+                  // Return the action. Do not rebuild MaterialApp while
+                  // the bottom sheet is still being removed.
+                  Navigator.of(sheetContext).pop(true);
                 },
               ),
               const SizedBox(height: 10),
@@ -1331,6 +1408,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
+
+    if (!mounted || shouldToggleTheme != true) {
+      return;
+    }
+
+    // Let the modal route finish its reverse animation first.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+
+    if (!mounted) {
+      return;
+    }
+
+    widget.onThemeToggle();
   }
 
   Widget buildSheetScaffold(
@@ -1430,37 +1520,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderSide: BorderSide(
           color: Theme.of(context).colorScheme.primary,
           width: 1.6,
-        ),
-      ),
-    );
-  }
-
-  Widget buildPasswordField(
-    BuildContext context, {
-    required TextEditingController controller,
-    required String label,
-    required bool obscureText,
-    required VoidCallback onToggle,
-    ValueChanged<String>? onSubmitted,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      textInputAction: onSubmitted == null
-          ? TextInputAction.next
-          : TextInputAction.done,
-      onSubmitted: onSubmitted,
-      decoration: inputDecoration(
-        context,
-        label: label,
-        icon: Icons.lock_outline_rounded,
-        suffixIcon: IconButton(
-          onPressed: onToggle,
-          icon: Icon(
-            obscureText
-                ? Icons.visibility_outlined
-                : Icons.visibility_off_outlined,
-          ),
         ),
       ),
     );

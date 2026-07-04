@@ -79,7 +79,8 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void didUpdateWidget(covariant TasksScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.createRequestId != oldWidget.createRequestId && widget.createRequestId > 0) {
+    if (widget.createRequestId != oldWidget.createRequestId &&
+        widget.createRequestId > 0) {
       requestCreateTaskSheet();
     }
   }
@@ -126,7 +127,8 @@ class _TasksScreenState extends State<TasksScreen> {
     return [...result]..sort(compareTaskItemsByDueDate);
   }
 
-  int get overdueCount => projectScopedTasks.where((item) => item.task.isOverdue).length;
+  int get overdueCount =>
+      projectScopedTasks.where((item) => item.task.isOverdue).length;
 
   Future<void> loadTasks() async {
     setState(() {
@@ -142,10 +144,13 @@ class _TasksScreenState extends State<TasksScreen> {
         tasks = data.tasks;
         isShowingCachedData = data.isFromCache;
         if (selectedProjectId != null &&
-            !data.projects.any((project) => project.projectId == selectedProjectId)) {
+            !data.projects.any(
+              (project) => project.projectId == selectedProjectId,
+            )) {
           selectedProjectId = null;
         }
-        selectedCreateProjectId = selectedProjectId ??
+        selectedCreateProjectId =
+            selectedProjectId ??
             (data.projects.isEmpty ? null : data.projects.first.projectId);
         isLoading = false;
       });
@@ -193,7 +198,9 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Color mutedColor(BuildContext context) {
-    return PlanoraTheme.isDark(context) ? PlanoraTheme.darkTextMuted : PlanoraTheme.textSecondary;
+    return PlanoraTheme.isDark(context)
+        ? PlanoraTheme.darkTextMuted
+        : PlanoraTheme.textSecondary;
   }
 
   Color statusColor(TaskStatus status) {
@@ -320,17 +327,17 @@ class _TasksScreenState extends State<TasksScreen> {
               child: Text(
                 'Choose Plan',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: mutedColor(context),
-                      fontWeight: FontWeight.w900,
-                    ),
+                  color: mutedColor(context),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
             Text(
               '${projectScopedTasks.length} tasks • $overdueCount overdue',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w900,
-                  ),
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ],
         ),
@@ -353,8 +360,14 @@ class _TasksScreenState extends State<TasksScreen> {
                 buildProjectChip(
                   context,
                   label: project.title,
-                  count: tasks.where((item) => item.project.projectId == project.projectId).length,
-                  icon: project.isTeamProject ? Icons.groups_2_outlined : Icons.folder_outlined,
+                  count: tasks
+                      .where(
+                        (item) => item.project.projectId == project.projectId,
+                      )
+                      .length,
+                  icon: project.isTeamProject
+                      ? Icons.groups_2_outlined
+                      : Icons.folder_outlined,
                   isSelected: selectedProjectId == project.projectId,
                   onTap: () {
                     setState(() {
@@ -363,7 +376,8 @@ class _TasksScreenState extends State<TasksScreen> {
                     });
                   },
                 ),
-                if (project != projects.last) const SizedBox(width: PlanoraSpacing.sm),
+                if (project != projects.last)
+                  const SizedBox(width: PlanoraSpacing.sm),
               ],
             ],
           ),
@@ -385,8 +399,8 @@ class _TasksScreenState extends State<TasksScreen> {
     final foreground = isSelected
         ? Colors.white
         : isDark
-            ? PlanoraTheme.darkTextPrimary
-            : PlanoraTheme.textPrimary;
+        ? PlanoraTheme.darkTextPrimary
+        : PlanoraTheme.textPrimary;
 
     return InkWell(
       onTap: onTap,
@@ -396,17 +410,23 @@ class _TasksScreenState extends State<TasksScreen> {
         constraints: const BoxConstraints(minWidth: 136, maxWidth: 220),
         padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
         decoration: BoxDecoration(
-          gradient: isSelected ? PlanoraTheme.primaryGradientFor(context) : null,
-          color: isSelected ? null : (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface),
+          gradient: isSelected
+              ? PlanoraTheme.primaryGradientFor(context)
+              : null,
+          color: isSelected
+              ? null
+              : (isDark ? PlanoraTheme.darkSurface : PlanoraTheme.surface),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
                 : isDark
-                    ? PlanoraTheme.darkBorder
-                    : PlanoraTheme.border,
+                ? PlanoraTheme.darkBorder
+                : PlanoraTheme.border,
           ),
-          boxShadow: isSelected ? PlanoraTheme.floatingShadowFor(context) : PlanoraTheme.cardShadowFor(context),
+          boxShadow: isSelected
+              ? PlanoraTheme.floatingShadowFor(context)
+              : PlanoraTheme.cardShadowFor(context),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -416,9 +436,15 @@ class _TasksScreenState extends State<TasksScreen> {
               height: 28,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected ? Colors.white.withValues(alpha: .18) : primary.withValues(alpha: .10),
+                color: isSelected
+                    ? Colors.white.withValues(alpha: .18)
+                    : primary.withValues(alpha: .10),
               ),
-              child: Icon(icon, color: isSelected ? Colors.white : primary, size: 16),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : primary,
+                size: 16,
+              ),
             ),
             const SizedBox(width: 9),
             Flexible(
@@ -430,17 +456,17 @@ class _TasksScreenState extends State<TasksScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: foreground,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      color: foreground,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '$count ${count == 1 ? 'task' : 'tasks'}',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: isSelected ? Colors.white70 : mutedColor(context),
-                          fontWeight: FontWeight.w800,
-                        ),
+                      color: isSelected ? Colors.white70 : mutedColor(context),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               ),
@@ -463,7 +489,9 @@ class _TasksScreenState extends State<TasksScreen> {
               width: 142,
               height: 58,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: .08),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
@@ -483,7 +511,10 @@ class _TasksScreenState extends State<TasksScreen> {
 
   Widget buildTaskContent(BuildContext context) {
     if (isLoading) {
-      return const PlanoraLoadingState(message: 'Loading tasks...', topPadding: 22);
+      return const PlanoraLoadingState(
+        message: 'Loading tasks...',
+        topPadding: 22,
+      );
     }
 
     if (errorMessage != null) {
@@ -512,7 +543,9 @@ class _TasksScreenState extends State<TasksScreen> {
       return PlanoraMessageState(
         icon: Icons.check_circle_outline_rounded,
         title: 'No tasks here',
-        message: searchQuery.trim().isNotEmpty ? 'No task matches your search.' : 'Add a task or switch to another status.',
+        message: searchQuery.trim().isNotEmpty
+            ? 'No task matches your search.'
+            : 'Add a task or switch to another status.',
         actionText: 'New Task',
         onAction: showCreateTaskSheet,
         topMargin: 10,
@@ -526,12 +559,21 @@ class _TasksScreenState extends State<TasksScreen> {
           children: [
             Expanded(
               child: Text(
-                selectedFilterIndex == 0 ? 'Current Tasks' : filterLabel(selectedStatus),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                selectedFilterIndex == 0
+                    ? 'Current Tasks'
+                    : filterLabel(selectedStatus),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
             if (isShowingCachedData)
-              buildPill(context, label: 'Offline', icon: Icons.cloud_off_rounded, color: PlanoraTheme.warning),
+              buildPill(
+                context,
+                label: 'Offline',
+                icon: Icons.cloud_off_rounded,
+                color: PlanoraTheme.warning,
+              ),
           ],
         ),
         const SizedBox(height: PlanoraSpacing.md),
@@ -542,7 +584,8 @@ class _TasksScreenState extends State<TasksScreen> {
             delayMs: 22,
             child: buildTaskCard(context, filteredTasks[index]),
           ),
-          if (index != filteredTasks.length - 1) const SizedBox(height: PlanoraSpacing.md),
+          if (index != filteredTasks.length - 1)
+            const SizedBox(height: PlanoraSpacing.md),
         ],
       ],
     );
@@ -551,7 +594,9 @@ class _TasksScreenState extends State<TasksScreen> {
   Widget buildTaskCard(BuildContext context, TaskListItem item) {
     final task = item.task;
     final color = statusColor(task.status);
-    final progress = task.isCompleted ? 1.0 : task.progressPercentage.clamp(0, 100) / 100;
+    final progress = task.isCompleted
+        ? 1.0
+        : task.progressPercentage.clamp(0, 100) / 100;
     final isBusy = completingTaskId == task.taskId;
 
     return PlanoraCard(
@@ -574,7 +619,10 @@ class _TasksScreenState extends State<TasksScreen> {
                 child: isBusy
                     ? Padding(
                         padding: const EdgeInsets.all(13),
-                        child: CircularProgressIndicator(strokeWidth: 2.4, color: color),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: color,
+                        ),
                       )
                     : Icon(taskIcon(task.status), color: color, size: 24),
               ),
@@ -588,25 +636,33 @@ class _TasksScreenState extends State<TasksScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            height: 1.12,
-                          ),
+                        fontWeight: FontWeight.w900,
+                        height: 1.12,
+                      ),
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      task.description?.trim().isNotEmpty == true ? task.description!.trim() : item.project.title,
+                      task.description?.trim().isNotEmpty == true
+                          ? task.description!.trim()
+                          : item.project.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: mutedColor(context),
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: mutedColor(context),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              buildPill(context, label: task.status == TaskStatus.completed ? 'Done' : task.status.label, color: color),
+              buildPill(
+                context,
+                label: task.status == TaskStatus.completed
+                    ? 'Done'
+                    : task.status.label,
+                color: color,
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -615,7 +671,9 @@ class _TasksScreenState extends State<TasksScreen> {
             child: LinearProgressIndicator(
               value: progress.toDouble(),
               minHeight: 6,
-              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .10),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .10),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -628,12 +686,21 @@ class _TasksScreenState extends State<TasksScreen> {
                 context,
                 icon: Icons.calendar_today_outlined,
                 label: task.dueDateLabel,
-                color: task.isOverdue ? PlanoraTheme.error : mutedColor(context),
+                color: task.isOverdue
+                    ? PlanoraTheme.error
+                    : mutedColor(context),
               ),
-              buildMetaChip(context, icon: Icons.flag_rounded, label: task.priority.label, color: priorityColor(task.priority)),
               buildMetaChip(
                 context,
-                icon: item.project.isTeamProject ? Icons.groups_2_outlined : Icons.person_outline_rounded,
+                icon: Icons.flag_rounded,
+                label: task.priority.label,
+                color: priorityColor(task.priority),
+              ),
+              buildMetaChip(
+                context,
+                icon: item.project.isTeamProject
+                    ? Icons.groups_2_outlined
+                    : Icons.person_outline_rounded,
                 label: item.project.isTeamProject ? 'Team' : 'Personal',
                 color: Theme.of(context).colorScheme.primary,
               ),
@@ -663,7 +730,12 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  Widget buildPill(BuildContext context, {required String label, IconData? icon, required Color color}) {
+  Widget buildPill(
+    BuildContext context, {
+    required String label,
+    IconData? icon,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
@@ -673,25 +745,35 @@ class _TasksScreenState extends State<TasksScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[Icon(icon, size: 13, color: color), const SizedBox(width: 4)],
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+          ],
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget buildMetaChip(BuildContext context, {required IconData icon, required String label, required Color color}) {
+  Widget buildMetaChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
     final isDark = PlanoraTheme.isDark(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: .04) : const Color(0xFFF8F5FF),
+        color: isDark
+            ? Colors.white.withValues(alpha: .04)
+            : const Color(0xFFF8F5FF),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -702,9 +784,9 @@ class _TasksScreenState extends State<TasksScreen> {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -714,7 +796,9 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> showCreateTaskSheet() async {
     if (isCreateSheetOpen) return;
     if (projects.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create a plan first.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Create a plan first.')));
       return;
     }
 
@@ -744,38 +828,70 @@ class _TasksScreenState extends State<TasksScreen> {
                   children: [
                     Text(
                       'Create Task',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: PlanoraSpacing.md),
                     DropdownButtonFormField<int>(
                       value: selectedCreateProjectId,
-                      decoration: const InputDecoration(labelText: 'Plan', prefixIcon: Icon(Icons.folder_outlined)),
-                      items: projects
-                          .map(
-                            (project) => DropdownMenuItem<int>(
-                              value: project.projectId,
-                              child: Text(project.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      isExpanded: true,
+                      menuMaxHeight: 360,
+                      decoration: const InputDecoration(
+                        labelText: 'Plan',
+                        prefixIcon: Icon(Icons.folder_outlined),
+                      ),
+                      selectedItemBuilder: (context) {
+                        return projects.map((project) {
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              project.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          )
-                          .toList(),
+                          );
+                        }).toList();
+                      },
+                      items: projects.map((project) {
+                        return DropdownMenuItem<int>(
+                          value: project.projectId,
+                          child: Text(
+                            project.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
                       onChanged: isCreatingTask
                           ? null
                           : (value) {
-                              if (value == null) return;
-                              setSheetState(() => selectedCreateProjectId = value);
+                              if (value == null) {
+                                return;
+                              }
+
+                              setSheetState(() {
+                                selectedCreateProjectId = value;
+                              });
                             },
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: titleController,
-                      decoration: const InputDecoration(labelText: 'Title', prefixIcon: Icon(Icons.task_alt_rounded)),
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        prefixIcon: Icon(Icons.task_alt_rounded),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: descriptionController,
                       minLines: 3,
                       maxLines: 5,
-                      decoration: const InputDecoration(labelText: 'Description optional', prefixIcon: Icon(Icons.notes_rounded)),
+                      decoration: const InputDecoration(
+                        labelText: 'Description optional',
+                        prefixIcon: Icon(Icons.notes_rounded),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
@@ -786,14 +902,18 @@ class _TasksScreenState extends State<TasksScreen> {
                           label: Text(priority.label),
                           onSelected: isCreatingTask
                               ? null
-                              : (_) => setSheetState(() => selectedPriority = priority),
+                              : (_) => setSheetState(
+                                  () => selectedPriority = priority,
+                                ),
                         );
                       }).toList(),
                     ),
                     const SizedBox(height: 12),
                     PlanoraSecondaryButton(
                       icon: Icons.calendar_month_rounded,
-                      label: selectedDueDate == null ? 'Choose due date' : formatInputDate(selectedDueDate!),
+                      label: selectedDueDate == null
+                          ? 'Choose due date'
+                          : formatInputDate(selectedDueDate!),
                       onPressed: isCreatingTask
                           ? null
                           : () async {
@@ -807,7 +927,8 @@ class _TasksScreenState extends State<TasksScreen> {
                       label: 'Create Task',
                       icon: Icons.add_rounded,
                       isLoading: isCreatingTask,
-                      onTap: () => createTaskFromSheet(sheetContext, setSheetState),
+                      onTap: () =>
+                          createTaskFromSheet(sheetContext, setSheetState),
                     ),
                   ],
                 ),
@@ -834,7 +955,10 @@ class _TasksScreenState extends State<TasksScreen> {
     return DateTime(picked.year, picked.month, picked.day, 12);
   }
 
-  Future<void> createTaskFromSheet(BuildContext sheetContext, void Function(VoidCallback fn) setSheetState) async {
+  Future<void> createTaskFromSheet(
+    BuildContext sheetContext,
+    void Function(VoidCallback fn) setSheetState,
+  ) async {
     final project = projects.firstWhere(
       (item) => item.projectId == selectedCreateProjectId,
       orElse: () => projects.first,
@@ -843,7 +967,9 @@ class _TasksScreenState extends State<TasksScreen> {
     final description = descriptionController.text.trim();
 
     if (title.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task title must be at least 2 letters.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task title must be at least 2 letters.')),
+      );
       return;
     }
 
@@ -867,14 +993,18 @@ class _TasksScreenState extends State<TasksScreen> {
       await loadTasks();
       widget.onTasksChanged?.call();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task created.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Task created.')));
     } catch (error, stackTrace) {
       debugPrint('Task creation failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => isCreatingTask = false);
       setSheetState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not create task.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not create task.')));
     }
   }
 
@@ -905,14 +1035,22 @@ class _TasksScreenState extends State<TasksScreen> {
       );
       if (!mounted) return;
       setState(() {
-        tasks = tasks.map((taskItem) => taskItem.task.taskId == updated.task.taskId ? updated : taskItem).toList();
+        tasks = tasks
+            .map(
+              (taskItem) => taskItem.task.taskId == updated.task.taskId
+                  ? updated
+                  : taskItem,
+            )
+            .toList();
       });
       widget.onTasksChanged?.call();
     } catch (error, stackTrace) {
       debugPrint('Task completion failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not complete task.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not complete task.')));
     } finally {
       if (mounted) setState(() => completingTaskId = null);
     }
