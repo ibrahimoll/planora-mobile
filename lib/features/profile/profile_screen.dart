@@ -1018,20 +1018,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> showEditProfileSheet() async {
     final usernameController = TextEditingController(text: user.username);
+
     final fullNameController = TextEditingController(text: user.fullName);
 
+    var openPhotoSheetAfterClose = false;
+
     try {
-      await showModalBottomSheet<void>(
+      final updatedUser = await showModalBottomSheet<UserResponse>(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
         backgroundColor: Colors.transparent,
         builder: (sheetContext) {
-          bool isSaving = false;
+          var isSaving = false;
 
           return StatefulBuilder(
-            builder: (context, setSheetState) {
+            builder: (modalContext, setSheetState) {
               Future<void> saveProfile() async {
+                if (isSaving) {
+                  return;
+                }
+
                 final username = usernameController.text.trim();
                 final fullName = fullNameController.text.trim();
 
@@ -1040,42 +1047,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   return;
                 }
 
-                setSheetState(() => isSaving = true);
+                FocusScope.of(modalContext).unfocus();
+
+                setSheetState(() {
+                  isSaving = true;
+                });
 
                 try {
-                  final updatedUser = await _profileApi.updateProfile(
+                  final result = await _profileApi.updateProfile(
                     username: username,
                     fullName: fullName,
                   );
-                  if (!mounted) return;
 
-                  setState(() => user = updatedUser);
-                  widget.onUserUpdated?.call(updatedUser);
-                  if (sheetContext.mounted) {
-                    Navigator.of(sheetContext).pop();
+                  if (!sheetContext.mounted) {
+                    return;
                   }
-                  showMessage('Profile updated.');
+
+                  // Close the sheet first and return the updated user.
+                  Navigator.of(sheetContext).pop(result);
                 } catch (error, stackTrace) {
                   debugPrint('Profile update failed: $error');
                   debugPrintStack(stackTrace: stackTrace);
-                  if (!mounted) return;
+
+                  if (!mounted) {
+                    return;
+                  }
 
                   showMessage(errorText(error, 'Could not update profile.'));
+
                   if (sheetContext.mounted) {
-                    setSheetState(() => isSaving = false);
+                    setSheetState(() {
+                      isSaving = false;
+                    });
                   }
                 }
               }
 
               return buildSheetScaffold(
-                context,
+                modalContext,
                 title: 'Edit Profile',
                 subtitle: 'Update the details shown on your Planora account.',
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     buildSheetActionTile(
-                      context,
+                      modalContext,
                       icon: Icons.camera_alt_outlined,
                       title: 'Change profile picture',
                       subtitle: profileImageUrl == null
@@ -1084,16 +1100,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: isSaving
                           ? null
                           : () {
+                              openPhotoSheetAfterClose = true;
                               Navigator.of(sheetContext).pop();
-                              showProfilePhotoSheet();
                             },
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: fullNameController,
                       textInputAction: TextInputAction.next,
+                      enabled: !isSaving,
                       decoration: inputDecoration(
-                        context,
+                        modalContext,
                         label: 'Full name',
                         icon: Icons.badge_outlined,
                       ),
@@ -1102,18 +1119,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     TextField(
                       controller: usernameController,
                       textInputAction: TextInputAction.done,
+                      enabled: !isSaving,
                       decoration: inputDecoration(
-                        context,
+                        modalContext,
                         label: 'Username',
                         icon: Icons.alternate_email_rounded,
                       ),
                       onSubmitted: (_) {
-                        if (!isSaving) saveProfile();
+                        if (!isSaving) {
+                          saveProfile();
+                        }
                       },
                     ),
                     const SizedBox(height: 18),
                     buildPrimarySheetButton(
-                      context,
+                      modalContext,
                       label: isSaving ? 'Saving...' : 'Save changes',
                       icon: Icons.check_rounded,
                       onPressed: isSaving ? null : saveProfile,
@@ -1125,6 +1145,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         },
       );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (updatedUser != null) {
+        setState(() {
+          user = updatedUser;
+        });
+
+        widget.onUserUpdated?.call(updatedUser);
+
+        showMessage('Profile updated.');
+        return;
+      }
+
+      if (openPhotoSheetAfterClose) {
+        await showProfilePhotoSheet();
+      }
     } finally {
       usernameController.dispose();
       fullNameController.dispose();

@@ -1797,7 +1797,7 @@ class _InvitePreviewCard extends StatelessWidget {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: 1),
       duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutBack,
+      curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         return Transform.scale(
           scale: 0.94 + (value * 0.06),
