@@ -1233,6 +1233,7 @@ class _HeroMetric extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _TeamsTopBar extends StatelessWidget {
   final bool showBackButton;
   final VoidCallback onBackPressed;
@@ -1312,6 +1313,7 @@ class _TeamsTopBar extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _TeamsOverviewRow extends StatelessWidget {
   final int teamCount;
   final int memberCount;
