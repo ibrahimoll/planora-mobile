@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/network/api_client.dart';
 import '../auth/data/project_api.dart';
@@ -1217,6 +1218,84 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
     return Icons.bolt_rounded;
   }
 
+  Widget projectMemberAvatar(ProjectMemberModel member, {double size = 40}) {
+    final imageUrl = member.profilePic?.trim();
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.outlineVariant.withOpacity(.65)),
+      ),
+      child: ClipOval(
+        child: imageUrl == null || imageUrl.isEmpty
+            ? projectMemberAvatarFallback(member)
+            : projectMemberImage(
+                member: member,
+                imageUrl: imageUrl,
+                size: size,
+              ),
+      ),
+    );
+  }
+
+  Widget projectMemberImage({
+    required ProjectMemberModel member,
+    required String imageUrl,
+    required double size,
+  }) {
+    final parsedUri = Uri.tryParse(imageUrl);
+    final imagePath = (parsedUri?.path ?? imageUrl).toLowerCase();
+    final isSvg = imagePath.endsWith('.svg');
+
+    if (isSvg) {
+      return SvgPicture.network(
+        imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        placeholderBuilder: (_) {
+          return projectMemberAvatarFallback(member);
+        },
+      );
+    }
+
+    return Image.network(
+      imageUrl,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (_, error, stackTrace) {
+        debugPrint(
+          'Project member profile picture failed to load: '
+          '$imageUrl — $error',
+        );
+
+        return projectMemberAvatarFallback(member);
+      },
+    );
+  }
+
+  Widget projectMemberAvatarFallback(ProjectMemberModel member) {
+    final colors = Theme.of(context).colorScheme;
+
+    return ColoredBox(
+      color: colors.primary.withOpacity(.12),
+      child: Center(
+        child: Text(
+          member.initials,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: colors.primary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget membersCard() {
     return sectionCard(
       'Members',
@@ -1230,7 +1309,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
-                  CircleAvatar(child: Text(member.initials)),
+                  projectMemberAvatar(member),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(

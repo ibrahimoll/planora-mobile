@@ -1,3 +1,5 @@
+import '../../../core/config/app_config.dart';
+
 class ProjectModel {
   final int projectId;
   final int createdBy;
@@ -189,12 +191,21 @@ class UserSummaryModel {
         json['fullName'],
         json['name'],
       ]),
-      profilePic: _firstNonEmptyString([
-        json['profile_pic'],
-        json['profilePic'],
-        json['avatar_url'],
-        json['avatar'],
-      ]),
+      profilePic: _normalizeProfilePic(
+        _firstNonEmptyString([
+          json['profile_pic'],
+          json['profilePic'],
+          json['profile_pic_url'],
+          json['profile_picture'],
+          json['profilePicture'],
+          json['profile_picture_url'],
+          json['avatar_url'],
+          json['avatarUrl'],
+          json['avatar'],
+          json['image_url'],
+          json['imageUrl'],
+        ]),
+      ),
     );
   }
 
@@ -227,6 +238,30 @@ class UserSummaryModel {
     }
 
     return label[0].toUpperCase();
+  }
+
+  static String? _normalizeProfilePic(String? value) {
+    final trimmed = value?.trim();
+
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(trimmed);
+
+    if (uri != null && uri.hasScheme) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('//')) {
+      return 'https:$trimmed';
+    }
+
+    if (trimmed.startsWith('/')) {
+      return '${AppConfig.apiBaseUrl}$trimmed';
+    }
+
+    return '${AppConfig.apiBaseUrl}/$trimmed';
   }
 
   static int? _parseOptionalInt(dynamic value) {
