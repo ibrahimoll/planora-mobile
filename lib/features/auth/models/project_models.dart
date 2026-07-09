@@ -264,30 +264,6 @@ class UserSummaryModel {
     return label[0].toUpperCase();
   }
 
-  static String? _normalizeProfilePic(String? value) {
-    final trimmed = value?.trim();
-
-    if (trimmed == null || trimmed.isEmpty) {
-      return null;
-    }
-
-    final uri = Uri.tryParse(trimmed);
-
-    if (uri != null && uri.hasScheme) {
-      return trimmed;
-    }
-
-    if (trimmed.startsWith('//')) {
-      return 'https:$trimmed';
-    }
-
-    if (trimmed.startsWith('/')) {
-      return '${AppConfig.apiBaseUrl}$trimmed';
-    }
-
-    return '${AppConfig.apiBaseUrl}/$trimmed';
-  }
-
   static int? _parseOptionalInt(dynamic value) {
     if (value == null) {
       return null;
