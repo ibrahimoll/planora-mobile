@@ -621,14 +621,68 @@ class _TeamsScreenState extends State<TeamsScreen> {
     var role = 'member';
     var isSaving = false;
 
-    await showModalBottomSheet<void>(
+    Future<void>? modalClosed;
+
+    final invitedUsername = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        final route = ModalRoute.of(sheetContext);
+
+        if (route != null) {
+          modalClosed ??= route.completed.then<void>((_) {});
+        }
+
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            Future<void> submitInvite() async {
+              final username = controller.text.trim();
+
+              if (username.isEmpty || isSaving) {
+                if (username.isEmpty && mounted) {
+                  showSnack('Enter a username first.');
+                }
+
+                return;
+              }
+
+              setSheetState(() {
+                isSaving = true;
+              });
+
+              try {
+                await widget.teamsApi.inviteUser(
+                  teamId: team.teamId,
+                  username: username,
+                  role: role,
+                );
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(sheetContext).pop(username);
+              } catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                setSheetState(() {
+                  isSaving = false;
+                });
+
+                if (!mounted) {
+                  return;
+                }
+
+                showSnack(
+                  _apiMessage(error, fallback: 'Could not send invitation.'),
+                );
+              }
+            }
+
             return _ModalContainer(
               title: 'Create an invitation',
               subtitle: 'Give someone a place inside ${team.name}.',
@@ -643,11 +697,18 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     hintText: 'Enter their username',
                     icon: Icons.alternate_email_rounded,
                     textInputAction: TextInputAction.done,
+                    onSubmitted: (_) async {
+                      await submitInvite();
+                    },
                   ),
                   const SizedBox(height: 18),
                   _InviteRoleSelector(
                     selectedRole: role,
                     onChanged: (value) {
+                      if (isSaving) {
+                        return;
+                      }
+
                       setSheetState(() {
                         role = value;
                       });
@@ -662,53 +723,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     onPressed: isSaving
                         ? null
                         : () async {
-                            final username = controller.text.trim();
-
-                            if (username.isEmpty) {
-                              showSnack('Enter a username first.');
-                              return;
-                            }
-
-                            setSheetState(() {
-                              isSaving = true;
-                            });
-
-                            try {
-                              await widget.teamsApi.inviteUser(
-                                teamId: team.teamId,
-                                username: username,
-                                role: role,
-                              );
-
-                              if (!mounted || !sheetContext.mounted) {
-                                return;
-                              }
-
-                              Navigator.of(sheetContext).pop();
-
-                              await loadTeams(showLoading: false);
-
-                              if (!mounted) {
-                                return;
-                              }
-
-                              showSnack('Invitation sent to @$username.');
-                            } catch (error) {
-                              if (!mounted || !sheetContext.mounted) {
-                                return;
-                              }
-
-                              setSheetState(() {
-                                isSaving = false;
-                              });
-
-                              showSnack(
-                                _apiMessage(
-                                  error,
-                                  fallback: 'Could not send invitation.',
-                                ),
-                              );
-                            }
+                            await submitInvite();
                           },
                   ),
                 ],
@@ -719,7 +734,25 @@ class _TeamsScreenState extends State<TeamsScreen> {
       },
     );
 
+    if (modalClosed != null) {
+      await modalClosed;
+    }
+
     controller.dispose();
+
+    if (invitedUsername == null || !mounted) {
+      return;
+    }
+
+    widget.onTeamsChanged?.call();
+
+    await loadTeams(showLoading: false);
+
+    if (!mounted) {
+      return;
+    }
+
+    showSnack('Invitation sent to @$invitedUsername.');
   }
 
   Future<void> openTeamActionsSheet(TeamModel team) async {

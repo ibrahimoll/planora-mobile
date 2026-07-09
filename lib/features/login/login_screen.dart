@@ -9,6 +9,7 @@ import '../auth/shared/auth_widgets.dart';
 import '../forgot_password/forgot_password_screen.dart';
 import '../register/register_screen.dart';
 import 'package:mobile/features/auth/data/google_auth_service.dart';
+import '../email_verification/email_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -120,19 +121,42 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
-      _showMessage(error.message);
-    } catch (error, stackTrace) {
-      debugPrint('Login failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
 
-      if (!mounted) return;
-      _showMessage('Login failed. Please try again.');
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+      final needsVerification =
+          error.statusCode == 403 &&
+          error.message.trim().toLowerCase() == 'email is not verified.';
+
+      if (needsVerification) {
+        if (!identifier.contains('@')) {
+          _showMessage(
+            'Your email is not verified. Sign in using your email address to continue.',
+          );
+          return;
+        }
+
+        try {
+          await AuthApi.resendVerificationCode(email: identifier);
+        } on ApiException catch (resendError) {
+          if (!mounted) return;
+          _showMessage(resendError.message);
+          return;
+        }
+
+        if (!mounted) return;
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => EmailVerificationScreen(
+              onThemeToggle: widget.onThemeToggle,
+              email: identifier,
+            ),
+          ),
+        );
+
+        return;
       }
+
+      _showMessage(error.message);
     }
   }
 
