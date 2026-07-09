@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
 import '../auth/data/auth_api.dart';
 import '../auth/shared/auth_responsive_metrics.dart';
 import '../auth/shared/auth_widgets.dart';
-import '../login/login_screen.dart';
+import '../../core/storage/token_storage.dart';
+import '../auth/auth_gate.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final VoidCallback onThemeToggle;
@@ -145,15 +145,20 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     });
 
     try {
-      await AuthApi.verifyEmail(email: widget.email, code: code);
+      final tokenResponse = await AuthApi.verifyEmail(
+        email: widget.email,
+        code: code,
+      );
+
+      await TokenStorage.saveAccessToken(tokenResponse.accessToken);
 
       if (!mounted) return;
 
-      _showMessage('Email verified. Please sign in.');
+      _showMessage('Email verified successfully.');
 
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => LoginScreen(onThemeToggle: widget.onThemeToggle),
+          builder: (_) => AuthGate(onThemeToggle: widget.onThemeToggle),
         ),
         (_) => false,
       );

@@ -36,7 +36,7 @@ class AuthApi {
     return MessageResponse.fromJson(data as Map<String, dynamic>);
   }
 
-  static Future<MessageResponse> verifyEmail({
+  static Future<TokenResponse> verifyEmail({
     required String email,
     required String code,
   }) async {
@@ -46,7 +46,7 @@ class AuthApi {
       requiresAuth: false,
     );
 
-    return MessageResponse.fromJson(data as Map<String, dynamic>);
+    return TokenResponse.fromJson(data as Map<String, dynamic>);
   }
 
   static Future<MessageResponse> resendVerificationCode({
