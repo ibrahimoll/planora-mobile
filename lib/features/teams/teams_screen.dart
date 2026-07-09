@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../core/theme/planora_theme.dart';
+import '../../core/ui/planora_ui.dart';
 import '../auth/data/project_api.dart';
 import '../auth/models/project_models.dart';
 import '../tasks/data/tasks_api.dart';
@@ -12,9 +13,13 @@ class TeamsScreen extends StatefulWidget {
   final TeamsApi teamsApi;
   final ProjectsApi projectsApi;
   final TasksApi tasksApi;
+
   final bool showBackButton;
   final bool openInvitations;
+
   final VoidCallback? onTeamsChanged;
+  final VoidCallback? onBack;
+
   final int? currentUserId;
 
   const TeamsScreen({
@@ -26,6 +31,7 @@ class TeamsScreen extends StatefulWidget {
     this.openInvitations = false,
     this.onTeamsChanged,
     this.currentUserId,
+    this.onBack,
   });
 
   @override
@@ -88,24 +94,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 project.statusLabel.toLowerCase().contains(query),
           );
     }).toList();
-  }
-
-  int get totalMembers {
-    return statsByTeamId.values.fold(
-      0,
-      (sum, stats) => sum + stats.memberCount,
-    );
-  }
-
-  int get totalPlans {
-    return statsByTeamId.values.fold(
-      0,
-      (sum, stats) => sum + stats.projectCount,
-    );
-  }
-
-  int get totalTasks {
-    return statsByTeamId.values.fold(0, (sum, stats) => sum + stats.taskCount);
   }
 
   Future<void> loadTeams({bool showLoading = true}) async {
@@ -207,85 +195,71 @@ class _TeamsScreenState extends State<TeamsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = RefreshIndicator(
-      color: Theme.of(context).colorScheme.primary,
+    final page = PlanoraPage(
+      title: 'Teams',
+      subtitle: 'Manage members, invitations, and shared plans',
+      onBack: widget.showBackButton
+          ? () => Navigator.of(context).maybePop()
+          : widget.onBack,
       onRefresh: () => loadTeams(showLoading: false),
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(
-          parent: BouncingScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(
+        PlanoraSpacing.pageHorizontal,
+        PlanoraSpacing.pageTop,
+        PlanoraSpacing.pageHorizontal,
+        widget.showBackButton ? PlanoraSpacing.pageBottom : 110,
+      ),
+      actions: [
+        PlanoraIconButton(
+          icon: Icons.add_rounded,
+          tooltip: 'Create team',
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          iconColor: Colors.white,
+          onTap: openCreateTeamSheet,
         ),
-        padding: EdgeInsets.fromLTRB(
-          20,
-          widget.showBackButton ? 18 : 20,
-          20,
-          widget.showBackButton ? 30 : 110,
-        ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 540),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _TeamsHero(
-                    showBackButton: widget.showBackButton,
-                    onBackPressed: () => Navigator.of(context).maybePop(),
-                    onCreatePressed: openCreateTeamSheet,
-                    inviteCount: pendingInvitations.length,
-                    teamCount: teams.length,
-                    memberCount: totalMembers,
-                    planCount: totalPlans,
-                    taskCount: totalTasks,
+          _SearchField(
+            controller: searchController,
+            onChanged: (value) {
+              setState(() => searchQuery = value);
+            },
+            onClear: clearSearch,
+          ),
+          const SizedBox(height: 14),
+          _SegmentedTabs(
+            selectedIndex: selectedTab,
+            invitationCount: pendingInvitations.length,
+            onChanged: (index) {
+              setState(() => selectedTab = index);
+            },
+          ),
+          const SizedBox(height: 20),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            child: selectedTab == 0
+                ? Column(
+                    key: const ValueKey('teams'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: buildTeamContent(),
+                  )
+                : Column(
+                    key: const ValueKey('invitations'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: buildInvitationContent(),
                   ),
-                  const SizedBox(height: 18),
-                  _SearchField(
-                    controller: searchController,
-                    onChanged: (value) => setState(() => searchQuery = value),
-                    onClear: clearSearch,
-                  ),
-                  const SizedBox(height: 14),
-                  _SegmentedTabs(
-                    selectedIndex: selectedTab,
-                    invitationCount: pendingInvitations.length,
-                    onChanged: (index) => setState(() => selectedTab = index),
-                  ),
-                  const SizedBox(height: 20),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    child: selectedTab == 0
-                        ? Column(
-                            key: const ValueKey('teams'),
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: buildTeamContent(),
-                          )
-                        : Column(
-                            key: const ValueKey('invitations'),
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: buildInvitationContent(),
-                          ),
-                  ),
-                ],
-              ),
-            ),
           ),
         ],
       ),
     );
 
     if (!widget.showBackButton) {
-      return Material(type: MaterialType.transparency, child: content);
+      return Material(type: MaterialType.transparency, child: page);
     }
 
-    return Scaffold(
-      backgroundColor: _pageBackground(context),
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: PlanoraTheme.onboardingBackgroundFor(context),
-        ),
-        child: SafeArea(bottom: false, child: content),
-      ),
-    );
+    return PlanoraScaffold(child: page);
   }
 
   List<Widget> buildTeamContent() {
@@ -894,348 +868,6 @@ class _TeamsScreenState extends State<TeamsScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
-  }
-}
-
-class _TeamsHero extends StatefulWidget {
-  final bool showBackButton;
-  final VoidCallback onBackPressed;
-  final VoidCallback onCreatePressed;
-  final int inviteCount;
-  final int teamCount;
-  final int memberCount;
-  final int planCount;
-  final int taskCount;
-
-  const _TeamsHero({
-    required this.showBackButton,
-    required this.onBackPressed,
-    required this.onCreatePressed,
-    required this.inviteCount,
-    required this.teamCount,
-    required this.memberCount,
-    required this.planCount,
-    required this.taskCount,
-  });
-
-  @override
-  State<_TeamsHero> createState() => _TeamsHeroState();
-}
-
-class _TeamsHeroState extends State<_TeamsHero>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController animationController;
-
-  @override
-  void initState() {
-    super.initState();
-
-    animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    animationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animationController,
-      builder: (context, child) {
-        final animationValue = Curves.easeInOut.transform(
-          animationController.value,
-        );
-
-        return Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            gradient: PlanoraTheme.primaryGradientFor(context),
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: PlanoraTheme.floatingShadowFor(context),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -45,
-                top: -50 + (animationValue * 12),
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Positioned(
-                left: -60,
-                bottom: -85 - (animationValue * 10),
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 80,
-                bottom: 55 + (animationValue * 6),
-                child: Transform.rotate(
-                  angle: -0.2,
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 30,
-                    color: Colors.white.withOpacity(0.12),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _HeroIconButton(
-                          icon: widget.showBackButton
-                              ? Icons.arrow_back_rounded
-                              : Icons.groups_2_rounded,
-                          onTap: widget.showBackButton
-                              ? widget.onBackPressed
-                              : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Your teams',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                'Build together. Deliver with clarity.',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Colors.white.withOpacity(0.76),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        _HeroCreateButton(onTap: widget.onCreatePressed),
-                      ],
-                    ),
-                    if (widget.inviteCount > 0) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.13),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.18),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.auto_awesome_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 7),
-                            Flexible(
-                              child: Text(
-                                '${widget.inviteCount} special invitation'
-                                '${widget.inviteCount == 1 ? '' : 's'} waiting',
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _HeroMetric(
-                            icon: Icons.groups_2_outlined,
-                            value: widget.teamCount,
-                            label: 'Teams',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _HeroMetric(
-                            icon: Icons.person_outline_rounded,
-                            value: widget.memberCount,
-                            label: 'People',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _HeroMetric(
-                            icon: Icons.folder_copy_outlined,
-                            value: widget.planCount,
-                            label: 'Plans',
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _HeroMetric(
-                            icon: Icons.check_box_outlined,
-                            value: widget.taskCount,
-                            label: 'Tasks',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _HeroIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  const _HeroIconButton({required this.icon, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withOpacity(0.14),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          width: 46,
-          height: 46,
-          child: Icon(icon, color: Colors.white, size: 22),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroCreateButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _HeroCreateButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.add_rounded,
-                size: 19,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'New',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeroMetric extends StatelessWidget {
-  final IconData icon;
-  final int value;
-  final String label;
-
-  const _HeroMetric({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.11),
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white.withOpacity(0.82), size: 17),
-          const SizedBox(height: 5),
-          Text(
-            value.toString(),
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white.withOpacity(0.70),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -2917,12 +2549,6 @@ BoxDecoration _cardDecoration(BuildContext context, {double radius = 20}) {
     ),
     boxShadow: PlanoraTheme.cardShadowFor(context),
   );
-}
-
-Color _pageBackground(BuildContext context) {
-  return PlanoraTheme.isDark(context)
-      ? PlanoraTheme.darkBackground
-      : PlanoraTheme.background;
 }
 
 Color _surfaceColor(BuildContext context) {

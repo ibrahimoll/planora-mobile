@@ -302,6 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       case 4:
         return TeamsScreen(
+          onBack: () => setState(() => selectedIndex = 0),
           currentUserId: widget.user.userId,
           onTeamsChanged: () {
             loadDashboardData();
