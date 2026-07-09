@@ -158,13 +158,17 @@ class ProjectsApi {
   ) async {
     final response = await ApiClient.get(_projectMembersPath(project));
 
+    debugPrint('PROJECT MEMBERS RAW RESPONSE: $response');
+
     if (response is! List) {
       return [];
     }
 
     return response
         .map(
-          (item) => ProjectMemberModel.fromJson(item as Map<String, dynamic>),
+          (item) => ProjectMemberModel.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          ),
         )
         .toList();
   }

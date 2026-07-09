@@ -181,6 +181,30 @@ class UserSummaryModel {
     required this.profilePic,
   });
 
+  static String? _normalizeProfilePic(String? value) {
+    final trimmed = value?.trim();
+
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+
+    if (trimmed.startsWith('//')) {
+      return 'https:$trimmed';
+    }
+
+    final uri = Uri.tryParse(trimmed);
+
+    if (uri != null && uri.hasScheme) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/')) {
+      return '${AppConfig.apiBaseUrl}$trimmed';
+    }
+
+    return '${AppConfig.apiBaseUrl}/$trimmed';
+  }
+
   factory UserSummaryModel.fromJson(Map<String, dynamic> json) {
     return UserSummaryModel(
       userId: _parseOptionalInt(json['user_id'] ?? json['id']),
@@ -305,17 +329,99 @@ class ProjectMemberModel {
   });
 
   factory ProjectMemberModel.fromJson(Map<String, dynamic> json) {
-    final user = json['user'];
+    final rawUser = json['user'];
+
+    final userJson = rawUser is Map
+        ? Map<String, dynamic>.from(rawUser)
+        : <String, dynamic>{};
+
+    dynamic firstValue(List<dynamic> values) {
+      for (final value in values) {
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+
+        if (value != null && value is! String) {
+          return value;
+        }
+      }
+
+      return null;
+    }
+
+    userJson['user_id'] = firstValue([
+      userJson['user_id'],
+      userJson['id'],
+      json['user_id'],
+      json['member_user_id'],
+    ]);
+
+    userJson['username'] = firstValue([
+      userJson['username'],
+      json['username'],
+      json['user_username'],
+    ]);
+
+    userJson['email'] = firstValue([
+      userJson['email'],
+      json['email'],
+      json['user_email'],
+    ]);
+
+    userJson['full_name'] = firstValue([
+      userJson['full_name'],
+      userJson['fullName'],
+      userJson['name'],
+      json['full_name'],
+      json['fullName'],
+      json['name'],
+      json['user_full_name'],
+    ]);
+
+    userJson['profile_pic'] = firstValue([
+      userJson['profile_pic'],
+      userJson['profilePic'],
+      userJson['profile_pic_url'],
+      userJson['profile_picture'],
+      userJson['profilePicture'],
+      userJson['profile_picture_url'],
+      userJson['avatar_url'],
+      userJson['avatarUrl'],
+      userJson['avatar'],
+      userJson['image_url'],
+      userJson['imageUrl'],
+
+      json['profile_pic'],
+      json['profilePic'],
+      json['profile_pic_url'],
+      json['profile_picture'],
+      json['profilePicture'],
+      json['profile_picture_url'],
+      json['avatar_url'],
+      json['avatarUrl'],
+      json['avatar'],
+      json['image_url'],
+      json['imageUrl'],
+      json['user_profile_pic'],
+      json['user_profile_picture'],
+      json['user_avatar_url'],
+    ]);
+
+    final userId =
+        int.tryParse(
+          (json['user_id'] ?? userJson['user_id'] ?? 0).toString(),
+        ) ??
+        0;
 
     return ProjectMemberModel(
-      memberId: json['member_id'] as int,
-      projectId: json['project_id'] as int,
-      userId: json['user_id'] as int,
-      role: json['role'] as String,
-      joinedAt: DateTime.parse(json['joined_at'] as String),
-      user: user is Map<String, dynamic>
-          ? UserSummaryModel.fromJson(user)
-          : null,
+      memberId: int.parse(json['member_id'].toString()),
+      projectId: int.parse(json['project_id'].toString()),
+      userId: userId,
+      role: json['role']?.toString() ?? 'member',
+      joinedAt:
+          DateTime.tryParse(json['joined_at']?.toString() ?? '') ??
+          DateTime.now(),
+      user: UserSummaryModel.fromJson(userJson),
     );
   }
 
