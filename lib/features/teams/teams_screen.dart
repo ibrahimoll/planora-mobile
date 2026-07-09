@@ -400,14 +400,60 @@ class _TeamsScreenState extends State<TeamsScreen> {
     final controller = TextEditingController();
     var isSaving = false;
 
-    await showModalBottomSheet<void>(
+    Future<void>? modalClosed;
+
+    final createdTeamName = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        final route = ModalRoute.of(sheetContext);
+
+        if (route != null) {
+          modalClosed ??= route.completed.then<void>((_) {});
+        }
+
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            Future<void> submitCreate() async {
+              final name = controller.text.trim();
+
+              if (name.isEmpty || isSaving) {
+                return;
+              }
+
+              setSheetState(() {
+                isSaving = true;
+              });
+
+              try {
+                await widget.teamsApi.createTeam(name);
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(sheetContext).pop(name);
+              } catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                setSheetState(() {
+                  isSaving = false;
+                });
+
+                if (!mounted) {
+                  return;
+                }
+
+                showSnack(
+                  _apiMessage(error, fallback: 'Could not create team.'),
+                );
+              }
+            }
+
             return _ModalContainer(
               title: 'Create team',
               subtitle:
@@ -421,13 +467,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     icon: Icons.groups_2_outlined,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) async {
-                      await submitCreateTeam(
-                        controller: controller,
-                        setSheetState: setSheetState,
-                        sheetContext: sheetContext,
-                        isSaving: isSaving,
-                        onSavingChanged: (value) => isSaving = value,
-                      );
+                      await submitCreate();
                     },
                   ),
                   const SizedBox(height: 18),
@@ -437,13 +477,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     onPressed: isSaving
                         ? null
                         : () async {
-                            await submitCreateTeam(
-                              controller: controller,
-                              setSheetState: setSheetState,
-                              sheetContext: sheetContext,
-                              isSaving: isSaving,
-                              onSavingChanged: (value) => isSaving = value,
-                            );
+                            await submitCreate();
                           },
                   ),
                 ],
@@ -454,51 +488,25 @@ class _TeamsScreenState extends State<TeamsScreen> {
       },
     );
 
+    if (modalClosed != null) {
+      await modalClosed;
+    }
+
     controller.dispose();
-  }
 
-  Future<void> submitCreateTeam({
-    required TextEditingController controller,
-    required StateSetter setSheetState,
-    required BuildContext sheetContext,
-    required bool isSaving,
-    required ValueChanged<bool> onSavingChanged,
-  }) async {
-    final name = controller.text.trim();
-
-    if (name.isEmpty || isSaving) {
+    if (createdTeamName == null || !mounted) {
       return;
     }
 
-    setSheetState(() {
-      onSavingChanged(true);
-    });
+    widget.onTeamsChanged?.call();
 
-    try {
-      await widget.teamsApi.createTeam(name);
+    await loadTeams(showLoading: false);
 
-      if (!mounted || !sheetContext.mounted) {
-        return;
-      }
-
-      Navigator.of(sheetContext).pop();
-      widget.onTeamsChanged?.call();
-      await loadTeams(showLoading: false);
-
-      if (!mounted) return;
-
-      showSnack('Team created.');
-    } catch (error) {
-      if (!mounted || !sheetContext.mounted) {
-        return;
-      }
-
-      setSheetState(() {
-        onSavingChanged(false);
-      });
-
-      showSnack(_apiMessage(error, fallback: 'Could not create team.'));
+    if (!mounted) {
+      return;
     }
+
+    showSnack('Team "$createdTeamName" created.');
   }
 
   Future<void> openRenameTeamSheet(TeamModel team) async {
