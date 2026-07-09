@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/theme/planora_theme.dart';
@@ -28,7 +28,6 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   static const Duration _commentPollingInterval = Duration(seconds: 12);
 
   final TasksApi _tasksApi = const TasksApi();
-  final ImagePicker _imagePicker = ImagePicker();
 
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
@@ -1835,7 +1834,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 : Icon(Icons.cloud_upload_outlined, color: color, size: 30),
             const SizedBox(height: 10),
             Text(
-              isUploadingAttachment ? 'Uploading...' : 'Upload Image',
+              isUploadingAttachment ? 'Uploading...' : 'Upload File',
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -1852,18 +1851,42 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> pickAndUploadAttachment() async {
     try {
-      final pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 92,
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const [
+          'pdf',
+          'png',
+          'jpg',
+          'jpeg',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'zip',
+        ],
+        allowMultiple: false,
       );
 
-      if (pickedFile == null) {
+      if (result == null || result.files.isEmpty) {
         return;
       }
 
-      if (!mounted) {
+      final selectedFile = result.files.single;
+      final filePath = selectedFile.path;
+
+      if (filePath == null || filePath.trim().isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not access the selected file.')),
+        );
         return;
       }
+
+      if (!mounted) return;
 
       setState(() {
         isUploadingAttachment = true;
@@ -1873,13 +1896,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       final attachment = await _tasksApi.uploadTaskAttachment(
         project: taskItem.project,
         taskId: taskItem.task.taskId,
-        filePath: pickedFile.path,
-        fileName: pickedFile.name,
+        filePath: filePath,
+        fileName: selectedFile.name,
       );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         attachments = [...attachments, attachment];
@@ -1893,9 +1914,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       debugPrint('Attachment upload failed: $error');
       debugPrintStack(stackTrace: stackTrace);
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         isUploadingAttachment = false;
