@@ -9,6 +9,8 @@ import '../tasks/data/tasks_api.dart';
 import '../tasks/models/task_models.dart';
 import 'data/teams_api.dart';
 
+enum _TeamAction { details, invite, rename, delete }
+
 class TeamsScreen extends StatefulWidget {
   final TeamsApi teamsApi;
   final ProjectsApi projectsApi;
@@ -503,14 +505,64 @@ class _TeamsScreenState extends State<TeamsScreen> {
     final controller = TextEditingController(text: team.name);
     var isSaving = false;
 
-    await showModalBottomSheet<void>(
+    Future<void>? modalClosed;
+
+    final wasRenamed = await showModalBottomSheet<bool>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        final route = ModalRoute.of(sheetContext);
+
+        if (route != null) {
+          modalClosed ??= route.completed.then<void>((_) {});
+        }
+
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            Future<void> submitRename() async {
+              final name = controller.text.trim();
+
+              if (name.isEmpty || isSaving) {
+                return;
+              }
+
+              if (name == team.name.trim()) {
+                Navigator.of(sheetContext).pop(false);
+                return;
+              }
+
+              setSheetState(() {
+                isSaving = true;
+              });
+
+              try {
+                await widget.teamsApi.updateTeam(
+                  teamId: team.teamId,
+                  name: name,
+                );
+
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(sheetContext).pop(true);
+              } catch (error) {
+                if (!sheetContext.mounted) {
+                  return;
+                }
+
+                setSheetState(() {
+                  isSaving = false;
+                });
+
+                showSnack(
+                  _apiMessage(error, fallback: 'Could not update team.'),
+                );
+              }
+            }
+
             return _ModalContainer(
               title: 'Rename team',
               subtitle: 'Update this workspace name.',
@@ -522,6 +574,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     hintText: 'Team name',
                     icon: Icons.edit_outlined,
                     textInputAction: TextInputAction.done,
+                    onSubmitted: (_) async {
+                      await submitRename();
+                    },
                   ),
                   const SizedBox(height: 18),
                   _PrimarySheetButton(
@@ -530,44 +585,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                     onPressed: isSaving
                         ? null
                         : () async {
-                            final name = controller.text.trim();
-
-                            if (name.isEmpty) {
-                              return;
-                            }
-
-                            setSheetState(() => isSaving = true);
-
-                            try {
-                              await widget.teamsApi.updateTeam(
-                                teamId: team.teamId,
-                                name: name,
-                              );
-
-                              if (!mounted || !sheetContext.mounted) {
-                                return;
-                              }
-
-                              Navigator.of(sheetContext).pop();
-                              widget.onTeamsChanged?.call();
-                              await loadTeams(showLoading: false);
-
-                              if (!mounted) return;
-
-                              showSnack('Team updated.');
-                            } catch (error) {
-                              if (!mounted || !sheetContext.mounted) {
-                                return;
-                              }
-
-                              setSheetState(() => isSaving = false);
-                              showSnack(
-                                _apiMessage(
-                                  error,
-                                  fallback: 'Could not update team.',
-                                ),
-                              );
-                            }
+                            await submitRename();
                           },
                   ),
                 ],
@@ -578,7 +596,24 @@ class _TeamsScreenState extends State<TeamsScreen> {
       },
     );
 
+    if (modalClosed != null) {
+      await modalClosed;
+    }
+
     controller.dispose();
+
+    if (wasRenamed != true || !mounted) {
+      return;
+    }
+
+    widget.onTeamsChanged?.call();
+    await loadTeams(showLoading: false);
+
+    if (!mounted) {
+      return;
+    }
+
+    showSnack('Team updated.');
   }
 
   Future<void> openInviteMemberSheet(TeamModel team) async {
@@ -690,11 +725,19 @@ class _TeamsScreenState extends State<TeamsScreen> {
   Future<void> openTeamActionsSheet(TeamModel team) async {
     final canManage = canManageTeam(team);
 
-    await showModalBottomSheet<void>(
+    Future<void>? modalClosed;
+
+    final action = await showModalBottomSheet<_TeamAction>(
       context: context,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
+        final route = ModalRoute.of(sheetContext);
+
+        if (route != null) {
+          modalClosed ??= route.completed.then<void>((_) {});
+        }
+
         return _ModalContainer(
           title: team.name,
           subtitle: canManage ? 'Manage team workspace.' : 'Team actions',
@@ -705,8 +748,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 title: 'View details',
                 subtitle: 'Members, plans, and task progress',
                 onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  openTeamDetailsSheet(team);
+                  Navigator.of(sheetContext).pop(_TeamAction.details);
                 },
               ),
               if (canManage) ...[
@@ -715,8 +757,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   title: 'Invite member',
                   subtitle: 'Add someone to this team',
                   onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    openInviteMemberSheet(team);
+                    Navigator.of(sheetContext).pop(_TeamAction.invite);
                   },
                 ),
                 _ActionTile(
@@ -724,8 +765,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   title: 'Rename team',
                   subtitle: 'Update the workspace name',
                   onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    openRenameTeamSheet(team);
+                    Navigator.of(sheetContext).pop(_TeamAction.rename);
                   },
                 ),
                 _ActionTile(
@@ -734,8 +774,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   subtitle: 'Remove this team permanently',
                   isDestructive: true,
                   onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    confirmDeleteTeam(team);
+                    Navigator.of(sheetContext).pop(_TeamAction.delete);
                   },
                 ),
               ],
@@ -744,6 +783,32 @@ class _TeamsScreenState extends State<TeamsScreen> {
         );
       },
     );
+
+    if (modalClosed != null) {
+      await modalClosed;
+    }
+
+    if (!mounted || action == null) {
+      return;
+    }
+
+    switch (action) {
+      case _TeamAction.details:
+        await openTeamDetailsSheet(team);
+        break;
+
+      case _TeamAction.invite:
+        await openInviteMemberSheet(team);
+        break;
+
+      case _TeamAction.rename:
+        await openRenameTeamSheet(team);
+        break;
+
+      case _TeamAction.delete:
+        await confirmDeleteTeam(team);
+        break;
+    }
   }
 
   Future<void> confirmDeleteTeam(TeamModel team) async {
