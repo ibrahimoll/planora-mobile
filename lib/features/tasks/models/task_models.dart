@@ -258,23 +258,29 @@ class TaskModel {
     if (assignedTo != null) {
       for (final member in members) {
         if (member.userId == assignedTo) {
-          return member;
+          return TaskMemberPreview.fromParts(
+            userId: member.userId ?? assignedTo,
+            name: member.name ?? assignedToName,
+            email: member.email ?? assignedToEmail,
+            avatarUrl: member.avatarUrl ?? assignedToAvatarUrl,
+            fallbackLabel: member.fallbackLabel ?? assigneeLabel,
+          );
         }
       }
     }
 
     final label = assigneeLabel;
 
-    if (label == null) {
+    if (assignedTo == null && label == null) {
       return null;
     }
 
-    return TaskMemberPreview(
+    return TaskMemberPreview.fromParts(
       userId: assignedTo,
       name: assignedToName,
       email: assignedToEmail,
       avatarUrl: assignedToAvatarUrl,
-      fallbackLabel: label,
+      fallbackLabel: label ?? 'Assigned member',
     );
   }
 
@@ -458,10 +464,16 @@ class TaskModel {
     final direct = _firstNonEmptyString([
       json['assigned_to_avatar_url'],
       json['assigned_to_avatar'],
+      json['assigned_to_profile_pic'],
+      json['assigned_to_profile_picture'],
       json['assignee_avatar_url'],
       json['assignee_avatar'],
+      json['assignee_profile_pic'],
+      json['assignee_profile_picture'],
       json['assigned_user_avatar_url'],
       json['assigned_user_avatar'],
+      json['assigned_user_profile_pic'],
+      json['assigned_user_profile_picture'],
     ]);
 
     if (direct != null) {
@@ -477,10 +489,16 @@ class TaskModel {
     if (nested is Map<String, dynamic>) {
       return _firstNonEmptyString([
         nested['profile_pic'],
+        nested['profilePic'],
+        nested['profile_pic_url'],
         nested['profile_picture'],
+        nested['profilePicture'],
+        nested['profile_picture_url'],
         nested['avatar_url'],
+        nested['avatarUrl'],
         nested['avatar'],
         nested['image_url'],
+        nested['imageUrl'],
       ]);
     }
 
@@ -832,16 +850,30 @@ class TaskMemberPreview {
     ]);
     final avatarUrl = _firstNonEmptyString([
       source['profile_pic'],
+      source['profilePic'],
+      source['profile_pic_url'],
       source['profile_picture'],
+      source['profilePicture'],
+      source['profile_picture_url'],
       source['avatar_url'],
+      source['avatarUrl'],
       source['avatar'],
       source['image_url'],
+      source['imageUrl'],
+
       value['profile_pic'],
+      value['profilePic'],
+      value['profile_pic_url'],
       value['profile_picture'],
+      value['profilePicture'],
+      value['profile_picture_url'],
       value['avatar_url'],
+      value['avatarUrl'],
       value['avatar'],
       value['image_url'],
+      value['imageUrl'],
     ]);
+
     final userId = _parseOptionalInt(
       source['user_id'] ??
           source['id'] ??
