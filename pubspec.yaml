@@ -39,7 +39,6 @@ dependencies:
   slideable: ^0.0.3
   wave: ^0.2.2
   animated_bottom_navigation_bar: ^1.4.0
-  lottie: ^3.3.3
   smooth_page_indicator: ^2.0.1
   flutter_svg: ^2.3.0
   dio: ^5.9.2
@@ -51,7 +50,7 @@ dependencies:
   firebase_core: ^4.10.0
   firebase_messaging: ^16.3.0
   flutter_local_notifications: ^22.0.1
-  file_picker: ^3.0.4
+  file_picker: ^12.0.0-beta.7
 dev_dependencies:
   flutter_test:
     sdk: flutter
